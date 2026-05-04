@@ -27,6 +27,55 @@ PrioriSea includes two main components:
   + editing the exponential decay of scores
   + and more...
 
+### Commands
+
+__Prefix__: `priorisea <subcommand>`
+
+#### Subcommands:
+
+__Formulas__
+
+A formula is an [exprtk](https://github.com/ArashPartow/exprtk) expression.
+
+- `formula list` _list formulas_
+- `formula get <formula_name1> <formula_name2> ...` _get formulas_
+- `formula get <formula_name1> <formula_name2> ... --json` _get formula as array of {"name": "some_name", "formula": "some_formula"}_
+- `formula set <formula_name> "<formula>"` _edit formula_
+- `formula reset <formula_name1> <formula_name2> ...` _reset formulas_
+
+__Time ranges__
+
+`duration` is the length of the time range in seconds.
+
+- `time list` _list time ranges_
+- `time get <range_name1> <range_name2> ...` _get time ranges_
+- `time get <range_name1> <range_name2> ... --json` _get time range as array of {"name": "some_name", "cron": "some_cron", "duration": some_duration, "priority": some_priority}_
+- `time add <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _add time range_
+- `time edit <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _edit time range_
+- `time delete <range_name1> <range_name2> ...` _delete time range_
+
+__Scores__
+- `score update --new` _compute new jobs score_
+- `score update <job_id1> <job_id2> ...` _compute jobs score_
+- `score job <job_id1> <job_id2> ...` _retrieve informations about the jobs score_
+- `score job <job_id1> <job_id2> ... --json` _retrieve informations about the jobs score as array of {"job_id": some_jobid, "score": some_score}_
+- `score user <user_id1> <user_id2> ...` _retrieve informations about the users score_
+- `score user <user_id1> <user_id2> ... --json` _retrieve informations about the user score as array of {"user_id": some_userid, "score": some_score}_
+
+__Decay__
+
+A decay expression is a list of `duration:weight` separated by `,`. `duration` is the length of
+the time slot in seconds.
+
+An example expression could be: `86400:1,604800:0.5,1209600:0.25`
+
+Meaning jobs ran on the same day keep their scores, jobs ran the next seven days (between 1-8 days) have their score multiplied by 0.5, jobs ran the next seven days (between 9-16 days) have their score multiplied by 0.25
+
+- `decay get` _get decay expression_
+- `decay get --json` _get decay expression as a ordered json array of {"duration": some_duration, "weight": some_weight}_
+- `decay set "<decay_expression>"` _set decay expression, containing time slots and weights_
+- `decay reset` _reset decay expression to default value_
+
 ## Tests
 
 The testing is separated into:
