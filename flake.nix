@@ -1,0 +1,56 @@
+{
+  description = "Shell for PrioriSea";
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    systems.url = "github:nix-systems/default";
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+      inputs.systems.follows = "systems";
+    };
+    flux-core = {
+      url = "path:./nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.systems.follows = "systems";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+  };
+  outputs = {self, nixpkgs, flake-utils, flux-core, ...}:
+  flake-utils.lib.eachDefaultSystem(system:
+    let
+      pkgs = nixpkgs.legacyPackages.${system};
+      core = flux-core.packages.${system}.default;
+    in {
+      formatter = pkgs.alejandra;
+      devShells.default = pkgs.mkShell {
+        packages = [
+          pkgs.clang-tools
+          pkgs.jansson
+          pkgs.fmt
+          core
+        ];
+        shellHook = ''
+            export CPATH="$PWD/src/lib/tinyexpr:$PWD/src/common:$CPATH"
+          '';
+
+      };
+      packages.default = pkgs.stdenv.mkDerivation {
+        pname = "priorisea";
+        version = "0.1.0";
+        src = ./.;
+
+        nativeBuildInputs = with pkgs; [
+          autoreconfHook
+          pkg-config
+        ];
+
+        buildInputs  = with pkgs; [
+          core
+          jansson
+          fmt
+        ];
+
+        buildPhase = "make -j$NIX_BUILD_CORES";
+        installPhase = "make install";
+      };
+    });
+}
