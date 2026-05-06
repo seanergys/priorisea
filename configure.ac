@@ -25,6 +25,10 @@ AX_FLUX_CORE
 AC_CONFIG_FILES([
  Makefile
  src/Makefile
+ src/cmd/Makefile
+ src/common/Makefile
+ src/lib/Makefile
+ src/lib/tinyexpr/Makefile
  src/plugins/Makefile
  tests/integration/Makefile
 ])

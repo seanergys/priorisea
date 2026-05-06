@@ -1,6 +1,8 @@
-#include "exprtk.hpp"
+#include "tinyexpr.h"
+#include "util.hpp"
 #include <cerrno>
-#include <errno.h>
+#include <climits>
+#include <cstdlib>
 #include <flux/core.h>
 #include <flux/jobtap.h>
 #include <fmt/core.h>
@@ -9,29 +11,29 @@
 #include <string.h>
 #include <string>
 
-using namespace std;
-
-map<string, string> formulas;
-map<int, int> scores;
+std::map<std::string, std::string> formulas;
+std::map<int, int> scores;
 
 static bool validate_priority(const std::string &expr) {
-  /*exprtk::symbol_table<double> symbol_table;
-  exprtk::expression<double> expression;
-  exprtk::parser<double> parser;
-  double priority, score = 0;
-  symbol_table.add_variable("priority", priority);
-  symbol_table.add_variable("score", score);
-  expression.register_symbol_table(symbol_table);
-  return parser.compile(expr, expression);*/
+  double priority = 0;
+  double score = 0;
+  te_variable vars[] = {{"priority", &priority}, {"score", &score}};
+
+  int err = 0;
+  te_expr *compiled = te_compile(expr.c_str(), vars, 2, &err);
+  if (!compiled)
+    return false;
+
+  te_free(compiled);
   return true;
 }
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
   json_t *arr = NULL;
+
   if (flux_request_unpack(msg, NULL, "{s:o}", "data", &arr) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
-    // flux_log_error (h, "%s", errmsg);
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
@@ -41,71 +43,63 @@ static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  auto *res = json_array();
+  auto *res = json_object();
   size_t num_data = json_array_size(arr);
-  for (auto i = 0; i < num_data; i++) {
+
+  for (size_t i = 0; i < num_data; i++) {
     auto *elem = json_array_get(arr, i);
+
     if (!json_is_string(elem)) {
       auto errmsg = fmt::format("element {} is not a string", i);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+      json_decref(res);
       return;
     }
 
-    auto formula_name = json_string_value(elem);
+    const char *formula_name = json_string_value(elem);
     auto it = formulas.find(formula_name);
+
     if (it == formulas.end()) {
       auto errmsg = fmt::format("formula {} not found", formula_name);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+      json_decref(res);
       return;
     }
 
-    auto formula_json = json_string(it->second.c_str());
-    auto value = json_object();
-    json_object_set_new(value, "name", elem);
-    json_object_set_new(value, "formula", formula_json);
-    json_array_append_new(res, value);
+    json_object_set_new(res, formula_name, json_string(it->second.c_str()));
   }
+
   if (flux_respond_pack(h, msg, "{s:o}", "data", res) < 0) {
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
-    // flux_respond_error(h, msg, errno, errmsg.c_str());
   }
 }
 
 static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  json_t *arr = NULL;
+  json_t *obj = NULL;
 
-  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &arr) < 0) {
+  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &obj) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
 
-  if (!json_is_array(arr)) {
-    flux_respond_error(h, msg, EINVAL, "data is not an array");
+  if (!json_is_object(obj)) {
+    flux_respond_error(h, msg, EINVAL, "data is not an object");
     return;
   }
-  size_t num = json_array_size(arr);
-  for (size_t i = 0; i < num; i++) {
-    json_t *item = json_array_get(arr, i);
 
-    if (!json_is_object(item)) {
-      auto errmsg = fmt::format("element {} is not an object", i);
+  const char *name = nullptr;
+  json_t *formula_j = nullptr;
+
+  json_object_foreach(obj, name, formula_j) {
+    if (!json_is_string(formula_j)) {
+      auto errmsg = fmt::format("formula '{}' is not a string", name);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
       return;
     }
 
-    json_t *name_j = json_object_get(item, "name");
-    json_t *formula_j = json_object_get(item, "formula");
-
-    if (!json_is_string(name_j) || !json_is_string(formula_j)) {
-      auto errmsg = fmt::format("element {} missing name/formula", i);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      return;
-    }
-
-    const char *name = json_string_value(name_j);
     const char *formula = json_string_value(formula_j);
 
     if (strcmp(name, "priority") == 0) {
@@ -120,14 +114,14 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
   }
 
   flux_respond(h, msg, NULL);
-                           }
+}
 
 static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
                          const flux_msg_t *msg, void *arg) {
   json_t *arr = NULL;
+
   if (flux_request_unpack(msg, NULL, "{s:o}", "data", &arr) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
-    // flux_log_error (h, "%s", errmsg);
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
@@ -137,71 +131,92 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  auto *res = json_array();
+  auto *res = json_object();
   size_t num_data = json_array_size(arr);
-  for (auto i = 0; i < num_data; i++) {
+
+  for (size_t i = 0; i < num_data; i++) {
     auto *elem = json_array_get(arr, i);
+
     if (!json_is_integer(elem)) {
       auto errmsg = fmt::format("element {} is not an integer", i);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+      json_decref(res);
       return;
     }
-    auto user_id = json_integer_value(elem);
+
+    json_int_t user_id_j = json_integer_value(elem);
+
+    if (user_id_j < INT_MIN || user_id_j > INT_MAX) {
+      auto errmsg = fmt::format("user_id at element {} is out of int range", i);
+      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+      json_decref(res);
+      return;
+    }
+
+    int user_id = static_cast<int>(user_id_j);
     auto it = scores.find(user_id);
+
     if (it == scores.end()) {
       auto errmsg = fmt::format("user_id {} not found", user_id);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+      json_decref(res);
       return;
     }
-    auto score_json = json_integer(it->second);
-    auto value = json_object();
-    json_object_set_new(value, "user_id", elem);
-    json_object_set_new(value, "score", score_json);
-    json_array_append_new(res, value);
+
+    std::string user_id_key = std::to_string(user_id);
+    json_object_set_new(res, user_id_key.c_str(), json_integer(it->second));
   }
+
   if (flux_respond_pack(h, msg, "{s:o}", "data", res) < 0) {
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
-    // flux_respond_error(h, msg, errno, errmsg.c_str());
   }
 }
 
 static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
                          const flux_msg_t *msg, void *arg) {
-  json_t *arr = NULL;
+  json_t *obj = NULL;
 
-  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &arr) < 0) {
+  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &obj) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
-  if (!json_is_array(arr)) {
-    flux_respond_error(h, msg, EINVAL, "data is not an array");
+
+  if (!json_is_object(obj)) {
+    flux_respond_error(h, msg, EINVAL, "data is not an object");
     return;
   }
-  size_t num = json_array_size(arr);
-  for (size_t i = 0; i < num; i++) {
-    json_t *item = json_array_get(arr, i);
 
-    if (!json_is_object(item)) {
-      auto errmsg = fmt::format("element {} is not an object", i);
+  const char *user_id_key = nullptr;
+  json_t *score_j = nullptr;
+
+  json_object_foreach(obj, user_id_key, score_j) {
+    int user_id = 0;
+
+    if (!parse_int(user_id_key, user_id)) {
+      auto errmsg = fmt::format("invalid user_id key '{}'", user_id_key);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
       return;
     }
 
-    json_t *uid_j = json_object_get(item, "user_id");
-    json_t *score_j = json_object_get(item, "score");
-
-    if (!json_is_integer(uid_j) || !json_is_integer(score_j)) {
-      auto errmsg = fmt::format("element {} missing user_id/score", i);
+    if (!json_is_integer(score_j)) {
+      auto errmsg =
+          fmt::format("score for user_id {} is not an integer", user_id);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
       return;
     }
 
-    int user_id = json_integer_value(uid_j);
-    int score = json_integer_value(score_j);
+    json_int_t score_value = json_integer_value(score_j);
 
-    scores[user_id] = score;
+    if (score_value < INT_MIN || score_value > INT_MAX) {
+      auto errmsg =
+          fmt::format("score for user_id {} is out of int range", user_id);
+      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+      return;
+    }
+
+    scores[user_id] = static_cast<int>(score_value);
   }
 
   flux_respond(h, msg, NULL);

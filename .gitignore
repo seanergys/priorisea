@@ -50,4 +50,6 @@ test-driver
 configure~
 ar-lib
 *.o
+*.a
 tests/integration/test-results
+src/cmd/priorisea

@@ -1,0 +1,357 @@
+#include "formula.hpp"
+#include "tinyexpr.h"
+#include <errno.h>
+#include <flux/core.h>
+#include <iomanip>
+#include <iostream>
+#include <jansson.h>
+#include <string.h>
+#include <string>
+#include <vector>
+
+struct formula {
+  std::string name;
+  std::string expr;
+};
+
+static const formula DEFAULT_PRIORITY = {.name = "priority", .expr = "0"};
+static const formula DEFAULT_SCORE = {.name = "score", .expr = "1"};
+static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
+                                                      DEFAULT_SCORE};
+
+static const std::string USAGE_MSG =
+    "Usage: priorisea formula [-h] COMMAND ARGS";
+static const std::string HELP_MSG =
+    "Try 'priorisea formula -h' for more information.";
+
+static int run_help(int argc, char *argv[]) {
+  std::cout << USAGE_MSG << std::endl;
+  std::cout << "Manage priority scoring formulas." << std::endl;
+  std::cout << "Example: priorisea formula list" << std::endl;
+  std::cout << std::endl;
+  std::cout << "COMMAND list and interpretation:" << std::endl;
+  std::cout << "  list: list formula names" << std::endl;
+  std::cout << "  get: get formula values" << std::endl;
+  std::cout << "  set: set a formula" << std::endl;
+  std::cout << "  reset: reset formulas to default values" << std::endl;
+  return 0;
+}
+
+static const std::string LIST_USAGE_MSG =
+    "Usage: priorisea formula list [-h] [OPTIONS]";
+static const std::string LIST_HELP_MSG =
+    "Try 'priorisea formula list -h' for more information.";
+
+static int run_list(int argc, char *argv[]) {
+  bool json_flag = false;
+
+  if (argc > 0 && strcmp(argv[0], "-h") == 0) {
+    std::cout << LIST_USAGE_MSG << std::endl;
+    std::cout << "List the available priority scoring formulas." << std::endl;
+    std::cout << "Example: priorisea formula list" << std::endl;
+    std::cout << std::endl;
+    std::cout << "OPTIONS list and interpretation:" << std::endl;
+    std::cout << "  --json: output in JSON format" << std::endl;
+    return 0;
+  }
+
+  for (int i = 0; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "--json") {
+      json_flag = true;
+    } else {
+      std::cout << "Error: 'priorisea formula list " << arg
+                << "' is not a valid option" << std::endl;
+      std::cout << LIST_USAGE_MSG << std::endl;
+      std::cout << LIST_HELP_MSG << std::endl;
+      return -1;
+    }
+  }
+
+  // TODO: Retrieve the formula list from the database
+  std::vector<formula> results = {
+      formula{.name = "priority", .expr = "priority * 2"},
+      formula{.name = "score", .expr = "5"}};
+
+  if (json_flag) {
+    auto obj = json_array();
+    for (const auto &f : results) {
+      json_array_append_new(obj, json_string(f.name.c_str()));
+    }
+    std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
+    json_decref(obj);
+  } else {
+    std::string header_name = "Name";
+    std::size_t name_width = header_name.size();
+
+    for (const auto &f : results) {
+      name_width = std::max(name_width, f.name.size());
+    }
+
+    std::cout << std::left << std::setw(name_width) << header_name << '\n';
+    std::cout << std::string(name_width, '-') << '\n';
+
+    for (const auto &f : results) {
+      std::cout << std::left << std::setw(name_width) << f.name << '\n';
+    }
+
+    std::cout << std::endl;
+  }
+
+  return 0;
+}
+
+static const std::string GET_USAGE_MSG =
+    "Usage: priorisea formula get [-h] [OPTIONS] NAME [NAME...]";
+static const std::string GET_HELP_MSG =
+    "Try 'priorisea formula get -h' for more information.";
+
+static int run_get(int argc, char *argv[]) {
+  bool json_flag = false;
+  std::vector<std::string> formulas;
+
+  if (argc > 0 && strcmp(argv[0], "-h") == 0) {
+    std::cout << GET_USAGE_MSG << std::endl;
+    std::cout << "Retrieve one or more priority scoring formulas from the "
+                 "database."
+              << std::endl;
+    std::cout << "Example: priorisea formula get priority score" << std::endl;
+    std::cout << std::endl;
+    std::cout << "OPTIONS list and interpretation:" << std::endl;
+    std::cout << "  --json: output in JSON format" << std::endl;
+    return 0;
+  }
+
+  if (argc < 1) {
+    std::cout << GET_USAGE_MSG << std::endl;
+    std::cout << GET_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  for (int i = 0; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "--json") {
+      json_flag = true;
+    } else if (!arg.empty() && arg[0] == '-') {
+      std::cout << "Error: 'priorisea formula get " << arg
+                << "' is not a valid option" << std::endl;
+      std::cout << GET_USAGE_MSG << std::endl;
+      std::cout << GET_HELP_MSG << std::endl;
+      return -1;
+    } else {
+      formulas.push_back(arg);
+    }
+  }
+
+  if (formulas.empty()) {
+    std::cout << "Error: 'priorisea formula get ...'" << std::endl;
+    std::cout << "  formula name is missing" << std::endl;
+    std::cout << GET_USAGE_MSG << std::endl;
+    std::cout << GET_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  // TODO: Retrieve the formulas from the database
+  std::vector<formula> results = {
+      formula{.name = "priority", .expr = "priority * 2"},
+      formula{.name = "score", .expr = "5"}};
+
+  if (json_flag) {
+    auto obj = json_object();
+    for (const auto &f : results) {
+      json_object_set_new(obj, f.name.c_str(), json_string(f.expr.c_str()));
+    }
+    std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
+    json_decref(obj);
+  } else {
+    std::string header_name = "Name";
+    std::string header_expr = "Formula";
+    std::size_t name_width = header_name.size();
+    std::size_t expr_width = header_expr.size();
+
+    for (const auto &f : results) {
+      name_width = std::max(name_width, f.name.size());
+      expr_width = std::max(expr_width, f.expr.size());
+    }
+
+    std::cout << std::left << std::setw(name_width) << header_name << " | "
+              << std::setw(expr_width) << header_expr << '\n';
+
+    std::cout << std::string(name_width, '-') << "-+-"
+              << std::string(expr_width, '-') << '\n';
+
+    for (const auto &f : results) {
+      std::cout << std::left << std::setw(name_width) << f.name << " | "
+                << std::setw(expr_width) << f.expr << '\n';
+    }
+
+    std::cout << std::endl;
+  }
+
+  return 0;
+}
+
+static const std::string SET_USAGE_MSG =
+    "Usage: priorisea formula set [-h] NAME FORMULA";
+static const std::string SET_HELP_MSG =
+    "Try 'priorisea formula set -h' for more information.";
+
+static int run_set(int argc, char *argv[]) {
+  if (argc > 0 && strcmp(argv[0], "-h") == 0) {
+    std::cout << SET_USAGE_MSG << std::endl;
+    std::cout << "Set a priority scoring formula." << std::endl;
+    std::cout << "Example: priorisea formula set priority \"score * 2\""
+              << std::endl;
+    return 0;
+  }
+
+  if (argc != 2) {
+    std::cout << SET_USAGE_MSG << std::endl;
+    std::cout << SET_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  std::string name = argv[0];
+  std::string formula = argv[1];
+
+  // TODO: store formula in the database
+  // TODO: if the RPC fails, the store should be rolled back
+  auto obj = json_object();
+  json_object_set_new(obj, name.c_str(), json_string(formula.c_str()));
+
+  flux_t *h;
+  flux_future_t *f;
+
+  if (!(h = flux_open(NULL, 0))) {
+    std::cerr << "flux_open failed: " << strerror(errno) << std::endl;
+    json_decref(obj);
+    return -1;
+  }
+
+  if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_formula",
+                          FLUX_NODEID_ANY, 0, "{s:o}", "data", obj))) {
+    std::cerr << "flux_rpc_pack failed: " << strerror(errno) << std::endl;
+    json_decref(obj);
+    flux_close(h);
+    return -1;
+  }
+
+  if (flux_future_get(f, NULL) < 0) {
+    std::cerr << "flux_future_get failed: " << strerror(errno) << std::endl;
+    json_decref(obj);
+    flux_future_destroy(f);
+    flux_close(h);
+    return -1;
+  }
+
+  json_decref(obj);
+  flux_future_destroy(f);
+  flux_close(h);
+
+  return 0;
+}
+
+static const std::string RESET_USAGE_MSG =
+    "Usage: priorisea formula reset [-h] NAME [NAME...]";
+static const std::string RESET_HELP_MSG =
+    "Try 'priorisea formula reset -h' for more information.";
+
+static int run_reset(int argc, char *argv[]) {
+  if (argc > 0 && strcmp(argv[0], "-h") == 0) {
+    std::cout << RESET_USAGE_MSG << std::endl;
+    std::cout << "Reset one or more priority scoring formulas to their default "
+                 "values."
+              << std::endl;
+    std::cout << "Example: priorisea formula reset priority score" << std::endl;
+    return 0;
+  }
+
+  if (argc < 1) {
+    std::cout << RESET_USAGE_MSG << std::endl;
+    std::cout << RESET_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  auto obj = json_object();
+
+  for (int i = 0; i < argc; i++) {
+    bool found = false;
+
+    for (const auto &default_formula : DEFAULT_FORMULAS) {
+      if (std::string(argv[i]) == default_formula.name) {
+        json_object_set_new(obj, argv[i],
+                            json_string(default_formula.expr.c_str()));
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      std::cout << "Error: 'priorisea formula reset " << argv[i]
+                << "' is not a valid formula" << std::endl;
+      std::cout << RESET_USAGE_MSG << std::endl;
+      std::cout << RESET_HELP_MSG << std::endl;
+      json_decref(obj);
+      return -1;
+    }
+  }
+
+  flux_t *h;
+  flux_future_t *f;
+
+  if (!(h = flux_open(NULL, 0))) {
+    std::cerr << "flux_open failed: " << strerror(errno) << std::endl;
+    json_decref(obj);
+    return -1;
+  }
+
+  if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_formula",
+                          FLUX_NODEID_ANY, 0, "{s:o}", "data", obj))) {
+    std::cerr << "flux_rpc_pack failed: " << strerror(errno) << std::endl;
+    json_decref(obj);
+    flux_close(h);
+    return -1;
+  }
+
+  if (flux_future_get(f, NULL) < 0) {
+    std::cerr << "flux_future_get failed: " << strerror(errno) << std::endl;
+    json_decref(obj);
+    flux_future_destroy(f);
+    flux_close(h);
+    return -1;
+  }
+
+  json_decref(obj);
+  flux_future_destroy(f);
+  flux_close(h);
+
+  return 0;
+}
+
+int run_formula(int argc, char *argv[]) {
+  if (argc < 1) {
+    std::cout << USAGE_MSG << std::endl;
+    std::cout << HELP_MSG << std::endl;
+    return -1;
+  }
+
+  std::string cmd = argv[0];
+
+  if (cmd == "-h") {
+    return run_help(argc - 1, argv + 1);
+  } else if (cmd == "list") {
+    return run_list(argc - 1, argv + 1);
+  } else if (cmd == "get") {
+    return run_get(argc - 1, argv + 1);
+  } else if (cmd == "set") {
+    return run_set(argc - 1, argv + 1);
+  } else if (cmd == "reset") {
+    return run_reset(argc - 1, argv + 1);
+  } else {
+    std::cout << "Error: 'priorisea formula " << cmd
+              << "' is not a valid command" << std::endl;
+    std::cout << USAGE_MSG << std::endl;
+    std::cout << HELP_MSG << std::endl;
+    return -1;
+  }
+}
