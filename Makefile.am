@@ -1,4 +1,4 @@
-SUBDIRS = src tests/integration
+SUBDIRS = external src tests/integration
 
 .PHONY: format
 

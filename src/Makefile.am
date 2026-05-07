@@ -1,1 +1,1 @@
-SUBDIRS = common lib cmd plugins
+SUBDIRS = common cmd plugins
