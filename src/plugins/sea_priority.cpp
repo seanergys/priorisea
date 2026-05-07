@@ -17,25 +17,20 @@ static const int DEFAULT_PRIORITY = 0;
 static std::string formula;
 static std::map<int, int> scores;
 
-static double min(double a,double b) {
-    return a < b ? a : b;
-}
-static double max(double a,double b) {
-    return a > b ? a : b;
-}
+static double min(double a, double b) { return a < b ? a : b; }
+static double max(double a, double b) { return a > b ? a : b; }
 
 struct tinyexpr_result {
-    bool valid;
-    double result;
+  bool valid;
+  double result;
 };
 
-static tinyexpr_result eval_formula(const std::string &expr, double priority, double score) {
-  te_variable vars[] = {
-      {"priority", &priority},
-      {"score", &score},
-      {"min", (void*)min, TE_FUNCTION2},
-      {"max", (void*)max, TE_FUNCTION2}
-  };
+static tinyexpr_result eval_formula(const std::string &expr, double priority,
+                                    double score) {
+  te_variable vars[] = {{"priority", &priority},
+                        {"score", &score},
+                        {"min", (void *)min, TE_FUNCTION2},
+                        {"max", (void *)max, TE_FUNCTION2}};
   int err = 0;
   te_expr *compiled = te_compile(expr.c_str(), vars, 3, &err);
   if (!compiled)
@@ -46,7 +41,7 @@ static tinyexpr_result eval_formula(const std::string &expr, double priority, do
 }
 
 static bool validate_formula(const std::string &expr) {
-    return eval_formula(expr, 0, 0).valid;
+  return eval_formula(expr, 0, 0).valid;
 }
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -202,7 +197,8 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
   }
 
   int64_t priority;
-  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority", &priority) < 0) {
+  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority",
+                             &priority) < 0) {
     priority = DEFAULT_PRIORITY;
   }
 
