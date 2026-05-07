@@ -4,8 +4,8 @@
 #include <iomanip>
 #include <iostream>
 #include <jansson.h>
-#include <string>
 #include <string.h>
+#include <string>
 #include <vector>
 
 struct time {
@@ -15,40 +15,38 @@ struct time {
   double priority;
 };
 
-static const std::string USAGE_MSG =
-    "Usage: priorisea time [-h] COMMAND ARGS";
-static const std::string HELP_MSG =
+static const std::string USAGE_MSG = "Usage: priorisea time [-h] COMMAND ARGS";
+static const std::string TRY_HELP_MSG =
     "Try 'priorisea time -h' for more information.";
+static const std::string HELP_MSG = USAGE_MSG + R"(
 
-static int run_help(int argc, char *argv[]) {
-  std::cout << USAGE_MSG << std::endl;
-  std::cout << "Manage time-based priority score adjustments." << std::endl;
-  std::cout << "Example: priorisea time list" << std::endl;
-  std::cout << std::endl;
-  std::cout << "COMMAND list and interpretation:" << std::endl;
-  std::cout << "  list: list time ranges" << std::endl;
-  std::cout << "  get: get time range parameters" << std::endl;
-  std::cout << "  add: add a time range" << std::endl;
-  std::cout << "  edit: edit a time range" << std::endl;
-  std::cout << "  delete: delete time ranges" << std::endl;
-  return 0;
-}
+Manage time-based priority score adjustments.
+Example: priorisea time list
+
+COMMAND list and interpretation:
+  list: list time ranges
+  get: get time range parameters
+  add: add a time range
+  edit: edit a time range
+  delete: delete time ranges)";
 
 static const std::string LIST_USAGE_MSG =
     "Usage: priorisea time list [-h] [OPTIONS]";
-static const std::string LIST_HELP_MSG =
+static const std::string LIST_TRY_HELP_MSG =
     "Try 'priorisea time list -h' for more information.";
+static const std::string LIST_HELP_MSG = LIST_USAGE_MSG + R"(
+
+List configured time ranges.
+Example: priorisea time list
+
+OPTIONS list and interpretation:
+  --json: output in JSON format)";
 
 static int run_list(int argc, char *argv[]) {
   bool json_flag = false;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
-    std::cout << LIST_USAGE_MSG << std::endl;
-    std::cout << "List configured time ranges." << std::endl;
-    std::cout << "Example: priorisea time list" << std::endl;
-    std::cout << std::endl;
-    std::cout << "OPTIONS list and interpretation:" << std::endl;
-    std::cout << "  --json: output in JSON format" << std::endl;
+    std::cout << LIST_HELP_MSG << std::endl;
     return 0;
   }
 
@@ -59,9 +57,9 @@ static int run_list(int argc, char *argv[]) {
       json_flag = true;
     } else {
       std::cout << "Error: 'priorisea time list " << arg
-                << "' is not a valid option" << std::endl;
-      std::cout << LIST_USAGE_MSG << std::endl;
-      std::cout << LIST_HELP_MSG << std::endl;
+                << "' is not a valid option" << '\n'
+                << LIST_USAGE_MSG << '\n'
+                << LIST_TRY_HELP_MSG << std::endl;
       return -1;
     }
   }
@@ -88,8 +86,8 @@ static int run_list(int argc, char *argv[]) {
       name_width = std::max(name_width, t.name.size());
     }
 
-    std::cout << std::left << std::setw(name_width) << header_name << '\n';
-    std::cout << std::string(name_width, '-') << '\n';
+    std::cout << std::left << std::setw(name_width) << header_name << '\n'
+              << std::string(name_width, '-') << '\n';
 
     for (const auto &t : results) {
       std::cout << std::left << std::setw(name_width) << t.name << '\n';
@@ -103,28 +101,35 @@ static int run_list(int argc, char *argv[]) {
 
 static const std::string GET_USAGE_MSG =
     "Usage: priorisea time get [-h] [OPTIONS] NAME [NAME...]";
-static const std::string GET_HELP_MSG =
+static const std::string GET_TRY_HELP_MSG =
     "Try 'priorisea time get -h' for more information.";
+static const std::string GET_HELP_MSG = GET_USAGE_MSG + R"(
+
+Retrieve one or more time range configurations from the database.
+Example: priorisea time get daily hourly
+
+OPTIONS list and interpretation:
+  --json: output in JSON format)";
 
 static int run_get(int argc, char *argv[]) {
   bool json_flag = false;
   std::vector<std::string> times;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
-    std::cout << GET_USAGE_MSG << std::endl;
-    std::cout << "Retrieve one or more time range configurations from the "
-                 "database."
-              << std::endl;
-    std::cout << "Example: priorisea time get daily hourly" << std::endl;
-    std::cout << std::endl;
-    std::cout << "OPTIONS list and interpretation:" << std::endl;
-    std::cout << "  --json: output in JSON format" << std::endl;
+    std::cout << GET_HELP_MSG << std::endl;
     return 0;
   }
 
-  if (argc < 1) {
-    std::cout << GET_USAGE_MSG << std::endl;
-    std::cout << GET_HELP_MSG << std::endl;
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--json") == 0) {
+      json_flag = true;
+    } else {
+      times.push_back(argv[i]);
+    }
+  }
+
+  if (times.empty()) {
+    std::cout << GET_USAGE_MSG << '\n' << GET_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -135,9 +140,9 @@ static int run_get(int argc, char *argv[]) {
       json_flag = true;
     } else if (!arg.empty() && arg[0] == '-') {
       std::cout << "Error: 'priorisea time get " << arg
-                << "' is not a valid option" << std::endl;
-      std::cout << GET_USAGE_MSG << std::endl;
-      std::cout << GET_HELP_MSG << std::endl;
+                << "' is not a valid option" << '\n'
+                << GET_USAGE_MSG << '\n'
+                << GET_TRY_HELP_MSG << std::endl;
       return -1;
     } else {
       times.push_back(arg);
@@ -145,10 +150,10 @@ static int run_get(int argc, char *argv[]) {
   }
 
   if (times.empty()) {
-    std::cout << "Error: 'priorisea time get ...'" << std::endl;
-    std::cout << "  time range name is missing" << std::endl;
-    std::cout << GET_USAGE_MSG << std::endl;
-    std::cout << GET_HELP_MSG << std::endl;
+    std::cout << "Error: 'priorisea time get ...'" << '\n'
+              << "  time range name is missing" << '\n'
+              << GET_USAGE_MSG << '\n'
+              << GET_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -193,9 +198,8 @@ static int run_get(int argc, char *argv[]) {
     std::cout << std::left << std::setw(name_width) << header_name << " | "
               << std::setw(cron_width) << header_cron << " | "
               << std::setw(duration_width) << header_duration << " | "
-              << std::setw(priority_width) << header_priority << '\n';
-
-    std::cout << std::string(name_width, '-') << "-+-"
+              << std::setw(priority_width) << header_priority << '\n'
+              << std::string(name_width, '-') << "-+-"
               << std::string(cron_width, '-') << "-+-"
               << std::string(duration_width, '-') << "-+-"
               << std::string(priority_width, '-') << '\n';
@@ -216,22 +220,21 @@ static int run_get(int argc, char *argv[]) {
 static const std::string ADD_USAGE_MSG =
     "Usage: priorisea time add [-h] NAME \"<cron_expression>\" DURATION "
     "PRIORITY";
-static const std::string ADD_HELP_MSG =
+static const std::string ADD_TRY_HELP_MSG =
     "Try 'priorisea time add -h' for more information.";
+static const std::string ADD_HELP_MSG = ADD_USAGE_MSG + R"(
+
+Add a new time range for priority score adjustment.
+Example: priorisea time add daily \"0 0 * * *\" 3600 10")";
 
 static int run_add(int argc, char *argv[]) {
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
-    std::cout << ADD_USAGE_MSG << std::endl;
-    std::cout << "Add a new time range for priority score adjustment."
-              << std::endl;
-    std::cout << "Example: priorisea time add daily \"0 0 * * *\" 3600 10"
-              << std::endl;
+    std::cout << ADD_HELP_MSG << std::endl;
     return 0;
   }
 
   if (argc != 4) {
-    std::cout << ADD_USAGE_MSG << std::endl;
-    std::cout << ADD_HELP_MSG << std::endl;
+    std::cout << ADD_USAGE_MSG << '\n' << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -242,29 +245,27 @@ static int run_add(int argc, char *argv[]) {
   double priority = 0;
 
   if (!parse_int(argv[2], duration)) {
-    std::cout << "Error: 'priorisea time add ...'" << std::endl;
-    std::cout << "  duration `" << argv[2] << "` is not a valid integer"
-              << std::endl;
-    std::cout << ADD_USAGE_MSG << std::endl;
-    std::cout << ADD_HELP_MSG << std::endl;
+    std::cout << "Error: 'priorisea time add ...'" << '\n'
+              << "  duration `" << argv[2] << "` is not a valid integer" << '\n'
+              << ADD_USAGE_MSG << '\n'
+              << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
   if (duration < 0) {
-    std::cout << "Error: 'priorisea time add ...'" << std::endl;
-    std::cout << "  duration `" << argv[2] << "` is not a positive integer"
-              << std::endl;
-    std::cout << ADD_USAGE_MSG << std::endl;
-    std::cout << ADD_HELP_MSG << std::endl;
+    std::cout << "Error: 'priorisea time add ...'" << '\n'
+              << "  duration `" << argv[2] << "` is not a positive integer"
+              << '\n'
+              << ADD_USAGE_MSG << '\n'
+              << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
   if (!parse_double(argv[3], priority)) {
-    std::cout << "Error: 'priorisea time add ...'" << std::endl;
-    std::cout << "  priority `" << argv[3] << "` is not a valid double"
-              << std::endl;
-    std::cout << ADD_USAGE_MSG << std::endl;
-    std::cout << ADD_HELP_MSG << std::endl;
+    std::cout << "Error: 'priorisea time add ...'" << '\n'
+              << "  priority `" << argv[3] << "` is not a valid double" << '\n'
+              << ADD_USAGE_MSG << '\n'
+              << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -275,29 +276,27 @@ static int run_add(int argc, char *argv[]) {
 static const std::string EDIT_USAGE_MSG =
     "Usage: priorisea time edit [-h] NAME [--cron CRON] "
     "[--duration DURATION] [--priority PRIORITY]";
-static const std::string EDIT_HELP_MSG =
+static const std::string EDIT_TRY_HELP_MSG =
     "Try 'priorisea time edit -h' for more information.";
+static const std::string EDIT_HELP_MSG = EDIT_USAGE_MSG + R"(
+
+Edit an existing time range.
+Example: priorisea time edit daily --duration 7200
+Example: priorisea time edit daily --cron "0 12 * * *" --priority 5
+
+OPTIONS list and interpretation:
+  --cron: update the cron expression
+  --duration: update the duration
+  --priority: update the priority)";
 
 static int run_edit(int argc, char *argv[]) {
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
-    std::cout << EDIT_USAGE_MSG << std::endl;
-    std::cout << "Edit an existing time range." << std::endl;
-    std::cout << "Example: priorisea time edit daily --duration 7200"
-              << std::endl;
-    std::cout << "Example: priorisea time edit daily --cron \"0 12 * * *\" "
-                 "--priority 5"
-              << std::endl;
-    std::cout << std::endl;
-    std::cout << "OPTIONS list and interpretation:" << std::endl;
-    std::cout << "  --cron: update the cron expression" << std::endl;
-    std::cout << "  --duration: update the duration" << std::endl;
-    std::cout << "  --priority: update the priority" << std::endl;
+    std::cout << EDIT_HELP_MSG << std::endl;
     return 0;
   }
 
   if (argc < 3) {
-    std::cout << EDIT_USAGE_MSG << std::endl;
-    std::cout << EDIT_HELP_MSG << std::endl;
+    std::cout << EDIT_USAGE_MSG << '\n' << EDIT_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -313,11 +312,10 @@ static int run_edit(int argc, char *argv[]) {
     std::string field = argv[i];
 
     if (i + 1 >= argc) {
-      std::cout << "Error: 'priorisea time edit " << field << "'"
-                << std::endl;
-      std::cout << "  value is missing" << std::endl;
-      std::cout << EDIT_USAGE_MSG << std::endl;
-      std::cout << EDIT_HELP_MSG << std::endl;
+      std::cout << "Error: 'priorisea time edit " << field << "'" << '\n'
+                << "  value is missing" << '\n'
+                << EDIT_USAGE_MSG << '\n'
+                << EDIT_TRY_HELP_MSG << std::endl;
       return -1;
     }
 
@@ -329,20 +327,20 @@ static int run_edit(int argc, char *argv[]) {
       int duration = 0;
 
       if (!parse_int(value, duration)) {
-        std::cout << "Error: 'priorisea time edit ...'" << std::endl;
-        std::cout << "  duration `" << value << "` is not a valid integer"
-                  << std::endl;
-        std::cout << EDIT_USAGE_MSG << std::endl;
-        std::cout << EDIT_HELP_MSG << std::endl;
+        std::cout << "Error: 'priorisea time edit ...'" << '\n'
+                  << "  duration `" << value << "` is not a valid integer"
+                  << '\n'
+                  << EDIT_USAGE_MSG << '\n'
+                  << EDIT_TRY_HELP_MSG << std::endl;
         return -1;
       }
 
       if (duration < 0) {
-        std::cout << "Error: 'priorisea time edit ...'" << std::endl;
-        std::cout << "  duration `" << value
-                  << "` is not a positive integer" << std::endl;
-        std::cout << EDIT_USAGE_MSG << std::endl;
-        std::cout << EDIT_HELP_MSG << std::endl;
+        std::cout << "Error: 'priorisea time edit ...'" << '\n'
+                  << "  duration `" << value << "` is not a positive integer"
+                  << '\n'
+                  << EDIT_USAGE_MSG << '\n'
+                  << EDIT_TRY_HELP_MSG << std::endl;
         return -1;
       }
 
@@ -351,29 +349,29 @@ static int run_edit(int argc, char *argv[]) {
       double priority = 0;
 
       if (!parse_double(value, priority)) {
-        std::cout << "Error: 'priorisea time edit ...'" << std::endl;
-        std::cout << "  priority `" << value << "` is not a valid double"
-                  << std::endl;
-        std::cout << EDIT_USAGE_MSG << std::endl;
-        std::cout << EDIT_HELP_MSG << std::endl;
+        std::cout << "Error: 'priorisea time edit ...'" << '\n'
+                  << "  priority `" << value << "` is not a valid double"
+                  << '\n'
+                  << EDIT_USAGE_MSG << '\n'
+                  << EDIT_TRY_HELP_MSG << std::endl;
         return -1;
       }
 
       priority_str = value;
     } else {
       std::cout << "Error: 'priorisea time edit " << field
-                << "' is not a valid option" << std::endl;
-      std::cout << EDIT_USAGE_MSG << std::endl;
-      std::cout << EDIT_HELP_MSG << std::endl;
+                << "' is not a valid option" << '\n'
+                << EDIT_USAGE_MSG << '\n'
+                << EDIT_TRY_HELP_MSG << std::endl;
       return -1;
     }
   }
 
   if (cron_expression.empty() && duration_str.empty() && priority_str.empty()) {
-    std::cout << "Error: 'priorisea time edit ...'" << std::endl;
-    std::cout << "  field to edit is missing" << std::endl;
-    std::cout << EDIT_USAGE_MSG << std::endl;
-    std::cout << EDIT_HELP_MSG << std::endl;
+    std::cout << "Error: 'priorisea time edit ...'" << '\n'
+              << "  field to edit is missing" << '\n'
+              << EDIT_USAGE_MSG << '\n'
+              << EDIT_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -383,20 +381,21 @@ static int run_edit(int argc, char *argv[]) {
 
 static const std::string DELETE_USAGE_MSG =
     "Usage: priorisea time delete [-h] NAME [NAME...]";
-static const std::string DELETE_HELP_MSG =
+static const std::string DELETE_TRY_HELP_MSG =
     "Try 'priorisea time delete -h' for more information.";
+static const std::string DELETE_HELP_MSG = DELETE_USAGE_MSG + R"(
+
+Delete one or more time ranges.
+"Example: priorisea time delete daily hourly)";
 
 static int run_delete(int argc, char *argv[]) {
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
-    std::cout << DELETE_USAGE_MSG << std::endl;
-    std::cout << "Delete one or more time ranges." << std::endl;
-    std::cout << "Example: priorisea time delete daily hourly" << std::endl;
+    std::cout << DELETE_HELP_MSG << std::endl;
     return 0;
   }
 
   if (argc < 1) {
-    std::cout << DELETE_USAGE_MSG << std::endl;
-    std::cout << DELETE_HELP_MSG << std::endl;
+    std::cout << DELETE_USAGE_MSG << '\n' << DELETE_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -405,9 +404,9 @@ static int run_delete(int argc, char *argv[]) {
 
     if (!range_name.empty() && range_name[0] == '-') {
       std::cout << "Error: 'priorisea time delete " << range_name
-                << "' is not a valid option" << std::endl;
-      std::cout << DELETE_USAGE_MSG << std::endl;
-      std::cout << DELETE_HELP_MSG << std::endl;
+                << "' is not a valid option" << '\n'
+                << DELETE_USAGE_MSG << '\n'
+                << DELETE_TRY_HELP_MSG << std::endl;
       return -1;
     }
 
@@ -420,15 +419,15 @@ static int run_delete(int argc, char *argv[]) {
 
 int run_time(int argc, char *argv[]) {
   if (argc < 1) {
-    std::cout << USAGE_MSG << std::endl;
-    std::cout << HELP_MSG << std::endl;
+    std::cout << USAGE_MSG << '\n' << TRY_HELP_MSG << std::endl;
     return -1;
   }
 
   std::string cmd = argv[0];
 
   if (cmd == "-h") {
-    return run_help(argc - 1, argv + 1);
+    std::cout << HELP_MSG << std::endl;
+    return 0;
   } else if (cmd == "list") {
     return run_list(argc - 1, argv + 1);
   } else if (cmd == "get") {
@@ -440,10 +439,10 @@ int run_time(int argc, char *argv[]) {
   } else if (cmd == "delete") {
     return run_delete(argc - 1, argv + 1);
   } else {
-    std::cout << "Error: 'priorisea time " << cmd
-              << "' is not a valid command" << std::endl;
-    std::cout << USAGE_MSG << std::endl;
-    std::cout << HELP_MSG << std::endl;
+    std::cout << "Error: 'priorisea time " << cmd << "' is not a valid command"
+              << '\n'
+              << USAGE_MSG << '\n'
+              << TRY_HELP_MSG << std::endl;
     return -1;
   }
 }
