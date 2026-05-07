@@ -1,4 +1,5 @@
 #include "time.hpp"
+#include "croncpp.h"
 #include "util.hpp"
 #include <flux/core.h>
 #include <iomanip>
@@ -14,6 +15,16 @@ struct time {
   int duration;
   double priority;
 };
+
+static bool validate_cron(const std::string &expr, std::string &error) {
+  try {
+    cron::make_cron(expr);
+    return true;
+  } catch (cron::bad_cronexpr const &ex) {
+    error = ex.what();
+    return false;
+  }
+}
 
 static const std::string USAGE_MSG = "Usage: priorisea time [-h] COMMAND ARGS";
 static const std::string TRY_HELP_MSG =
@@ -218,7 +229,7 @@ static int run_get(int argc, char *argv[]) {
 }
 
 static const std::string ADD_USAGE_MSG =
-    "Usage: priorisea time add [-h] NAME \"<cron_expression>\" DURATION "
+    "Usage: priorisea time add [-h] NAME \"CRON\" DURATION "
     "PRIORITY";
 static const std::string ADD_TRY_HELP_MSG =
     "Try 'priorisea time add -h' for more information.";
@@ -240,6 +251,15 @@ static int run_add(int argc, char *argv[]) {
 
   std::string range_name = argv[0];
   std::string cron_expression = argv[1];
+
+  std::string error;
+  if (!validate_cron(cron_expression, error)) {
+    std::cerr << "Error: 'priorisea time add ...'" << '\n'
+              << "  cron expression `" << cron_expression << "` is not valid"
+              << '\n'
+              << error << '\n';
+    return -1;
+  }
 
   int duration = 0;
   double priority = 0;
@@ -322,7 +342,15 @@ static int run_edit(int argc, char *argv[]) {
     std::string value = argv[i + 1];
 
     if (field == "--cron") {
+      std::string error;
+      if (!validate_cron(value, error)) {
+        std::cerr << "Error: 'priorisea time edit ...'" << '\n'
+                  << "  cron expression `" << value << "` is not valid" << '\n'
+                  << error << '\n';
+        return -1;
+      }
       cron_expression = value;
+
     } else if (field == "--duration") {
       int duration = 0;
 
