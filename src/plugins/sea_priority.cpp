@@ -2,6 +2,7 @@
 #include "util.hpp"
 #include <cerrno>
 #include <climits>
+#include <cmath>
 #include <cstdlib>
 #include <flux/core.h>
 #include <flux/jobtap.h>
@@ -11,65 +12,46 @@
 #include <string.h>
 #include <string>
 
-std::map<std::string, std::string> formulas;
-std::map<int, int> scores;
+static const int DEFAULT_SCORE = 0;
+static const int DEFAULT_PRIORITY = 0;
+static std::string formula;
+static std::map<int, int> scores;
 
-static bool validate_priority(const std::string &expr) {
-  double priority = 0;
-  double score = 0;
-  te_variable vars[] = {{"priority", &priority}, {"score", &score}};
+static double min(double a,double b) {
+    return a < b ? a : b;
+}
+static double max(double a,double b) {
+    return a > b ? a : b;
+}
 
+struct tinyexpr_result {
+    bool valid;
+    double result;
+};
+
+static tinyexpr_result eval_formula(const std::string &expr, double priority, double score) {
+  te_variable vars[] = {
+      {"priority", &priority},
+      {"score", &score},
+      {"min", (void*)min, TE_FUNCTION2},
+      {"max", (void*)max, TE_FUNCTION2}
+  };
   int err = 0;
-  te_expr *compiled = te_compile(expr.c_str(), vars, 2, &err);
+  te_expr *compiled = te_compile(expr.c_str(), vars, 3, &err);
   if (!compiled)
-    return false;
-
+    return {false, 0};
+  auto result = te_eval(compiled);
   te_free(compiled);
-  return true;
+  return {true, result};
+}
+
+static bool validate_formula(const std::string &expr) {
+    return eval_formula(expr, 0, 0).valid;
 }
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  json_t *arr = NULL;
-
-  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &arr) < 0) {
-    auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
-    flux_respond_error(h, msg, errno, errmsg.c_str());
-    return;
-  }
-
-  if (!json_is_array(arr)) {
-    flux_respond_error(h, msg, EINVAL, "data is not an array");
-    return;
-  }
-
-  auto *res = json_object();
-  size_t num_data = json_array_size(arr);
-
-  for (size_t i = 0; i < num_data; i++) {
-    auto *elem = json_array_get(arr, i);
-
-    if (!json_is_string(elem)) {
-      auto errmsg = fmt::format("element {} is not a string", i);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      json_decref(res);
-      return;
-    }
-
-    const char *formula_name = json_string_value(elem);
-    auto it = formulas.find(formula_name);
-
-    if (it == formulas.end()) {
-      auto errmsg = fmt::format("formula {} not found", formula_name);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      json_decref(res);
-      return;
-    }
-
-    json_object_set_new(res, formula_name, json_string(it->second.c_str()));
-  }
-
-  if (flux_respond_pack(h, msg, "{s:o}", "data", res) < 0) {
+  if (flux_respond_pack(h, msg, "{s:s}", "data", formula.c_str()) < 0) {
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
   }
@@ -77,41 +59,26 @@ static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
 
 static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  json_t *obj = NULL;
+  const char *formula_value = nullptr;
 
-  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &obj) < 0) {
+  if (flux_request_unpack(msg, NULL, "{s:s}", "data", &formula_value) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
 
-  if (!json_is_object(obj)) {
-    flux_respond_error(h, msg, EINVAL, "data is not an object");
+  if (!formula_value) {
+    flux_respond_error(h, msg, EINVAL, "data is null");
     return;
   }
 
-  const char *name = nullptr;
-  json_t *formula_j = nullptr;
-
-  json_object_foreach(obj, name, formula_j) {
-    if (!json_is_string(formula_j)) {
-      auto errmsg = fmt::format("formula '{}' is not a string", name);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      return;
-    }
-
-    const char *formula = json_string_value(formula_j);
-
-    if (strcmp(name, "priority") == 0) {
-      if (!validate_priority(formula)) {
-        auto errmsg = fmt::format("invalid priority formula: {}", formula);
-        flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-        return;
-      }
-    }
-
-    formulas[name] = formula;
+  if (!validate_formula(formula_value)) {
+    auto errmsg = fmt::format("invalid formula: {}", formula_value);
+    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+    return;
   }
+
+  formula = formula_value;
 
   flux_respond(h, msg, NULL);
 }
@@ -222,11 +189,76 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
   flux_respond(h, msg, NULL);
 }
 
+static int priority_cb(flux_plugin_t *p, const char *topic,
+                       flux_plugin_arg_t *args, void *data) {
+
+  flux_t *h = flux_jobtap_get_flux(p);
+
+  int userid;
+  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_IN, "{s:i}", "userid",
+                             &userid) < 0) {
+    flux_log_error(h, "%s", flux_plugin_arg_strerror(args));
+    return -1;
+  }
+
+  int64_t priority;
+  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority", &priority) < 0) {
+    priority = DEFAULT_PRIORITY;
+  }
+
+  double priority_d = static_cast<double>(priority);
+
+  double score = DEFAULT_SCORE;
+  auto it = scores.find(userid);
+  if (it != scores.end()) {
+    score = it->second;
+  }
+
+  auto eval = eval_formula(formula, priority, score);
+  if (!eval.valid) {
+    flux_log_error(h, "formula evaluation failed");
+    return -1;
+  }
+  auto result = eval.result;
+
+  if (!std::isfinite(result)) {
+    flux_log_error(h, "formula evaluated to NaN or infinity");
+    return -1;
+  }
+
+  if (result < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
+      result > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+    flux_log_error(h, "formula result out of int64_t range");
+    return -1;
+  }
+  priority = static_cast<int64_t>(result);
+
+  if (flux_plugin_arg_pack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority",
+                           priority) < 0) {
+    flux_log_error(h, "%s", flux_plugin_arg_strerror(args));
+    return -1;
+  }
+
+  return 0;
+}
+
 static const struct flux_plugin_handler tab[] = {
+    {"job.state.priority", priority_cb, NULL},
+    {"job.priority.get", priority_cb, NULL},
     {0},
 };
 
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
+  flux_t *h = flux_jobtap_get_flux(p);
+
+  // TODO: retrieve formula from the database
+  // TODO: retrieve scores from the database
+  formula = "priority * 0.5 + score * 0.5";
+  if (!validate_formula(formula)) {
+    flux_log_error(h, "formula in database is invalid: %s", formula.c_str());
+    return -1;
+  }
+
   if (flux_plugin_register(p, "sea_priority", tab) < 0 ||
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||
       flux_jobtap_service_register(p, "set_formula", set_formula_cb, p) < 0 ||
