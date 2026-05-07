@@ -3,4 +3,4 @@ SUBDIRS = external src tests/integration
 .PHONY: format
 
 format:
-	clang-format -i $(shell find $(SUBDIRS) -name "*.c" -o -name "*.h" -o -name "*.cpp" -o -name "*.hpp")
+	clang-format -i $(shell find src -name "*.c" -o -name "*.h" -o -name "*.cpp" -o -name "*.hpp")
