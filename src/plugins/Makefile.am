@@ -1,5 +1,10 @@
 jobtapdir = $(libdir)/flux/job-manager/plugins/
-jobtap_LTLIBRARIES = sea_priority.la
+jobtap_LTLIBRARIES = sea_debug.la sea_priority.la
+
+sea_debug_la_SOURCES = sea_debug.cpp
+sea_debug_la_CPPFLAGS = $(JANSSON_CFLAGS) $(FLUX_CORE_CFLAGS)
+sea_debug_la_LIBADD = $(JANSSON_LIBS)
+sea_debug_la_LDFLAGS = -module -avoid-version
 
 sea_priority_la_SOURCES = sea_priority.cpp
 
