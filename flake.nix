@@ -27,9 +27,14 @@
           pkgs.jansson
           pkgs.fmt
           core
+          self.packages.${system}.default
         ];
         shellHook = ''
             export CPATH="$PWD/src/lib/tinyexpr:$PWD/src/common:$CPATH"
+            load-sea-priority() {
+                flux jobtap load ${self.packages.${system}.default}/lib/flux/job-manager/plugins/sea_priority.so
+            }
+            echo "Run 'load-sea-priority' to load the jobtap plugin."
           '';
 
       };
