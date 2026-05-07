@@ -24,11 +24,11 @@ AX_FLUX_CORE
 # Output files
 AC_CONFIG_FILES([
  Makefile
+ external/Makefile
+ external/tinyexpr/Makefile
  src/Makefile
  src/cmd/Makefile
  src/common/Makefile
- src/lib/Makefile
- src/lib/tinyexpr/Makefile
  src/plugins/Makefile
  tests/integration/Makefile
 ])

@@ -30,7 +30,7 @@
           self.packages.${system}.default
         ];
         shellHook = ''
-            export CPATH="$PWD/external/croncpp:$PWD/src/lib/tinyexpr:$PWD/src/common:$CPATH"
+            export CPATH="$PWD/external/croncpp:$PWD/external/tinyexpr:$PWD/src/common:$CPATH"
             load-sea-priority() {
                 flux jobtap load ${self.packages.${system}.default}/lib/flux/job-manager/plugins/sea_priority.so
                 flux jobtap load ${self.packages.${system}.default}/lib/flux/job-manager/plugins/sea_debug.so

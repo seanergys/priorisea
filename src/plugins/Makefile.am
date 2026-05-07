@@ -9,16 +9,17 @@ sea_debug_la_LDFLAGS = -module -avoid-version
 sea_priority_la_SOURCES = sea_priority.cpp
 
 sea_priority_la_CPPFLAGS = \
-   -I$(top_srcdir)/src/lib/tinyexpr \
+   -I$(top_srcdir)/external/tinyexpr \
    -I$(top_srcdir)/src/common \
     $(JANSSON_CFLAGS) \
     $(FMT_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
 sea_priority_la_LIBADD = \
+    $(top_builddir)/external/tinyexpr/libtinyexpr.la \
+    $(top_builddir)/src/common/libcommon.la \
     $(JANSSON_LIBS) \
-    $(FMT_LIBS) \
-    $(top_builddir)/src/lib/tinyexpr/libtinyexpr.la \
-    $(top_builddir)/src/common/libcommon.la
+    $(FMT_LIBS)
+
 
 sea_priority_la_LDFLAGS = -module -avoid-version
