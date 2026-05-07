@@ -62,7 +62,8 @@ static update_formula_result update_formula_remote(std::string name,
       flux_close(h);
       return {
           INVALID_RPC,
-          std::string("flux_rpc_pack failed: ") + strerror(errno),
+          "sea_priority plugin is not loaded."
+          //std::string("flux_rpc_pack failed: ") + strerror(errno),
       };
     }
 
@@ -71,7 +72,8 @@ static update_formula_result update_formula_remote(std::string name,
       flux_close(h);
       return {
           INVALID_RPC,
-          std::string("flux_future_get failed: ") + strerror(errno),
+          "score formula got rejected"
+          //std::string("flux_future_get failed: ") + strerror(errno),
       };
     }
 
