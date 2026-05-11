@@ -16,7 +16,7 @@ sea_priority_la_CPPFLAGS = \
     $(FLUX_CORE_CFLAGS)
 
 sea_priority_la_LIBADD = \
-    $(top_builddir)/external/tinyexpr/libtinyexpr.la \
+    $(top_builddir)/external/libtinyexpr.la \
     $(top_builddir)/src/common/libcommon.la \
     $(JANSSON_LIBS) \
     $(FMT_LIBS)
