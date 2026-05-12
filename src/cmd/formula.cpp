@@ -8,6 +8,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include "lib/table.hpp"
 
 struct formula {
   std::string name;
@@ -150,21 +151,10 @@ static int run_list(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_name = "Name";
-    std::size_t name_width = header_name.size();
-
-    for (const auto &f : results) {
-      name_width = std::max(name_width, f.name.size());
-    }
-
-    std::cout << std::left << std::setw(name_width) << header_name << '\n';
-    std::cout << std::string(name_width, '-') << '\n';
-
-    for (const auto &f : results) {
-      std::cout << std::left << std::setw(name_width) << f.name << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(results, {{"Name",
+                         [](auto &value, auto index) -> auto {
+                           return value.name;
+                         }}});
   }
 
   return 0;
@@ -232,30 +222,15 @@ static int run_get(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_name = "Name";
-    std::string header_expr = "Formula";
-    std::size_t name_width = header_name.size();
-    std::size_t expr_width = header_expr.size();
-
-    for (const auto &f : results) {
-      name_width = std::max(name_width, f.name.size());
-      expr_width = std::max(expr_width, f.expr.size());
-    }
-
-    std::cout << std::left << std::setw(name_width) << header_name << " | "
-              << std::setw(expr_width) << header_expr << '\n';
-
-    std::cout << std::string(name_width, '-') << "-+-"
-              << std::string(expr_width, '-') << '\n';
-
-    for (const auto &f : results) {
-      std::cout << std::left << std::setw(name_width) << f.name << " | "
-                << std::setw(expr_width) << f.expr << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(results, {{"Name",
+                         [](auto &value, auto index) -> auto {
+                           return value.name;
+                         }},
+                        {"Formula",
+                         [](auto &value, auto index) -> auto {
+                           return value.expr;
+                         }}});
   }
-
   return 0;
 }
 

@@ -1,11 +1,12 @@
 #include "score.hpp"
 #include "tinyexpr.h"
 #include <flux/core.h>
-#include <iomanip>
 #include <iostream>
 #include <jansson.h>
 #include <string.h>
+#include <string>
 #include <vector>
+#include "lib/table.hpp"
 
 struct job {
   std::string jobid;
@@ -147,30 +148,15 @@ static int run_job(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_jobid = "Job Id";
-    std::string header_score = "Score";
-
-    std::size_t jobid_width = header_jobid.size();
-    std::size_t score_width = header_score.size();
-
-    for (const auto &f : jobs) {
-      jobid_width = std::max(jobid_width, f.jobid.size());
-      score_width = std::max(score_width, std::to_string(f.score).size());
-    }
-
-    std::cout << std::left << std::setw(jobid_width) << header_jobid << " | "
-              << std::setw(score_width) << header_score << '\n'
-              << std::string(jobid_width, '-') << "-+-"
-              << std::string(score_width, '-') << '\n';
-
-    for (const auto &f : jobs) {
-      std::cout << std::left << std::setw(jobid_width) << f.jobid << " | "
-                << std::setw(score_width) << f.score << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(jobs, {{"Job Id",
+                         [](auto &value, auto index) -> auto {
+                           return value.jobid;
+                         }},
+                        {"Score",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.score);
+                         }}});
   }
-
   return 0;
 }
 
@@ -237,30 +223,15 @@ static int run_user(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_userid = "User Id";
-    std::string header_score = "Score";
-
-    std::size_t userid_width = header_userid.size();
-    std::size_t score_width = header_score.size();
-
-    for (const auto &f : users) {
-      userid_width = std::max(userid_width, f.userid.size());
-      score_width = std::max(score_width, std::to_string(f.score).size());
-    }
-
-    std::cout << std::left << std::setw(userid_width) << header_userid << " | "
-              << std::setw(score_width) << header_score << '\n'
-              << std::string(userid_width, '-') << "-+-"
-              << std::string(score_width, '-') << '\n';
-
-    for (const auto &f : users) {
-      std::cout << std::left << std::setw(userid_width) << f.userid << " | "
-                << std::setw(score_width) << f.score << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(users, {{"User Id",
+                         [](auto &value, auto index) -> auto {
+                           return value.userid;
+                         }},
+                        {"Score",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.score);
+                         }}});
   }
-
   return 0;
 }
 
