@@ -1,13 +1,12 @@
 #include "time.hpp"
 #include "croncpp.h"
 #include "util.hpp"
-#include <flux/core.h>
-#include <iomanip>
 #include <iostream>
 #include <jansson.h>
 #include <string.h>
 #include <string>
 #include <vector>
+#include "lib/table.hpp"
 
 struct time {
   std::string name;
@@ -90,21 +89,10 @@ static int run_list(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_name = "Name";
-    std::size_t name_width = header_name.size();
-
-    for (const auto &t : results) {
-      name_width = std::max(name_width, t.name.size());
-    }
-
-    std::cout << std::left << std::setw(name_width) << header_name << '\n'
-              << std::string(name_width, '-') << '\n';
-
-    for (const auto &t : results) {
-      std::cout << std::left << std::setw(name_width) << t.name << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(results, {{"Name",
+                         [](auto &value, auto index) -> auto {
+                           return value.name;
+                         }}});
   }
 
   return 0;
@@ -187,44 +175,23 @@ static int run_get(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_name = "Name";
-    std::string header_cron = "Cron";
-    std::string header_duration = "Duration";
-    std::string header_priority = "Priority";
-
-    std::size_t name_width = header_name.size();
-    std::size_t cron_width = header_cron.size();
-    std::size_t duration_width = header_duration.size();
-    std::size_t priority_width = header_priority.size();
-
-    for (const auto &f : results) {
-      name_width = std::max(name_width, f.name.size());
-      cron_width = std::max(cron_width, f.cron.size());
-      duration_width =
-          std::max(duration_width, std::to_string(f.duration).size());
-      priority_width =
-          std::max(priority_width, std::to_string(f.priority).size());
-    }
-
-    std::cout << std::left << std::setw(name_width) << header_name << " | "
-              << std::setw(cron_width) << header_cron << " | "
-              << std::setw(duration_width) << header_duration << " | "
-              << std::setw(priority_width) << header_priority << '\n'
-              << std::string(name_width, '-') << "-+-"
-              << std::string(cron_width, '-') << "-+-"
-              << std::string(duration_width, '-') << "-+-"
-              << std::string(priority_width, '-') << '\n';
-
-    for (const auto &f : results) {
-      std::cout << std::left << std::setw(name_width) << f.name << " | "
-                << std::setw(cron_width) << f.cron << " | "
-                << std::setw(duration_width) << f.duration << " | "
-                << std::setw(priority_width) << f.priority << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(results, {{"Name",
+                         [](auto &value, auto index) -> auto {
+                           return value.name;
+                         }},
+                        {"Cron",
+                         [](auto &value, auto index) -> auto {
+                           return value.cron;
+                         }},
+                        {"Duration",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.duration);
+                         }},
+                        {"Priority",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.priority);
+                         }}});
   }
-
   return 0;
 }
 
