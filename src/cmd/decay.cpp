@@ -4,7 +4,7 @@
 #include <iostream>
 #include <jansson.h>
 #include <string>
-
+#include "lib/table.hpp"
 struct decay_one {
   int duration;
   double priority;
@@ -77,36 +77,18 @@ static int run_get(int argc, char **argv) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_index = "Index";
-    std::string header_duration = "Duration";
-    std::string header_priority = "Priority";
-
-    std::size_t index_width = header_index.size();
-    std::size_t duration_width = header_duration.size();
-    std::size_t priority_width = header_priority.size();
-
-    index_width = std::max(index_width, std::to_string(decay.size()).size());
-    for (const auto &d : decay) {
-      duration_width =
-          std::max(duration_width, std::to_string(d.duration).size());
-      priority_width =
-          std::max(priority_width, std::to_string(d.priority).size());
-    }
-
-    std::cout << std::left << std::setw(index_width) << header_index << " | "
-              << std::setw(duration_width) << header_duration << " | "
-              << std::setw(priority_width) << header_priority << '\n'
-              << std::string(index_width, '-') << "-+-"
-              << std::string(duration_width, '-') << "-+-"
-              << std::string(priority_width, '-') << '\n';
-
-    for (int i = 0; i < decay.size(); i++) {
-      std::cout << std::left << std::setw(index_width) << i << " | "
-                << std::setw(duration_width) << decay[i].duration << " | "
-                << std::setw(priority_width) << decay[i].priority << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(decay, {{"Index",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(index);
+                         }},
+                        {"Duration",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.duration);
+                         }},
+                        {"Priority",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.priority);
+                         }}});
   }
 
   return 0;

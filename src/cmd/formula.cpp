@@ -1,13 +1,13 @@
 #include "formula.hpp"
 #include "score.hpp"
-#include <errno.h>
 #include <flux/core.h>
-#include <iomanip>
 #include <iostream>
 #include <jansson.h>
 #include <string.h>
 #include <string>
 #include <vector>
+#include "lib/table.hpp"
+#include "lib/flux.hpp"
 
 struct formula {
   std::string name;
@@ -23,7 +23,7 @@ enum formula_error {
   INVALID_NAME,
   INVALID_SCORE,
   INVALID_FLUX,
-  INVALID_RPC,
+  INVALID_PRIORITY,
   SUCCESS,
 };
 struct update_formula_result {
@@ -47,36 +47,19 @@ static update_formula_result update_formula_remote(std::string name,
   }
 
   if (name == "priority") {
-    flux_t *h;
-    flux_future_t *f;
-    if (!(h = flux_open(NULL, 0))) {
-      return {
-          INVALID_FLUX,
-          std::string("flux_open failed: ") + strerror(errno),
-      };
-    }
-
-    if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_formula",
-                            FLUX_NODEID_ANY, 0, "{s:s}", "data",
-                            formula.c_str()))) {
-      flux_close(h);
-      return {
-          INVALID_RPC, "sea_priority plugin is not loaded."
-          // std::string("flux_rpc_pack failed: ") + strerror(errno),
-      };
-    }
-
-    if (flux_future_get(f, NULL) < 0) {
-      flux_future_destroy(f);
-      flux_close(h);
-      return {
-          INVALID_RPC, "score formula got rejected"
-          // std::string("flux_future_get failed: ") + strerror(errno),
-      };
-    }
-
-    flux_future_destroy(f);
-    flux_close(h);
+      auto res = flux_plugin_set_formula(formula);
+      if(res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
+          return {
+              INVALID_PRIORITY,
+              res.err_msg
+          };
+      }
+      if(res.err != FLUX_PLUGIN_ERR_OK) {
+          return {
+              INVALID_FLUX,
+              res.err_msg
+          };
+        }
   }
 
   // TODO: store formula in the database
@@ -150,21 +133,10 @@ static int run_list(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_name = "Name";
-    std::size_t name_width = header_name.size();
-
-    for (const auto &f : results) {
-      name_width = std::max(name_width, f.name.size());
-    }
-
-    std::cout << std::left << std::setw(name_width) << header_name << '\n';
-    std::cout << std::string(name_width, '-') << '\n';
-
-    for (const auto &f : results) {
-      std::cout << std::left << std::setw(name_width) << f.name << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(results, {{"Name",
+                         [](auto &value, auto index) -> auto {
+                           return value.name;
+                         }}});
   }
 
   return 0;
@@ -232,30 +204,15 @@ static int run_get(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    std::string header_name = "Name";
-    std::string header_expr = "Formula";
-    std::size_t name_width = header_name.size();
-    std::size_t expr_width = header_expr.size();
-
-    for (const auto &f : results) {
-      name_width = std::max(name_width, f.name.size());
-      expr_width = std::max(expr_width, f.expr.size());
-    }
-
-    std::cout << std::left << std::setw(name_width) << header_name << " | "
-              << std::setw(expr_width) << header_expr << '\n';
-
-    std::cout << std::string(name_width, '-') << "-+-"
-              << std::string(expr_width, '-') << '\n';
-
-    for (const auto &f : results) {
-      std::cout << std::left << std::setw(name_width) << f.name << " | "
-                << std::setw(expr_width) << f.expr << '\n';
-    }
-
-    std::cout << std::endl;
+    print_table(results, {{"Name",
+                         [](auto &value, auto index) -> auto {
+                           return value.name;
+                         }},
+                        {"Formula",
+                         [](auto &value, auto index) -> auto {
+                           return value.expr;
+                         }}});
   }
-
   return 0;
 }
 
