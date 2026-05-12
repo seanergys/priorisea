@@ -1,6 +1,10 @@
 #include <algorithm>
 #include <functional>
 #include <iomanip>
+// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+//
+// SPDX-License-Identifier: MIT
+
 #include <iostream>
 #include <string>
 #include <vector>
