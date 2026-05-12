@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+//
+// SPDX-License-Identifier: MIT
+
 #include "score.hpp"
 #include "tinyexpr.h"
 #include <flux/core.h>

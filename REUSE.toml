@@ -1,0 +1,22 @@
+version = 1
+
+[[annotations]]
+path = [
+    ".clang-format",
+    ".gitignore",
+    ".gitlab-ci.yml",
+    ".gitmodules",
+    "autogen.sh",
+    "configure.ac",
+    "flake.lock",
+    "flake.nix",
+    "Makefile.am",
+    "README.md",
+    "REUSE.toml",
+    "external/**",
+    "m4/**",
+    "nix/**",
+    "tests/**"
+   ]
+SPDX-FileCopyrightText = "2026 SEANERGYS Partners <https://seanergys.eu>"
+SPDX-License-Identifier = "MIT"

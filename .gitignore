@@ -53,8 +53,13 @@ result
 .envrc
 .direnv
 
-# misc
+# tests
+.gitlab-ci-local
 test-driver
-ar-lib
 tests/integration/test-results
+.env
+
+# misc
+ar-lib
 src/cmd/priorisea
+install.tar.gz

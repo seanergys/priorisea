@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+#
+# SPDX-License-Identifier: MIT
+
 jobtapdir = $(libdir)/flux/job-manager/plugins/
 jobtap_LTLIBRARIES = sea_debug.la sea_priority.la
 
