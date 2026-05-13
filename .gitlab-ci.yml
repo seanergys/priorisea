@@ -29,12 +29,6 @@ build:
 
         - apt update && apt install -y wget openssh-client git cmake capnproto libcapnp-dev libfmt-dev
 
-        - mkdir -p ~/.ssh
-        - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-        - chmod 600 ~/.ssh/id_ed25519
-        - ssh-keyscan gitlab.seanergys.fz-juelich.de >> ~/.ssh/known_hosts
-        - ssh-keyscan github.com >> ~/.ssh/known_hosts
-
     script:
         - wget https://github.com/flux-framework/flux-core/releases/download/v0.85.0/flux-core-0.85.0.tar.gz
         - tar -xzf flux-core-0.85.0.tar.gz
@@ -45,7 +39,7 @@ build:
         - make -j$(nproc) install
         - cd $DIR
 
-        - git clone git@gitlab.seanergys.fz-juelich.de:software/seanerbus.git
+        - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/software/seanerbus
         - cd seanerbus/bindings/cpp
         - git submodule update --init --recursive
         - mkdir build
