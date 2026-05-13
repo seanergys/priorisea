@@ -54,10 +54,13 @@ result
 .direnv
 
 # tests
-.gitlab-ci-local
-test-driver
 tests/integration/test-results
+tests/integration/trash*
+tests/integration/*.log
+tests/integration/*.trs
+.gitlab-ci-local
 .env
+test-driver
 
 # misc
 ar-lib
