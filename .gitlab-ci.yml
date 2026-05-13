@@ -1,6 +1,10 @@
 stages:
     - prebuild
     - build
+    - test
+
+variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
 
 reuse:
     image:
@@ -18,47 +22,21 @@ clang-format:
     script:
         - git-clang-format HEAD~1
 
-build:
-    image: ubuntu:26.04
+build-image:
     stage: build
+    image: docker:latest
+    services:
+        - docker:dind
+    variables:
+        DOCKER_TLS_CERTDIR: ""
     before_script:
-        - echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/99ci
-        - export DEBIAN_FRONTEND=noninteractive
-        - export TZ=Etc/UTC
-        - export DIR=$PWD
-
-        - apt update && apt install -y wget openssh-client git cmake capnproto libcapnp-dev libfmt-dev
-
+        - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     script:
-        - wget https://github.com/flux-framework/flux-core/releases/download/v0.85.0/flux-core-0.85.0.tar.gz
-        - tar -xzf flux-core-0.85.0.tar.gz
-        - cd flux-core-0.85.0
-        - bash scripts/install-deps-deb.sh
-        - ./configure --prefix=/usr/local
-        - make -j$(nproc)
-        - make -j$(nproc) install
-        - cd $DIR
+        - docker build -t $IMAGE_TAG .
+        - docker push $IMAGE_TAG
 
-        - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/software/seanerbus
-        - cd seanerbus/bindings/cpp
-        - git submodule update --init --recursive
-        - mkdir build
-        - cd build
-        - cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-        - cmake --build .
-        - cmake --install .
-        - cd $DIR
-
-        - git submodule update --init --recursive
-        - ./autogen.sh
-        - ./configure --prefix=/usr/local
-        - rm -f /usr/local/lib/libfmt*
-        - rm -rf /usr/local/include/fmt
-        - rm -f /usr/local/lib/pkgconfig/fmt.pc
-        - make -j$(nproc)
-        - make -j$(nproc) install
-
-        - tar -czf install.tar.gz /usr/local
-    artifacts:
-        paths:
-            - install.tar.gz
+test:
+    stage: test
+    image: $IMAGE_TAG
+    script:
+        - make check
