@@ -10,6 +10,7 @@ TESTS = \
 EXTRA_DIST = \
     $(TESTS) \
     sharness.sh \
+    sharness.d \
     test-lib.sh
 
 TESTS_ENVIRONMENT = \
