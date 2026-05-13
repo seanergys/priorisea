@@ -8,6 +8,7 @@ path = [
     ".gitmodules",
     "autogen.sh",
     "configure.ac",
+    "Dockerfile",
     "flake.lock",
     "flake.nix",
     "Makefile.am",
