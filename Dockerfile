@@ -44,6 +44,11 @@ RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && \
     cmake --build . && \
     cmake --install .
 
+# Remove installed fmt lib
+RUN rm /usr/local/lib/libfmt*
+RUN rm -r /usr/local/lib/pkgconfig/fmt*
+RUN ldconfig
+
 #
 # Build plugin
 #
