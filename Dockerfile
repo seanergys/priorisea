@@ -22,7 +22,7 @@ RUN wget https://github.com/flux-framework/flux-core/releases/download/v0.85.0/f
 
 WORKDIR /opt/flux-core-0.85.0
 
-RUN bash scripts/install-deps-deb.sh
+RUN yes | bash scripts/install-deps-deb.sh
 
 RUN ./configure --prefix=/usr/local && \
     make -j$(nproc) && \
