@@ -44,8 +44,9 @@ RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && \
     cmake --build . && \
     cmake --install .
 
-# Remove installed fmt lib
+# Remove seanerbus' fmt lib
 RUN rm /usr/local/lib/libfmt*
+RUN rm -rf /usr/local/include/fmt
 RUN rm -r /usr/local/lib/pkgconfig/fmt*
 RUN ldconfig
 
