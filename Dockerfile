@@ -31,7 +31,6 @@ RUN ./configure --prefix=/usr/local && \
 #
 # Build seanerbus
 #
-
 COPY seanerbus /opt/seanerbus
 
 WORKDIR /opt/seanerbus/bindings/cpp
