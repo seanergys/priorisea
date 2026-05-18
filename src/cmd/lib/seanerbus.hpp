@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+//
+// SPDX-License-Identifier: MIT
+
 #include <schemas/msg.capnp.h>
 #include <seanerbus_client/connection.hpp>
 #include <seanerbus_client/simple_event_loop.hpp>

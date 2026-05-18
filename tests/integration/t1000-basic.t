@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-PRIORITY_PLUGIN=TODO
-
 test_description="test basic integration"
 
 . `dirname $0`/sharness.sh
+
+PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+test_under_flux 1
 
 test_expect_success 'load priority plugin' '
     flux jobtap load ${PRIORITY_PLUGIN}

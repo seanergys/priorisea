@@ -19,7 +19,7 @@ CXXFLAGS="$CXXFLAGS -O2 -g0 -fPIC"
 PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([JANSSON], [jansson])
 PKG_CHECK_MODULES([FMT], [fmt])
-PKG_CHECK_MODULES([SEANERBUS], [seanerbus_client seanerbus_msg seanerbus_internal_schemas])
+PKG_CHECK_MODULES([SEANERBUS], [seanerbus])
 AX_FLUX_CORE
 
 # Output files

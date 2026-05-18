@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+//
+// SPDX-License-Identifier: MIT
+
 #include "decay.hpp"
 #include "util.hpp"
 #include <bits/stdc++.h>

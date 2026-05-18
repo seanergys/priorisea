@@ -53,8 +53,17 @@ result
 .envrc
 .direnv
 
-# misc
-test-driver
-ar-lib
+# tests
 tests/integration/test-results
+tests/integration/trash*
+tests/integration/*.log
+tests/integration/*.trs
+.gitlab-ci-local
+.env
+test-driver
+
+# misc
+ar-lib
 src/cmd/priorisea
+install.tar.gz
+seanerbus/

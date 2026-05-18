@@ -1,6 +1,6 @@
 [submodule "external/tinyexpr"]
 	path = external/tinyexpr
-	url = git@github.com:codeplea/tinyexpr.git
+	url = https://github.com/codeplea/tinyexpr.git
 [submodule "external/croncpp"]
 	path = external/croncpp
-	url = git@github.com:mariusbancila/croncpp.git
+	url = https://github.com/mariusbancila/croncpp.git

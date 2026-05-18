@@ -1,0 +1,42 @@
+stages:
+    - prebuild
+    - build
+    #- test
+
+variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+
+reuse:
+    image:
+        name: fsfe/reuse:latest
+        entrypoint: [""]
+    stage: prebuild
+    script:
+        - reuse lint
+
+clang-format:
+    image: debian:testing-slim
+    stage: prebuild
+    before_script:
+        - apt-get update && apt-get install -y clang-format git
+    script:
+        - git-clang-format HEAD~1
+
+build-image:
+    stage: build
+    tags: ["dind"]
+    image: docker:latest
+    services:
+        - docker:dind
+    before_script:
+        - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    script:
+        - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/software/seanerbus seanerbus
+        - docker build -t $IMAGE_TAG .
+        - docker push $IMAGE_TAG
+
+#test:
+#    stage: test
+#    image: $IMAGE_TAG
+#    script:
+#        - make check
