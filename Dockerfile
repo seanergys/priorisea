@@ -31,9 +31,8 @@ RUN ./configure --prefix=/usr/local && \
 #
 # Build seanerbus
 #
-WORKDIR /opt
 
-RUN git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/software/seanerbus
+COPY seanerbus /opt/seanerbus
 
 WORKDIR /opt/seanerbus/bindings/cpp
 
