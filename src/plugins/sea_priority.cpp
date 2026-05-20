@@ -190,14 +190,13 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
 
 static int priority_cb(flux_plugin_t *p, const char *topic,
                        flux_plugin_arg_t *args, void *data) {
-
   flux_t *h = flux_jobtap_get_flux(p);
 
   int userid;
   if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_IN, "{s:i}", "userid",
                              &userid) < 0) {
     flux_log_error(h, "%s", flux_plugin_arg_strerror(args));
-    return -1;
+    return flux_jobtap_priority_unavail(p, args);
   }
 
   int64_t priority;
@@ -205,7 +204,6 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
                              &priority) < 0) {
     priority = DEFAULT_PRIORITY;
   }
-
   double priority_d = static_cast<double>(priority);
 
   double score = DEFAULT_SCORE;
@@ -214,29 +212,33 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
     score = it->second;
   }
 
+  if (formula.empty()) {
+    flux_log_error(h, "formula not set");
+    return flux_jobtap_priority_unavail(p, args);
+  }
   auto eval = eval_formula(formula, priority, score);
   if (!eval.valid) {
     flux_log_error(h, "formula evaluation failed");
-    return -1;
+    return flux_jobtap_priority_unavail(p, args);
   }
-  auto result = eval.result;
 
+  auto result = eval.result;
   if (!std::isfinite(result)) {
     flux_log_error(h, "formula evaluated to NaN or infinity");
-    return -1;
+    return flux_jobtap_priority_unavail(p, args);
   }
 
   if (result < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
       result > static_cast<double>(std::numeric_limits<int64_t>::max())) {
     flux_log_error(h, "formula result out of int64_t range");
-    return -1;
+    return flux_jobtap_priority_unavail(p, args);
   }
   priority = static_cast<int64_t>(result);
 
   if (flux_plugin_arg_pack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority",
                            priority) < 0) {
     flux_log_error(h, "%s", flux_plugin_arg_strerror(args));
-    return -1;
+    return flux_jobtap_priority_unavail(p, args);
   }
 
   return 0;
@@ -250,14 +252,6 @@ static const struct flux_plugin_handler tab[] = {
 
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
   flux_t *h = flux_jobtap_get_flux(p);
-
-  // TODO: retrieve formula from the database
-  // TODO: retrieve scores from the database
-  formula = "priority * 0.5 + score * 0.5";
-  if (!validate_formula(formula)) {
-    flux_log_error(h, "formula in database is invalid: %s", formula.c_str());
-    return -1;
-  }
 
   if (flux_plugin_register(p, "sea_priority", tab) < 0 ||
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||
