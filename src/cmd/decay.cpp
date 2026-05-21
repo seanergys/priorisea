@@ -25,13 +25,7 @@ static const decay DEFAULT_DECAY = {
 
 ////
 
-struct decay_to_str_res {
-  bool ok;
-  std::string message;
-  std::string decay_str;
-};
-static decay_to_str_res decay_to_str(decay &decay) {
-  decay_to_str_res res;
+static std::string decay_to_str(decay &decay) {
   std::stringstream ss;
   bool first = true;
   for (auto &d : decay) {
@@ -42,8 +36,7 @@ static decay_to_str_res decay_to_str(decay &decay) {
     }
     ss << d.duration << ":" << d.priority;
   }
-  res.decay_str = ss.str();
-  return res;
+  return ss.str();
 }
 
 struct decay_from_str_res {
@@ -98,13 +91,7 @@ struct store_decay_res {
 static store_decay_res store_decay(decay decay) {
   store_decay_res res;
 
-  auto parse_res = decay_to_str(decay);
-  if (!parse_res.ok) {
-    res.ok = false;
-    res.message = parse_res.message;
-    return res;
-  }
-  std::string decay_str = parse_res.decay_str;
+  std::string decay_str = decay_to_str(decay);
 
   auto txn = flux_kvs_txn_create();
   if (!txn) {

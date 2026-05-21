@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "kvs.hpp"
+#include <flux/core/kvs_txn.h>
 
 KVS_ERR kvs_commit(flux_kvs_txn_t *txn) {
   flux_t *h;
@@ -25,3 +26,34 @@ KVS_ERR kvs_commit(flux_kvs_txn_t *txn) {
   flux_close(h);
   return KVS_ERR_SUCCESS;
 }
+
+KVS_ERR kvs_remove(std::vector<std::string> keys) {
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    return KVS_ERR_OPEN;
+  }
+  for (auto key : keys) {
+    flux_kvs_txn_t *t;
+    if (!(t = flux_kvs_txn_create())) {
+      return KVS_ERR_TXN_CREATE;
+    }
+    if (flux_kvs_txn_unlink(t, 0, key.c_str()) < 0) {
+      return KVS_ERR_TXN_UNLINK;
+    }
+    flux_future_t *f;
+    if (!(f = flux_kvs_commit(h, NULL, 0, t))) {
+      flux_close(h);
+      return KVS_ERR_COMMIT;
+    }
+    if (flux_future_get(f, NULL) < 0) {
+      flux_future_destroy(f);
+      flux_close(h);
+      return KVS_ERR_GET;
+    }
+    flux_future_destroy(f);
+  }
+  flux_close(h);
+  return KVS_ERR_SUCCESS;
+}
+
+KVS_ERR kvs_remove(std::string key) { return kvs_remove({key}); }

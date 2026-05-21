@@ -4,30 +4,239 @@
 
 #include "time.hpp"
 #include "croncpp.h"
+#include "lib/table.hpp"
 #include "util.hpp"
+#include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
+#include <lib/kvs.hpp>
+#include <sstream>
 #include <string.h>
 #include <string>
 #include <vector>
-#include "lib/table.hpp"
 
-struct time {
+struct timeframe {
   std::string name;
   std::string cron;
   int duration;
   double priority;
 };
 
-static bool validate_cron(const std::string &expr, std::string &error) {
+////
+
+static std::string timeframe_to_str(timeframe time) {
+  std::stringstream ss;
+  ss << time.name << "," << time.cron << "," << time.duration << ","
+     << time.priority;
+  return ss.str();
+}
+
+struct validate_cron_res {
+  bool ok;
+  std::string message;
+};
+static validate_cron_res validate_cron(const std::string &expr,
+                                       std::string &error) {
+  validate_cron_res res;
   try {
     cron::make_cron(expr);
-    return true;
+    res.ok = true;
+    return res;
   } catch (cron::bad_cronexpr const &ex) {
-    error = ex.what();
-    return false;
+    res.ok = false;
+    res.message = ex.what();
+    return res;
   }
 }
+
+struct validate_timeframe_res {
+  bool ok;
+  std::string message;
+};
+static validate_timeframe_res validate_timeframe(timeframe time) {
+  validate_timeframe_res res;
+  if (time.name.empty()) {
+    res.ok = false;
+    res.message = "time name is missing.";
+    return res;
+  }
+  auto cron_res = validate_cron(time.cron, res.message);
+  if (!cron_res.ok) {
+    res.ok = false;
+    res.message = cron_res.message;
+    return res;
+  }
+  if (time.duration < 0) {
+    res.ok = false;
+    res.message = "duration is not a positive integer";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+struct timeframe_from_str_res {
+  bool ok;
+  std::string message;
+  timeframe time;
+};
+static timeframe_from_str_res timeframe_from_str(const std::string &str) {
+  timeframe_from_str_res res;
+
+  std::stringstream ss(str);
+  std::string t;
+  if (!getline(ss, t, ',')) {
+    res.ok = false;
+    res.message = "name is missing";
+    return res;
+  }
+  res.time.name = t;
+
+  if (!getline(ss, t, ',')) {
+    res.ok = false;
+    res.message = "cron is missing";
+    return res;
+  }
+  res.time.cron = t;
+
+  if (!getline(ss, t, ',')) {
+    res.ok = false;
+    res.message = "duration is missing";
+    return res;
+  }
+  int duration = 0;
+  if (!parse_int(t, duration)) {
+    res.ok = false;
+    res.message = "duration `" + t + "` is not a valid integer";
+    return res;
+  }
+  res.time.duration = duration;
+
+  if (!getline(ss, t, ',')) {
+    res.ok = false;
+    res.message = "priority is missing";
+    return res;
+  }
+  double priority = 0;
+  if (!parse_double(t, priority)) {
+    res.ok = false;
+    res.message = "priority `" + t + "` is not a valid double";
+    return res;
+  }
+  res.time.priority = priority;
+
+  auto validate_res = validate_timeframe(res.time);
+  if (!validate_res.ok) {
+    res.ok = false;
+    res.message = validate_res.message;
+    return res;
+  }
+
+  res.ok = true;
+  return res;
+}
+
+struct store_timeframe_res {
+  bool ok;
+  std::string message;
+};
+static store_timeframe_res store_timeframe(timeframe time) {
+  store_timeframe_res res;
+
+  std::string timeframe_str = timeframe_to_str(time);
+
+  auto txn = flux_kvs_txn_create();
+  if (!txn) {
+    res.ok = false;
+    res.message = "Failed to create KVS transaction.";
+    return res;
+  }
+  if (flux_kvs_txn_put(txn, 0, ("priorisea.timeframe." + time.name).c_str(),
+                       timeframe_str.c_str()) < 0) {
+    res.ok = false;
+    res.message = "Failed to store time in KVS transaction.";
+    return res;
+  }
+  auto commit_res = kvs_commit(txn);
+  if (commit_res != KVS_ERR_SUCCESS) {
+    res.ok = false;
+    res.message = "Failed to commit time to KVS.";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+struct get_timeframes_res {
+  bool ok;
+  std::string message;
+  std::vector<timeframe> timeframes;
+};
+static get_timeframes_res get_timeframes(std::vector<std::string> names) {
+  get_timeframes_res res;
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    res.ok = false;
+    res.message = "Failed to connect to Flux.";
+    return res;
+  }
+
+  for (auto timeframe_name : names) {
+    flux_future_t *f;
+    if (!(f = flux_kvs_lookup(
+              h, NULL, 0, ("priorisea.timeframe." + timeframe_name).c_str()))) {
+      res.ok = false;
+      res.message = "Failed to retrieve time '" + timeframe_name + "'";
+      flux_close(h);
+      return res;
+    }
+    const char *timeframe_str;
+    if (flux_kvs_lookup_get(f, &timeframe_str) < 0) {
+      res.ok = false;
+      res.message = "Failed to get time '" + timeframe_name + "'";
+      flux_future_destroy(f);
+      flux_close(h);
+      return res;
+    }
+    auto parse_res = timeframe_from_str(timeframe_str);
+    if (!parse_res.ok) {
+      res.ok = false;
+      res.message =
+          "Failed to parse time '" + timeframe_name + "': " + parse_res.message;
+      flux_future_destroy(f);
+      flux_close(h);
+      return res;
+    }
+    res.timeframes.push_back(parse_res.time);
+    flux_future_destroy(f);
+  }
+  flux_close(h);
+
+  res.ok = true;
+  return res;
+}
+
+struct del_timeframes_res {
+  bool ok;
+  std::string message;
+};
+static del_timeframes_res del_timeframes(std::vector<std::string> names) {
+  del_timeframes_res res;
+  std::vector<std::string> keys;
+  for (auto name : names) {
+    keys.push_back("priorisea.timeframe." + name);
+  }
+  auto remove_res = kvs_remove(keys);
+  if (remove_res != KVS_ERR_SUCCESS) {
+    res.ok = false;
+    res.message = "failed to delete times";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+////
 
 static const std::string USAGE_MSG = "Usage: priorisea time [-h] COMMAND ARGS";
 static const std::string TRY_HELP_MSG =
@@ -70,7 +279,7 @@ static int run_list(int argc, char *argv[]) {
     if (arg == "--json") {
       json_flag = true;
     } else {
-      std::cout << "Error: 'priorisea time list " << arg
+      std::cerr << "Error: 'priorisea time list " << arg
                 << "' is not a valid option" << '\n'
                 << LIST_USAGE_MSG << '\n'
                 << LIST_TRY_HELP_MSG << std::endl;
@@ -78,8 +287,11 @@ static int run_list(int argc, char *argv[]) {
     }
   }
 
-  // TODO: Retrieve the time list from the database
-  std::vector<struct time> results = {
+  std::cerr << "Error: 'priorisea time list' is not yet implemented"
+            << std::endl;
+  return -1;
+
+  std::vector<timeframe> results = {
       {.name = "daily", .cron = "0 0 * * *", .duration = 3600, .priority = 10},
       {.name = "hourly", .cron = "0 * * * *", .duration = 60, .priority = 10}};
 
@@ -93,10 +305,9 @@ static int run_list(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name",
-                         [](auto &value, auto index) -> auto {
-                           return value.name;
-                         }}});
+    print_table(results, {{"Name", [](auto &value, auto index) -> auto {
+                             return value.name;
+                           }}});
   }
 
   return 0;
@@ -116,54 +327,36 @@ OPTIONS list and interpretation:
 
 static int run_get(int argc, char *argv[]) {
   bool json_flag = false;
-  std::vector<std::string> times;
+  std::vector<std::string> timeframes_names;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << GET_HELP_MSG << std::endl;
     return 0;
   }
 
-  for (int i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--json") == 0) {
+  for (int i = 0; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "--json") {
       json_flag = true;
     } else {
-      times.push_back(argv[i]);
+      timeframes_names.push_back(arg);
     }
   }
 
-  if (times.empty()) {
-    std::cout << GET_USAGE_MSG << '\n' << GET_TRY_HELP_MSG << std::endl;
+  if (timeframes_names.empty()) {
+    std::cerr << GET_USAGE_MSG << '\n' << GET_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
-  for (int i = 0; i < argc; i++) {
-    std::string arg = argv[i];
-
-    if (arg == "--json") {
-      json_flag = true;
-    } else if (!arg.empty() && arg[0] == '-') {
-      std::cout << "Error: 'priorisea time get " << arg
-                << "' is not a valid option" << '\n'
-                << GET_USAGE_MSG << '\n'
-                << GET_TRY_HELP_MSG << std::endl;
-      return -1;
-    } else {
-      times.push_back(arg);
-    }
-  }
-
-  if (times.empty()) {
-    std::cout << "Error: 'priorisea time get ...'" << '\n'
-              << "  time range name is missing" << '\n'
+  auto get_res = get_timeframes(timeframes_names);
+  if (!get_res.ok) {
+    std::cerr << "Error: 'priorisea time get ...'" << '\n'
+              << "  " << get_res.message << '\n'
               << GET_USAGE_MSG << '\n'
               << GET_TRY_HELP_MSG << std::endl;
     return -1;
   }
-
-  // TODO: Retrieve the time ranges from the database
-  std::vector<struct time> results = {
-      {.name = "daily", .cron = "0 0 * * *", .duration = 3600, .priority = 10},
-      {.name = "hourly", .cron = "0 * * * *", .duration = 60, .priority = 10}};
+  std::vector<timeframe> results = get_res.timeframes;
 
   if (json_flag) {
     auto obj = json_object();
@@ -179,22 +372,17 @@ static int run_get(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name",
-                         [](auto &value, auto index) -> auto {
-                           return value.name;
-                         }},
-                        {"Cron",
-                         [](auto &value, auto index) -> auto {
-                           return value.cron;
-                         }},
-                        {"Duration",
-                         [](auto &value, auto index) -> auto {
-                           return std::to_string(value.duration);
-                         }},
-                        {"Priority",
-                         [](auto &value, auto index) -> auto {
-                           return std::to_string(value.priority);
-                         }}});
+    print_table(
+        results,
+        {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
+         {"Cron", [](auto &value, auto index) -> auto { return value.cron; }},
+         {"Duration",
+          [](auto &value, auto index) -> auto {
+            return std::to_string(value.duration);
+          }},
+         {"Priority", [](auto &value, auto index) -> auto {
+            return std::to_string(value.priority);
+          }}});
   }
   return 0;
 }
@@ -216,51 +404,30 @@ static int run_add(int argc, char *argv[]) {
   }
 
   if (argc != 4) {
-    std::cout << ADD_USAGE_MSG << '\n' << ADD_TRY_HELP_MSG << std::endl;
+    std::cerr << ADD_USAGE_MSG << '\n' << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
-  std::string range_name = argv[0];
-  std::string cron_expression = argv[1];
-
-  std::string error;
-  if (!validate_cron(cron_expression, error)) {
+  std::string timeframe_str =
+      std::string(argv[0]) + "," + argv[1] + "," + argv[2] + "," + argv[3];
+  auto parse_res = timeframe_from_str(timeframe_str);
+  if (!parse_res.ok) {
     std::cerr << "Error: 'priorisea time add ...'" << '\n'
-              << "  cron expression `" << cron_expression << "` is not valid"
-              << '\n'
-              << error << '\n';
-    return -1;
-  }
-
-  int duration = 0;
-  double priority = 0;
-
-  if (!parse_int(argv[2], duration)) {
-    std::cout << "Error: 'priorisea time add ...'" << '\n'
-              << "  duration `" << argv[2] << "` is not a valid integer" << '\n'
+              << "  " << parse_res.message << '\n'
               << ADD_USAGE_MSG << '\n'
               << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
+  timeframe tf = parse_res.time;
 
-  if (duration < 0) {
-    std::cout << "Error: 'priorisea time add ...'" << '\n'
-              << "  duration `" << argv[2] << "` is not a positive integer"
-              << '\n'
+  auto store_res = store_timeframe(tf);
+  if (!store_res.ok) {
+    std::cerr << "Error: 'priorisea time add ...'" << '\n'
+              << "  " << store_res.message << '\n'
               << ADD_USAGE_MSG << '\n'
               << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
-
-  if (!parse_double(argv[3], priority)) {
-    std::cout << "Error: 'priorisea time add ...'" << '\n'
-              << "  priority `" << argv[3] << "` is not a valid double" << '\n'
-              << ADD_USAGE_MSG << '\n'
-              << ADD_TRY_HELP_MSG << std::endl;
-    return -1;
-  }
-
-  // TODO: Add the time range to the database
   return 0;
 }
 
@@ -287,23 +454,30 @@ static int run_edit(int argc, char *argv[]) {
   }
 
   if (argc < 3) {
-    std::cout << EDIT_USAGE_MSG << '\n' << EDIT_TRY_HELP_MSG << std::endl;
+    std::cerr << EDIT_USAGE_MSG << '\n' << EDIT_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
   std::string range_name = argv[0];
 
-  // TODO: verify if the range name exists in the database
+  auto get_res = get_timeframes({range_name});
+  if (!get_res.ok) {
+    std::cerr << "Error: 'priorisea time edit " << range_name << "'" << '\n'
+              << "  " << get_res.message << '\n'
+              << EDIT_USAGE_MSG << '\n'
+              << EDIT_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+  auto timeframe = get_res.timeframes[0];
 
-  std::string cron_expression;
-  std::string duration_str;
-  std::string priority_str;
+  std::string cron_expression = timeframe.cron;
+  std::string duration_str = std::to_string(timeframe.duration);
+  std::string priority_str = std::to_string(timeframe.priority);
 
   for (int i = 1; i < argc; i += 2) {
     std::string field = argv[i];
-
     if (i + 1 >= argc) {
-      std::cout << "Error: 'priorisea time edit " << field << "'" << '\n'
+      std::cerr << "Error: 'priorisea time edit " << field << "'" << '\n'
                 << "  value is missing" << '\n'
                 << EDIT_USAGE_MSG << '\n'
                 << EDIT_TRY_HELP_MSG << std::endl;
@@ -311,54 +485,14 @@ static int run_edit(int argc, char *argv[]) {
     }
 
     std::string value = argv[i + 1];
-
     if (field == "--cron") {
-      std::string error;
-      if (!validate_cron(value, error)) {
-        std::cerr << "Error: 'priorisea time edit ...'" << '\n'
-                  << "  cron expression `" << value << "` is not valid" << '\n'
-                  << error << '\n';
-        return -1;
-      }
       cron_expression = value;
-
     } else if (field == "--duration") {
-      int duration = 0;
-
-      if (!parse_int(value, duration)) {
-        std::cout << "Error: 'priorisea time edit ...'" << '\n'
-                  << "  duration `" << value << "` is not a valid integer"
-                  << '\n'
-                  << EDIT_USAGE_MSG << '\n'
-                  << EDIT_TRY_HELP_MSG << std::endl;
-        return -1;
-      }
-
-      if (duration < 0) {
-        std::cout << "Error: 'priorisea time edit ...'" << '\n'
-                  << "  duration `" << value << "` is not a positive integer"
-                  << '\n'
-                  << EDIT_USAGE_MSG << '\n'
-                  << EDIT_TRY_HELP_MSG << std::endl;
-        return -1;
-      }
-
       duration_str = value;
     } else if (field == "--priority") {
-      double priority = 0;
-
-      if (!parse_double(value, priority)) {
-        std::cout << "Error: 'priorisea time edit ...'" << '\n'
-                  << "  priority `" << value << "` is not a valid double"
-                  << '\n'
-                  << EDIT_USAGE_MSG << '\n'
-                  << EDIT_TRY_HELP_MSG << std::endl;
-        return -1;
-      }
-
       priority_str = value;
     } else {
-      std::cout << "Error: 'priorisea time edit " << field
+      std::cerr << "Error: 'priorisea time edit " << field
                 << "' is not a valid option" << '\n'
                 << EDIT_USAGE_MSG << '\n'
                 << EDIT_TRY_HELP_MSG << std::endl;
@@ -367,14 +501,32 @@ static int run_edit(int argc, char *argv[]) {
   }
 
   if (cron_expression.empty() && duration_str.empty() && priority_str.empty()) {
-    std::cout << "Error: 'priorisea time edit ...'" << '\n'
+    std::cerr << "Error: 'priorisea time edit ...'" << '\n'
               << "  field to edit is missing" << '\n'
               << EDIT_USAGE_MSG << '\n'
               << EDIT_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
-  // TODO: edit the range in the database
+  auto timeframe_str = timeframe.name + "," + cron_expression + "," +
+                       duration_str + "," + priority_str;
+  auto parse_res = timeframe_from_str(timeframe_str);
+  if (!parse_res.ok) {
+    std::cerr << "Error: 'priorisea time edit ...'" << '\n'
+              << "  " << parse_res.message << '\n'
+              << EDIT_USAGE_MSG << '\n'
+              << EDIT_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+  auto store_res = store_timeframe(parse_res.time);
+  if (!store_res.ok) {
+    std::cerr << "Error: 'priorisea time edit ...'" << '\n'
+              << "  " << store_res.message << '\n'
+              << EDIT_USAGE_MSG << '\n'
+              << EDIT_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
   return 0;
 }
 
@@ -394,7 +546,7 @@ static int run_delete(int argc, char *argv[]) {
   }
 
   if (argc < 1) {
-    std::cout << DELETE_USAGE_MSG << '\n' << DELETE_TRY_HELP_MSG << std::endl;
+    std::cerr << DELETE_USAGE_MSG << '\n' << DELETE_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -402,15 +554,18 @@ static int run_delete(int argc, char *argv[]) {
     std::string range_name = argv[i];
 
     if (!range_name.empty() && range_name[0] == '-') {
-      std::cout << "Error: 'priorisea time delete " << range_name
+      std::cerr << "Error: 'priorisea time delete " << range_name
                 << "' is not a valid option" << '\n'
                 << DELETE_USAGE_MSG << '\n'
                 << DELETE_TRY_HELP_MSG << std::endl;
       return -1;
     }
 
-    // TODO: verify if the range name exists in the database
-    // TODO: delete the range from the database
+    auto del_res = del_timeframes(std::vector<std::string>{range_name});
+    if (!del_res.ok) {
+      std::cout << "Error: " << del_res.message << std::endl;
+      return -1;
+    }
   }
 
   return 0;
