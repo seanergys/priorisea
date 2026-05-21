@@ -19,6 +19,7 @@ priorisea_LDADD = \
     $(top_builddir)/external/libtinyexpr.la \
     $(top_builddir)/src/common/libcommon.la \
     $(top_builddir)/src/cmd/lib/libflux.la \
+    $(top_builddir)/src/cmd/lib/libkvs.la \
     $(JANSSON_LIBS) \
     $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)

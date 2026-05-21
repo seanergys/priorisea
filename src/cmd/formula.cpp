@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "formula.hpp"
+#include "lib/flux.hpp"
+#include "lib/kvs.hpp"
+#include "lib/table.hpp"
 #include "score.hpp"
 #include <flux/core.h>
 #include <iostream>
@@ -10,8 +13,6 @@
 #include <string.h>
 #include <string>
 #include <vector>
-#include "lib/table.hpp"
-#include "lib/flux.hpp"
 
 struct formula {
   std::string name;
@@ -51,24 +52,39 @@ static update_formula_result update_formula_remote(std::string name,
   }
 
   if (name == "priority") {
-      auto res = flux_plugin_set_formula(formula);
-      if(res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
-          return {
-              INVALID_PRIORITY,
-              res.err_msg
-          };
-      }
-      if(res.err != FLUX_PLUGIN_ERR_OK) {
-          return {
-              INVALID_FLUX,
-              res.err_msg
-          };
-        }
+    auto res = flux_plugin_set_formula(formula);
+    if (res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
+      return {INVALID_PRIORITY, res.err_msg};
+    }
+    if (res.err != FLUX_PLUGIN_ERR_OK) {
+      return {INVALID_FLUX, res.err_msg};
+    }
   }
 
-  // TODO: store formula in the database
+  // TODO: store in Seanergys DB instead of KVS
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
+  auto kvs_key = "priorisea.formula." + name;
+  auto txn = flux_kvs_txn_create();
+  if (!txn) {
+    return {
+        INVALID_FLUX,
+        "Failed to create KVS transaction.",
+    };
+  }
+  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), formula.c_str()) < 0) {
+    return {
+        INVALID_FLUX,
+        "Failed to store formula in KVS.",
+    };
+  }
+  auto commit_res = kvs_commit(txn);
+  if (commit_res != KVS_SUCCESS) {
+    return {
+        INVALID_FLUX,
+        "Failed to commit formula to KVS.",
+    };
+  }
 
   return {
       SUCCESS,
@@ -105,7 +121,6 @@ OPTIONS list and interpretation:
 
 static int run_list(int argc, char *argv[]) {
   bool json_flag = false;
-
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << LIST_HELP_MSG << std::endl;
     return 0;
@@ -137,10 +152,9 @@ static int run_list(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name",
-                         [](auto &value, auto index) -> auto {
-                           return value.name;
-                         }}});
+    print_table(results, {{"Name", [](auto &value, auto index) -> auto {
+                             return value.name;
+                           }}});
   }
 
   return 0;
@@ -195,10 +209,34 @@ static int run_get(int argc, char *argv[]) {
     return -1;
   }
 
-  // TODO: Retrieve the formulas from the database
-  std::vector<formula> results = {
-      formula{.name = "priority", .expr = "priority * 2"},
-      formula{.name = "score", .expr = "5"}};
+  // TODO: Change from KVS to Seanergys DB
+  std::vector<formula> results;
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    std::cerr << "Error: Failed to connect to Flux" << std::endl;
+    return -1;
+  }
+  for (auto formula_name : formulas) {
+    flux_future_t *f;
+    if (!(f = flux_kvs_lookup(h, NULL, 0,
+                              ("priorisea.formula." + formula_name).c_str()))) {
+      std::cerr << "Error: Failed to retrieve formula '" << formula_name << "'"
+                << std::endl;
+      flux_close(h);
+      return -1;
+    }
+    const char *formula_value;
+    if (flux_kvs_lookup_get(f, &formula_value) < 0) {
+      std::cerr << "Error: Failed to get formula '" << formula_name << "'"
+                << std::endl;
+      flux_future_destroy(f);
+      flux_close(h);
+      return -1;
+    }
+    results.push_back(formula{.name = formula_name, .expr = formula_value});
+    flux_future_destroy(f);
+  }
+  flux_close(h);
 
   if (json_flag) {
     auto obj = json_object();
@@ -208,14 +246,11 @@ static int run_get(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name",
-                         [](auto &value, auto index) -> auto {
-                           return value.name;
-                         }},
-                        {"Formula",
-                         [](auto &value, auto index) -> auto {
-                           return value.expr;
-                         }}});
+    print_table(
+        results,
+        {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
+         {"Formula",
+          [](auto &value, auto index) -> auto { return value.expr; }}});
   }
   return 0;
 }

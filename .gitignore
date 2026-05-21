@@ -67,3 +67,4 @@ ar-lib
 src/cmd/priorisea
 install.tar.gz
 seanerbus/
+.vscode/
