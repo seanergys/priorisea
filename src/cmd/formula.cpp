@@ -64,7 +64,8 @@ static get_formulas_res get_formulas_remote(std::vector<std::string> &names) {
       flux_close(h);
       return res;
     }
-    res.formulas.push_back(formula{.name = formula_name, .expr = formula_value});
+    res.formulas.push_back(
+        formula{.name = formula_name, .expr = formula_value});
     flux_future_destroy(f);
   }
   flux_close(h);
@@ -77,7 +78,7 @@ struct update_formula_res {
   std::string message;
 };
 static update_formula_res update_formula_remote(std::string name,
-                                                   std::string expr) {
+                                                std::string expr) {
   if (name != "score" && name != "priority") {
     return {
         FORMULA_ERR_INVALID_NAME,
