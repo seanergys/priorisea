@@ -201,8 +201,8 @@ static get_timeframes_res get_timeframes(std::vector<std::string> names) {
     auto parse_res = timeframe_from_str(timeframe_str);
     if (!parse_res.ok) {
       res.ok = false;
-      res.message = "Failed to parse time '" + timeframe_name +
-                    "': " + parse_res.message;
+      res.message =
+          "Failed to parse time '" + timeframe_name + "': " + parse_res.message;
       flux_future_destroy(f);
       flux_close(h);
       return res;
