@@ -36,7 +36,7 @@ struct update_formula_result {
   std::string message;
 };
 static update_formula_result update_formula_remote(std::string name,
-                                                   std::string formula) {
+                                                   std::string expr) {
   if (name != "score" && name != "priority") {
     return {
         INVALID_NAME,
@@ -44,7 +44,7 @@ static update_formula_result update_formula_remote(std::string name,
     };
   }
 
-  if (name == "score" && !validate_score(formula)) {
+  if (name == "score" && !validate_score(expr)) {
     return {
         INVALID_SCORE,
         "Invalid score formula.",
@@ -52,7 +52,7 @@ static update_formula_result update_formula_remote(std::string name,
   }
 
   if (name == "priority") {
-    auto res = flux_plugin_set_formula(formula);
+    auto res = flux_plugin_set_formula(expr);
     if (res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
       return {INVALID_PRIORITY, res.err_msg};
     }
@@ -72,7 +72,7 @@ static update_formula_result update_formula_remote(std::string name,
         "Failed to create KVS transaction.",
     };
   }
-  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), formula.c_str()) < 0) {
+  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), expr.c_str()) < 0) {
     return {
         INVALID_FLUX,
         "Failed to store formula in KVS.",
@@ -174,7 +174,7 @@ OPTIONS list and interpretation:
 
 static int run_get(int argc, char *argv[]) {
   bool json_flag = false;
-  std::vector<std::string> formulas;
+  std::vector<std::string> formulas_names;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << GET_HELP_MSG << std::endl;
@@ -197,11 +197,11 @@ static int run_get(int argc, char *argv[]) {
                 << GET_TRY_HELP_MSG << std::endl;
       return -1;
     } else {
-      formulas.push_back(arg);
+      formulas_names.push_back(arg);
     }
   }
 
-  if (formulas.empty()) {
+  if (formulas_names.empty()) {
     std::cout << "Error: 'priorisea formula get ...'" << '\n'
               << "  formula name is missing" << '\n'
               << GET_USAGE_MSG << '\n'
@@ -216,7 +216,7 @@ static int run_get(int argc, char *argv[]) {
     std::cerr << "Error: Failed to connect to Flux" << std::endl;
     return -1;
   }
-  for (auto formula_name : formulas) {
+  for (auto formula_name : formulas_names) {
     flux_future_t *f;
     if (!(f = flux_kvs_lookup(h, NULL, 0,
                               ("priorisea.formula." + formula_name).c_str()))) {
@@ -279,8 +279,8 @@ static int run_set(int argc, char *argv[]) {
   }
 
   std::string name = argv[0];
-  std::string formula = argv[1];
-  auto res = update_formula_remote(name, formula);
+  std::string expr = argv[1];
+  auto res = update_formula_remote(name, expr);
   if (res.code != SUCCESS) {
     std::cerr << res.message << std::endl;
     return -1;
@@ -311,11 +311,11 @@ static int run_reset(int argc, char *argv[]) {
   for (int i = 0; i < argc; i++) {
     bool found = false;
     std::string name = argv[i];
-    std::string formula;
+    std::string expr;
 
     for (const auto &default_formula : DEFAULT_FORMULAS) {
       if (std::string(argv[i]) == default_formula.name) {
-        formula = default_formula.expr;
+        expr = default_formula.expr;
         found = true;
         break;
       }
@@ -329,12 +329,12 @@ static int run_reset(int argc, char *argv[]) {
       return -1;
     }
 
-    auto res = update_formula_remote(name, formula);
+    auto res = update_formula_remote(name, expr);
     if (res.code != SUCCESS) {
       std::cerr << res.message << std::endl;
       return -1;
     } else {
-      std::cout << "Formula " << name << " reset to default: " << formula
+      std::cout << "Formula " << name << " reset to default: " << expr
                 << std::endl;
     }
   }
