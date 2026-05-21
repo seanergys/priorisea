@@ -4,7 +4,7 @@
 
 #include "kvs.hpp"
 
-KVS_ERROR kvs_commit(flux_kvs_txn_t *txn) {
+KVS_ERR kvs_commit(flux_kvs_txn_t *txn) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
@@ -23,5 +23,5 @@ KVS_ERROR kvs_commit(flux_kvs_txn_t *txn) {
   }
   flux_future_destroy(f);
   flux_close(h);
-  return KVS_SUCCESS;
+  return KVS_ERR_SUCCESS;
 }
