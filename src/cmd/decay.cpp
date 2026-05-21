@@ -3,22 +3,131 @@
 // SPDX-License-Identifier: MIT
 
 #include "decay.hpp"
+#include "lib/table.hpp"
 #include "util.hpp"
 #include <bits/stdc++.h>
+#include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
+#include <lib/kvs.hpp>
 #include <string>
-#include "lib/table.hpp"
+
 struct decay_one {
   int duration;
   double priority;
 };
-typedef std::vector<decay_one> decay_list;
-static const decay_list DEFAULT_DECAY = {
+typedef std::vector<decay_one> decay;
+static const decay DEFAULT_DECAY = {
     {.duration = 86400, .priority = 1},
     {.duration = 604800, .priority = 0.5},
     {.duration = 1209600, .priority = 0.25},
 };
+
+////
+
+struct decay_to_str_res {
+  bool ok;
+  std::string message;
+  std::string decay_str;
+};
+static decay_to_str_res decay_to_str(decay &decay) {
+  decay_to_str_res res;
+  std::stringstream ss;
+  bool first = true;
+  for (auto &d : decay) {
+    if (!first) {
+      ss << ",";
+    } else {
+      first = false;
+    }
+    ss << d.duration << ":" << d.priority;
+  }
+  res.decay_str = ss.str();
+  return res;
+}
+
+struct decay_from_str_res {
+  bool ok;
+  std::string message;
+  decay decay_obj;
+};
+static decay_from_str_res decay_from_str(std::string decay_str) {
+  decay_from_str_res res;
+  std::stringstream ss(decay_str);
+  std::string t;
+  while (getline(ss, t, ',')) {
+    auto pos = t.find(':');
+    if (pos == std::string::npos) {
+      res.ok = false;
+      res.message = "priority is missing";
+      return res;
+    }
+
+    auto duration_str = t.substr(0, pos);
+    auto priority_str = t.substr(pos + 1);
+
+    int duration = 0;
+    if (!parse_int(duration_str, duration)) {
+      res.ok = false;
+      res.message = "duration `" + duration_str + "` is not a valid integer";
+      return res;
+    }
+
+    if (duration < 0) {
+      res.ok = false;
+      res.message = "duration `" + duration_str + "` is not a positive integer";
+      return res;
+    }
+
+    double priority = 0;
+    if (!parse_double(priority_str, priority)) {
+      res.ok = false;
+      res.message = "priority `" + priority_str + "` is not a valid double";
+      return res;
+    }
+
+    res.decay_obj.push_back({.duration = duration, .priority = priority});
+  }
+  return res;
+}
+
+struct store_decay_res {
+  bool ok;
+  std::string message;
+};
+static store_decay_res store_decay(decay decay) {
+  store_decay_res res;
+
+  auto parse_res = decay_to_str(decay);
+  if (!parse_res.ok) {
+    res.ok = false;
+    res.message = parse_res.message;
+    return res;
+  }
+  std::string decay_str = parse_res.decay_str;
+
+  auto txn = flux_kvs_txn_create();
+  if (!txn) {
+    res.ok = false;
+    res.message = "Failed to create KVS transaction.";
+    return res;
+  }
+  if (flux_kvs_txn_put(txn, 0, "priorisea.decay", decay_str.c_str()) < 0) {
+    res.ok = false;
+    res.message = "Failed to store decay parameters in KVS.";
+    return res;
+  }
+  auto commit_res = kvs_commit(txn);
+  if (commit_res != KVS_ERR_SUCCESS) {
+    res.ok = false;
+    res.message = "Failed to commit decay parameters to KVS.";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+////
 
 static const std::string USAGE_MSG = "Usage: priorisea decay [-h] COMMAND ARGS";
 static const std::string TRY_HELP_MSG =
@@ -62,13 +171,36 @@ static int run_get(int argc, char **argv) {
     }
   }
 
-  // TODO: retrieve decay from database
-  // TODO: to replace this fake list
-  decay_list decay = {
-      {.duration = 86400, .priority = 1},
-      {.duration = 604800, .priority = 0.5},
-      {.duration = 1209600, .priority = 0.25},
-  };
+  std::string decay_str;
+
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    return -1;
+  }
+  flux_future_t *f;
+  if (!(f = flux_kvs_lookup(h, NULL, 0, "priorisea.decay"))) {
+    flux_close(h);
+    return -1;
+  }
+  const char *decay_str_tmp;
+  if (flux_kvs_lookup_get(f, &decay_str_tmp) < 0) {
+    flux_future_destroy(f);
+    flux_close(h);
+    return -1;
+  }
+  decay_str = decay_str_tmp;
+  flux_future_destroy(f);
+  flux_close(h);
+
+  auto res = decay_from_str(decay_str);
+  if (!res.ok) {
+    std::cout << "Error: 'priorisea decay get ...'" << '\n'
+              << "  " << res.message << '\n'
+              << GET_USAGE_MSG << '\n'
+              << GET_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+  decay decay = res.decay_obj;
 
   if (json) {
     auto obj = json_array();
@@ -89,8 +221,7 @@ static int run_get(int argc, char **argv) {
                          [](auto &value, auto index) -> auto {
                            return std::to_string(value.duration);
                          }},
-                        {"Priority",
-                         [](auto &value, auto index) -> auto {
+                        {"Priority", [](auto &value, auto index) -> auto {
                            return std::to_string(value.priority);
                          }}});
   }
@@ -119,55 +250,25 @@ static int run_set(int argc, char **argv) {
     return 0;
   }
 
-  decay_list d;
-  std::stringstream ss(arg);
-  std::string t;
-  while (getline(ss, t, ',')) {
-    auto pos = t.find(':');
-    if (pos == std::string::npos) {
-      std::cout << "Error: 'priorisea decay set ...'" << '\n'
-                << "  priority is missing" << '\n'
-                << SET_USAGE_MSG << '\n'
-                << SET_TRY_HELP_MSG << std::endl;
-      return -1;
-    }
+  auto parse_res = decay_from_str(arg);
+  if (!parse_res.ok) {
+    std::cerr << "Error: 'priorisea decay set ...'" << '\n'
+              << "  " << parse_res.message << '\n'
+              << SET_USAGE_MSG << '\n'
+              << SET_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+  decay decay = parse_res.decay_obj;
 
-    auto duration_str = t.substr(0, pos);
-    auto priority_str = t.substr(pos + 1);
-
-    int duration = 0;
-    if (!parse_int(duration_str, duration)) {
-      std::cout << "Error: 'priorisea decay set ...'" << '\n'
-                << "  duration `" << duration_str << "` is not a valid integer"
-                << '\n'
-                << SET_USAGE_MSG << '\n'
-                << SET_TRY_HELP_MSG << std::endl;
-      return -1;
-    }
-
-    if (duration < 0) {
-      std::cout << "Error: 'priorisea decay set ...'" << '\n'
-                << "  duration `" << duration_str
-                << "` is not a positive integer" << '\n'
-                << SET_USAGE_MSG << '\n'
-                << SET_TRY_HELP_MSG << std::endl;
-      return -1;
-    }
-
-    double priority = 0;
-    if (!parse_double(priority_str, priority)) {
-      std::cout << "Error: 'priorisea decay set ...'" << '\n'
-                << "  priority `" << priority_str << "` is not a valid double"
-                << '\n'
-                << SET_USAGE_MSG << '\n'
-                << SET_TRY_HELP_MSG << std::endl;
-      return -1;
-    }
-
-    d.push_back({.duration = duration, .priority = priority});
+  auto store_res = store_decay(decay);
+  if (!store_res.ok) {
+    std::cerr << "Error: 'priorisea decay set ...'" << '\n'
+              << "  " << store_res.message << '\n'
+              << SET_USAGE_MSG << '\n'
+              << SET_TRY_HELP_MSG << std::endl;
+    return -1;
   }
 
-  // TODO: store decay list into the database
   return 0;
 }
 
@@ -188,7 +289,15 @@ static int run_reset(int argc, char **argv) {
     return 0;
   }
 
-  // TODO: store DEFAULT_DECAY in the database
+  auto store_res = store_decay(DEFAULT_DECAY);
+  if (!store_res.ok) {
+    std::cerr << "Error: 'priorisea decay reset ...'" << '\n'
+              << "  " << store_res.message << '\n'
+              << RESET_USAGE_MSG << '\n'
+              << RESET_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
   return 0;
 }
 
