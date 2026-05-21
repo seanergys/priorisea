@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "formula.hpp"
+#include "lib/flux.hpp"
+#include "lib/kvs.hpp"
+#include "lib/table.hpp"
 #include "score.hpp"
 #include <flux/core.h>
 #include <iostream>
@@ -10,8 +13,6 @@
 #include <string.h>
 #include <string>
 #include <vector>
-#include "lib/table.hpp"
-#include "lib/flux.hpp"
 
 struct formula {
   std::string name;
@@ -23,55 +24,112 @@ static const formula DEFAULT_SCORE = {.name = "score", .expr = "1"};
 static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
                                                       DEFAULT_SCORE};
 
-enum formula_error {
-  INVALID_NAME,
-  INVALID_SCORE,
-  INVALID_FLUX,
-  INVALID_PRIORITY,
-  SUCCESS,
+enum FORMULA_ERR {
+  FORMULA_ERR_INVALID_NAME,
+  FORMULA_ERR_INVALID_SCORE,
+  FORMULA_ERR_INVALID_FLUX,
+  FORMULA_ERR_INVALID_PRIORITY,
+  FORMULA_ERR_SUCCESS,
 };
-struct update_formula_result {
-  enum formula_error code;
+
+struct get_formulas_res {
+  FORMULA_ERR code;
+  std::string message;
+  std::vector<formula> formulas;
+};
+// TODO: Change from KVS to Seanergys DB
+static get_formulas_res get_formulas_remote(std::vector<std::string> &names) {
+  get_formulas_res res;
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    res.code = FORMULA_ERR_INVALID_FLUX;
+    res.message = "Failed to connect to Flux.";
+    return res;
+  }
+
+  for (auto formula_name : names) {
+    flux_future_t *f;
+    if (!(f = flux_kvs_lookup(h, NULL, 0,
+                              ("priorisea.formula." + formula_name).c_str()))) {
+      res.code = FORMULA_ERR_INVALID_FLUX;
+      res.message = "Failed to retrieve formula '" + formula_name + "'";
+      flux_close(h);
+      return res;
+    }
+    const char *formula_value;
+    if (flux_kvs_lookup_get(f, &formula_value) < 0) {
+      res.code = FORMULA_ERR_INVALID_FLUX;
+      res.message = "Failed to get formula '" + formula_name + "'";
+      flux_future_destroy(f);
+      flux_close(h);
+      return res;
+    }
+    res.formulas.push_back(
+        formula{.name = formula_name, .expr = formula_value});
+    flux_future_destroy(f);
+  }
+  flux_close(h);
+  res.code = FORMULA_ERR_SUCCESS;
+  return res;
+};
+
+struct update_formula_res {
+  FORMULA_ERR code;
   std::string message;
 };
-static update_formula_result update_formula_remote(std::string name,
-                                                   std::string formula) {
+static update_formula_res update_formula_remote(std::string name,
+                                                std::string expr) {
   if (name != "score" && name != "priority") {
     return {
-        INVALID_NAME,
+        FORMULA_ERR_INVALID_NAME,
         "Invalid formula name. Must be 'score' or 'priority'.",
     };
   }
 
-  if (name == "score" && !validate_score(formula)) {
+  if (name == "score" && !validate_score(expr)) {
     return {
-        INVALID_SCORE,
+        FORMULA_ERR_INVALID_SCORE,
         "Invalid score formula.",
     };
   }
 
   if (name == "priority") {
-      auto res = flux_plugin_set_formula(formula);
-      if(res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
-          return {
-              INVALID_PRIORITY,
-              res.err_msg
-          };
-      }
-      if(res.err != FLUX_PLUGIN_ERR_OK) {
-          return {
-              INVALID_FLUX,
-              res.err_msg
-          };
-        }
+    auto res = flux_plugin_set_formula(expr);
+    if (res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
+      return {FORMULA_ERR_INVALID_PRIORITY, res.err_msg};
+    }
+    if (res.err != FLUX_PLUGIN_ERR_OK) {
+      return {FORMULA_ERR_INVALID_FLUX, res.err_msg};
+    }
   }
 
-  // TODO: store formula in the database
+  // TODO: store in Seanergys DB instead of KVS
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
+  auto kvs_key = "priorisea.formula." + name;
+  auto txn = flux_kvs_txn_create();
+  if (!txn) {
+    return {
+        FORMULA_ERR_INVALID_FLUX,
+        "Failed to create KVS transaction.",
+    };
+  }
+  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), expr.c_str()) < 0) {
+    return {
+        FORMULA_ERR_INVALID_FLUX,
+        "Failed to store formula in KVS.",
+    };
+  }
+  auto commit_res = kvs_commit(txn);
+  if (commit_res != KVS_ERR_SUCCESS) {
+    return {
+        FORMULA_ERR_INVALID_FLUX,
+        "Failed to commit formula to KVS.",
+    };
+  }
 
   return {
-      SUCCESS,
+      FORMULA_ERR_SUCCESS,
       "",
   };
 }
@@ -105,7 +163,6 @@ OPTIONS list and interpretation:
 
 static int run_list(int argc, char *argv[]) {
   bool json_flag = false;
-
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << LIST_HELP_MSG << std::endl;
     return 0;
@@ -125,9 +182,13 @@ static int run_list(int argc, char *argv[]) {
   }
 
   // TODO: Retrieve the formula list from the database
-  std::vector<formula> results = {
-      formula{.name = "priority", .expr = "priority * 2"},
-      formula{.name = "score", .expr = "5"}};
+  auto formula_names = std::vector<std::string>{"priority", "score"};
+  auto res = get_formulas_remote(formula_names);
+  if (res.code != FORMULA_ERR_SUCCESS) {
+    std::cerr << res.message << std::endl;
+    return -1;
+  }
+  auto results = res.formulas;
 
   if (json_flag) {
     auto obj = json_array();
@@ -137,10 +198,9 @@ static int run_list(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name",
-                         [](auto &value, auto index) -> auto {
-                           return value.name;
-                         }}});
+    print_table(results, {{"Name", [](auto &value, auto index) -> auto {
+                             return value.name;
+                           }}});
   }
 
   return 0;
@@ -160,7 +220,7 @@ OPTIONS list and interpretation:
 
 static int run_get(int argc, char *argv[]) {
   bool json_flag = false;
-  std::vector<std::string> formulas;
+  std::vector<std::string> formulas_names;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << GET_HELP_MSG << std::endl;
@@ -183,11 +243,11 @@ static int run_get(int argc, char *argv[]) {
                 << GET_TRY_HELP_MSG << std::endl;
       return -1;
     } else {
-      formulas.push_back(arg);
+      formulas_names.push_back(arg);
     }
   }
 
-  if (formulas.empty()) {
+  if (formulas_names.empty()) {
     std::cout << "Error: 'priorisea formula get ...'" << '\n'
               << "  formula name is missing" << '\n'
               << GET_USAGE_MSG << '\n'
@@ -195,10 +255,12 @@ static int run_get(int argc, char *argv[]) {
     return -1;
   }
 
-  // TODO: Retrieve the formulas from the database
-  std::vector<formula> results = {
-      formula{.name = "priority", .expr = "priority * 2"},
-      formula{.name = "score", .expr = "5"}};
+  auto res = get_formulas_remote(formulas_names);
+  if (res.code != FORMULA_ERR_SUCCESS) {
+    std::cerr << res.message << std::endl;
+    return -1;
+  }
+  auto results = res.formulas;
 
   if (json_flag) {
     auto obj = json_object();
@@ -208,14 +270,11 @@ static int run_get(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name",
-                         [](auto &value, auto index) -> auto {
-                           return value.name;
-                         }},
-                        {"Formula",
-                         [](auto &value, auto index) -> auto {
-                           return value.expr;
-                         }}});
+    print_table(
+        results,
+        {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
+         {"Formula",
+          [](auto &value, auto index) -> auto { return value.expr; }}});
   }
   return 0;
 }
@@ -244,9 +303,9 @@ static int run_set(int argc, char *argv[]) {
   }
 
   std::string name = argv[0];
-  std::string formula = argv[1];
-  auto res = update_formula_remote(name, formula);
-  if (res.code != SUCCESS) {
+  std::string expr = argv[1];
+  auto res = update_formula_remote(name, expr);
+  if (res.code != FORMULA_ERR_SUCCESS) {
     std::cerr << res.message << std::endl;
     return -1;
   }
@@ -276,11 +335,11 @@ static int run_reset(int argc, char *argv[]) {
   for (int i = 0; i < argc; i++) {
     bool found = false;
     std::string name = argv[i];
-    std::string formula;
+    std::string expr;
 
     for (const auto &default_formula : DEFAULT_FORMULAS) {
       if (std::string(argv[i]) == default_formula.name) {
-        formula = default_formula.expr;
+        expr = default_formula.expr;
         found = true;
         break;
       }
@@ -294,12 +353,12 @@ static int run_reset(int argc, char *argv[]) {
       return -1;
     }
 
-    auto res = update_formula_remote(name, formula);
-    if (res.code != SUCCESS) {
+    auto res = update_formula_remote(name, expr);
+    if (res.code != FORMULA_ERR_SUCCESS) {
       std::cerr << res.message << std::endl;
       return -1;
     } else {
-      std::cout << "Formula " << name << " reset to default: " << formula
+      std::cout << "Formula " << name << " reset to default: " << expr
                 << std::endl;
     }
   }
