@@ -24,13 +24,14 @@ static std::map<int, int> scores;
 static double min(double a, double b) { return a < b ? a : b; }
 static double max(double a, double b) { return a > b ? a : b; }
 
-struct tinyexpr_result {
-  bool valid;
+////
+
+struct eval_formula_res {
+  bool ok;
   double result;
 };
-
-static tinyexpr_result eval_formula(const std::string &expr, double priority,
-                                    double score) {
+static eval_formula_res eval_formula(const std::string &expr, double priority,
+                                     double score) {
   te_variable vars[] = {{"priority", &priority},
                         {"score", &score},
                         {"min", (void *)min, TE_FUNCTION2},
@@ -45,8 +46,10 @@ static tinyexpr_result eval_formula(const std::string &expr, double priority,
 }
 
 static bool validate_formula(const std::string &expr) {
-  return eval_formula(expr, 0, 0).valid;
+  return eval_formula(expr, 0, 0).ok;
 }
+
+////
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
@@ -216,13 +219,13 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
     flux_log_error(h, "formula not set");
     return flux_jobtap_priority_unavail(p, args);
   }
-  auto eval = eval_formula(formula, priority, score);
-  if (!eval.valid) {
+  auto eval_res = eval_formula(formula, priority, score);
+  if (!eval_res.ok) {
     flux_log_error(h, "formula evaluation failed");
     return flux_jobtap_priority_unavail(p, args);
   }
 
-  auto result = eval.result;
+  auto result = eval_res.result;
   if (!std::isfinite(result)) {
     flux_log_error(h, "formula evaluated to NaN or infinity");
     return flux_jobtap_priority_unavail(p, args);
