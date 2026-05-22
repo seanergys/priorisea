@@ -5,7 +5,7 @@
 SUBDIRS = lib
 
 bin_PROGRAMS = priorisea
-priorisea_SOURCES = main.cpp formula.cpp time.cpp score.cpp decay.cpp
+priorisea_SOURCES = main.cpp formula.cpp time.cpp score.cpp decay.cpp init.cpp
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
     -I$(top_srcdir)/external/croncpp/include \

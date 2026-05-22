@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "score.hpp"
+#include "lib/table.hpp"
 #include "tinyexpr.h"
 #include <flux/core.h>
 #include <iostream>
@@ -10,7 +11,6 @@
 #include <string.h>
 #include <string>
 #include <vector>
-#include "lib/table.hpp"
 
 struct job {
   std::string jobid;
@@ -152,14 +152,12 @@ static int run_job(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(jobs, {{"Job Id",
-                         [](auto &value, auto index) -> auto {
-                           return value.jobid;
-                         }},
-                        {"Score",
-                         [](auto &value, auto index) -> auto {
-                           return std::to_string(value.score);
-                         }}});
+    print_table(jobs,
+                {{"Job Id",
+                  [](auto &value, auto index) -> auto { return value.jobid; }},
+                 {"Score", [](auto &value, auto index) -> auto {
+                    return std::to_string(value.score);
+                  }}});
   }
   return 0;
 }
@@ -227,14 +225,12 @@ static int run_user(int argc, char *argv[]) {
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(users, {{"User Id",
-                         [](auto &value, auto index) -> auto {
-                           return value.userid;
-                         }},
-                        {"Score",
-                         [](auto &value, auto index) -> auto {
-                           return std::to_string(value.score);
-                         }}});
+    print_table(users,
+                {{"User Id",
+                  [](auto &value, auto index) -> auto { return value.userid; }},
+                 {"Score", [](auto &value, auto index) -> auto {
+                    return std::to_string(value.score);
+                  }}});
   }
   return 0;
 }

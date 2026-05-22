@@ -4,6 +4,7 @@
 
 #include "decay.hpp"
 #include "formula.hpp"
+#include "init.hpp"
 #include "score.hpp"
 #include "time.hpp"
 #include <iostream>
@@ -17,10 +18,11 @@ Interact with Seanergys' priority plugin and database to manage priorities.
 Example: priorisea formula list
 
 COMMAND list and interpretation:
+  init:    initialize default formulas and decay expression
+  decay:   manage priority decay
   formula: manage priority formulas
   time:    manage priority time
-  score:   manage priority scores
-  decay:   manage priority decay)";
+  score:   manage priority scores)";
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -33,6 +35,8 @@ int main(int argc, char *argv[]) {
   if (cmd == "-h") {
     std::cout << HELP_MSG << std::endl;
     return 0;
+  } else if (cmd == "init") {
+    return run_init(argc - 2, argv + 2);
   } else if (cmd == "formula") {
     return run_formula(argc - 2, argv + 2);
   } else if (cmd == "time") {

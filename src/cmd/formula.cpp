@@ -24,130 +24,201 @@ static const formula DEFAULT_SCORE = {.name = "score", .expr = "1"};
 static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
                                                       DEFAULT_SCORE};
 
-enum FORMULA_ERR {
-  FORMULA_ERR_INVALID_NAME,
-  FORMULA_ERR_INVALID_SCORE,
-  FORMULA_ERR_INVALID_FLUX,
-  FORMULA_ERR_INVALID_PRIORITY,
-  FORMULA_ERR_SUCCESS,
-};
+////
 
-struct get_formulas_res {
-  FORMULA_ERR code;
+struct get_formula_res {
+  bool ok;
   std::string message;
-  std::vector<formula> formulas;
+  std::string name;
+  formula formula_obj;
 };
-// TODO: Change from KVS to Seanergys DB
-static get_formulas_res get_formulas_remote(std::vector<std::string> &names) {
+struct get_formulas_res {
+  bool ok;
+  std::string message;
+  std::vector<get_formula_res> res;
+};
+static get_formulas_res get_formulas(std::vector<std::string> &names) {
   get_formulas_res res;
+  res.ok = false;
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
-    res.code = FORMULA_ERR_INVALID_FLUX;
     res.message = "Failed to connect to Flux.";
     return res;
   }
 
   for (auto formula_name : names) {
+    get_formula_res formula_res;
+    formula_res.ok = false;
+    formula_res.name = formula_name;
     flux_future_t *f;
     if (!(f = flux_kvs_lookup(h, NULL, 0,
                               ("priorisea.formula." + formula_name).c_str()))) {
-      res.code = FORMULA_ERR_INVALID_FLUX;
-      res.message = "Failed to retrieve formula '" + formula_name + "'";
-      flux_close(h);
-      return res;
+      formula_res.message = "Failed to retrieve formula '" + formula_name + "'";
+      res.res.push_back(formula_res);
+      continue;
     }
     const char *formula_value;
     if (flux_kvs_lookup_get(f, &formula_value) < 0) {
-      res.code = FORMULA_ERR_INVALID_FLUX;
-      res.message = "Failed to get formula '" + formula_name + "'";
+      formula_res.message = "Failed to get formula '" + formula_name + "'";
+      res.res.push_back(formula_res);
       flux_future_destroy(f);
-      flux_close(h);
-      return res;
+      continue;
     }
-    res.formulas.push_back(
-        formula{.name = formula_name, .expr = formula_value});
+    formula_res.ok = true;
+    formula_res.formula_obj =
+        formula{.name = formula_name, .expr = formula_value};
+    res.res.push_back(formula_res);
     flux_future_destroy(f);
   }
   flux_close(h);
-  res.code = FORMULA_ERR_SUCCESS;
+  res.ok = true;
   return res;
 };
 
 struct update_formula_res {
-  FORMULA_ERR code;
+  bool ok;
   std::string message;
 };
-static update_formula_res update_formula_remote(std::string name,
-                                                std::string expr) {
+static update_formula_res update_formula(std::string name, std::string expr) {
+  update_formula_res res;
+  res.ok = false;
   if (name != "score" && name != "priority") {
-    return {
-        FORMULA_ERR_INVALID_NAME,
-        "Invalid formula name. Must be 'score' or 'priority'.",
-    };
+    res.message = "Invalid formula name. Must be 'score' or 'priority'.";
+    return res;
   }
 
   if (name == "score" && !validate_score(expr)) {
-    return {
-        FORMULA_ERR_INVALID_SCORE,
-        "Invalid score formula.",
-    };
+    res.message = "Invalid score formula.";
+    return res;
   }
 
   if (name == "priority") {
-    auto res = flux_plugin_set_formula(expr);
-    if (res.err == FLUX_PLUGIN_ERR_BAD_RESPONSE) {
-      return {FORMULA_ERR_INVALID_PRIORITY, res.err_msg};
-    }
-    if (res.err != FLUX_PLUGIN_ERR_OK) {
-      return {FORMULA_ERR_INVALID_FLUX, res.err_msg};
+    auto plugin_set_res = flux_plugin_set_formula(expr);
+    if (plugin_set_res.err != FLUX_PLUGIN_ERR_OK) {
+      res.message = plugin_set_res.err_msg;
+      return res;
     }
   }
 
-  // TODO: store in Seanergys DB instead of KVS
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
   auto kvs_key = "priorisea.formula." + name;
   auto txn = flux_kvs_txn_create();
   if (!txn) {
-    return {
-        FORMULA_ERR_INVALID_FLUX,
-        "Failed to create KVS transaction.",
-    };
+    res.message = "Failed to create KVS transaction.";
+    return res;
   }
   if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), expr.c_str()) < 0) {
-    return {
-        FORMULA_ERR_INVALID_FLUX,
-        "Failed to store formula in KVS.",
-    };
+    res.message = "Failed to store formula in KVS.";
+    return res;
   }
   auto commit_res = kvs_commit(txn);
   if (commit_res != KVS_ERR_SUCCESS) {
-    return {
-        FORMULA_ERR_INVALID_FLUX,
-        "Failed to commit formula to KVS.",
-    };
+    res.message = "Failed to commit formula to KVS.";
+    return res;
   }
 
-  return {
-      FORMULA_ERR_SUCCESS,
-      "",
-  };
+  res.ok = true;
+  return res;
 }
 
-static const std::string USAGE_MSG =
-    "Usage: priorisea formula [-h] COMMAND ARGS";
-static const std::string TRY_HELP_MSG =
-    "Try 'priorisea formula -h' for more information.";
-static const std::string HELP_MSG = USAGE_MSG + R"(
+struct reset_formulas_res {
+  bool ok;
+  std::string message;
+};
 
-Manage priority scoring formulas.
-Example: priorisea formula list
+reset_formulas_res reset_formulas(std::vector<std::string> &names) {
+  reset_formulas_res res;
+  res.ok = false;
+  for (const auto &name : names) {
+    bool found = false;
+    std::string expr;
 
-COMMAND list and interpretation:
-  list: list formula names
-  get: get formula values
-  set: set a formula
-  reset: reset formulas to default values)";
+    for (const auto &default_formula : DEFAULT_FORMULAS) {
+      if (name == default_formula.name) {
+        expr = default_formula.expr;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      res.message = name + " is not a valid formula";
+      return res;
+    }
+
+    auto update_res = update_formula(name, expr);
+    if (!update_res.ok) {
+      res.message = update_res.message;
+      return res;
+    }
+  }
+  res.ok = true;
+  return res;
+}
+
+init_formulas_res init_formulas() {
+  init_formulas_res res;
+  res.ok = false;
+
+  std::vector<std::string> default_formulas_name;
+  for (const auto &default_formula : DEFAULT_FORMULAS) {
+    default_formulas_name.push_back(default_formula.name);
+  }
+  auto get_res = get_formulas(default_formulas_name);
+  if (!get_res.ok) {
+    res.message = get_res.message;
+    return res;
+  }
+
+  std::vector<std::string> missing_formulas;
+  for (const auto &get_formula_res : get_res.res) {
+    if (!get_formula_res.ok) {
+      missing_formulas.push_back(get_formula_res.name);
+    }
+  }
+
+  auto reset_res = reset_formulas(missing_formulas);
+  if (!reset_res.ok) {
+    res.message = reset_res.message;
+    return res;
+  }
+
+  res.ok = true;
+  return res;
+}
+
+////
+
+static const std::string INIT_USAGE_MSG = "Usage: priorisea formula init [-h]";
+static const std::string INIT_TRY_HELP_MSG =
+    "Try 'priorisea formula init -h' for more information.";
+static const std::string INIT_HELP_MSG = INIT_USAGE_MSG + R"(
+
+Initialize the mandatory formulas for scoring.
+If the mandatory formulas are already stored, this command will not do anything.)";
+
+static int run_init(int argc, char *argv[]) {
+  if (argc > 0 && strcmp(argv[0], "-h") == 0) {
+    std::cout << INIT_HELP_MSG << std::endl;
+    return 0;
+  }
+  if (argc > 0) {
+    std::cerr << INIT_USAGE_MSG << '\n' << INIT_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  auto init_res = init_formulas();
+  if (!init_res.ok) {
+    std::cerr << "Error: 'priorisea decay init" << '\n'
+              << "  " << init_res.message << '\n'
+              << INIT_USAGE_MSG << '\n'
+              << INIT_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  return 0;
+}
 
 static const std::string LIST_USAGE_MSG =
     "Usage: priorisea formula list [-h] [OPTIONS]";
@@ -182,13 +253,24 @@ static int run_list(int argc, char *argv[]) {
   }
 
   // TODO: Retrieve the formula list from the database
-  auto formula_names = std::vector<std::string>{"priority", "score"};
-  auto res = get_formulas_remote(formula_names);
-  if (res.code != FORMULA_ERR_SUCCESS) {
-    std::cerr << res.message << std::endl;
+  std::vector<std::string> formulas_name;
+  for (const auto &default_formula : DEFAULT_FORMULAS) {
+    formulas_name.push_back(default_formula.name);
+  }
+  auto get_formula_res = get_formulas(formulas_name);
+  if (!get_formula_res.ok) {
+    std::cerr << get_formula_res.message << std::endl;
     return -1;
   }
-  auto results = res.formulas;
+
+  std::vector<formula> results;
+  for (const auto &get_res : get_formula_res.res) {
+    if (get_res.ok) {
+      results.push_back(get_res.formula_obj);
+    } else {
+      std::cerr << "Error: " << get_res.message << std::endl;
+    }
+  }
 
   if (json_flag) {
     auto obj = json_array();
@@ -255,12 +337,19 @@ static int run_get(int argc, char *argv[]) {
     return -1;
   }
 
-  auto res = get_formulas_remote(formulas_names);
-  if (res.code != FORMULA_ERR_SUCCESS) {
-    std::cerr << res.message << std::endl;
+  auto get_formula_res = get_formulas(formulas_names);
+  if (!get_formula_res.ok) {
+    std::cerr << get_formula_res.message << std::endl;
     return -1;
   }
-  auto results = res.formulas;
+  std::vector<formula> results;
+  for (const auto &get_formula_res : get_formula_res.res) {
+    if (get_formula_res.ok) {
+      results.push_back(get_formula_res.formula_obj);
+    } else {
+      std::cerr << "Error: " << get_formula_res.message << std::endl;
+    }
+  }
 
   if (json_flag) {
     auto obj = json_object();
@@ -304,9 +393,9 @@ static int run_set(int argc, char *argv[]) {
 
   std::string name = argv[0];
   std::string expr = argv[1];
-  auto res = update_formula_remote(name, expr);
-  if (res.code != FORMULA_ERR_SUCCESS) {
-    std::cerr << res.message << std::endl;
+  auto update_res = update_formula(name, expr);
+  if (!update_res.ok) {
+    std::cerr << update_res.message << std::endl;
     return -1;
   }
 
@@ -332,39 +421,36 @@ static int run_reset(int argc, char *argv[]) {
     return 0;
   }
 
+  std::vector<std::string> formulas_name;
   for (int i = 0; i < argc; i++) {
-    bool found = false;
-    std::string name = argv[i];
-    std::string expr;
-
-    for (const auto &default_formula : DEFAULT_FORMULAS) {
-      if (std::string(argv[i]) == default_formula.name) {
-        expr = default_formula.expr;
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      std::cout << "Error: 'priorisea formula reset " << argv[i]
-                << "' is not a valid formula" << '\n'
-                << RESET_USAGE_MSG << '\n'
-                << RESET_TRY_HELP_MSG << std::endl;
-      return -1;
-    }
-
-    auto res = update_formula_remote(name, expr);
-    if (res.code != FORMULA_ERR_SUCCESS) {
-      std::cerr << res.message << std::endl;
-      return -1;
-    } else {
-      std::cout << "Formula " << name << " reset to default: " << expr
-                << std::endl;
-    }
+    formulas_name.push_back(argv[i]);
+  }
+  auto reset_res = reset_formulas(formulas_name);
+  if (!reset_res.ok) {
+    std::cerr << "Error: 'priorisea formula reset ..." << '\n'
+              << "  " << reset_res.message << '\n'
+              << RESET_USAGE_MSG << '\n'
+              << RESET_TRY_HELP_MSG << std::endl;
+    return -1;
   }
   return 0;
 }
 
+static const std::string USAGE_MSG =
+    "Usage: priorisea formula [-h] COMMAND ARGS";
+static const std::string TRY_HELP_MSG =
+    "Try 'priorisea formula -h' for more information.";
+static const std::string HELP_MSG = USAGE_MSG + R"(
+
+Manage priority scoring formulas.
+Example: priorisea formula list
+
+COMMAND list and interpretation:
+  init: initialize default formulas
+  list: list formula names
+  get: get formula values
+  set: set a formula
+  reset: reset formulas to default values)";
 int run_formula(int argc, char *argv[]) {
   if (argc < 1) {
     std::cout << USAGE_MSG << '\n' << TRY_HELP_MSG << std::endl;
@@ -376,6 +462,8 @@ int run_formula(int argc, char *argv[]) {
   if (cmd == "-h") {
     std::cout << HELP_MSG << std::endl;
     return 0;
+  } else if (cmd == "init") {
+    return run_init(argc - 1, argv + 1);
   } else if (cmd == "list") {
     return run_list(argc - 1, argv + 1);
   } else if (cmd == "get") {
