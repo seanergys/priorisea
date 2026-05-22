@@ -49,6 +49,24 @@ static bool validate_formula(const std::string &expr) {
   return eval_formula(expr, 0, 0).ok;
 }
 
+static void init_formula(flux_t *h) {
+  flux_future_t *f;
+  if (!(f = flux_kvs_lookup(h, NULL, 0, "priorisea.formula.priority"))) {
+    return;
+  }
+  const char *formula_str;
+  if (flux_kvs_lookup_get(f, &formula_str) < 0) {
+    flux_future_destroy(f);
+    return;
+  }
+  if (!validate_formula(formula_str)) {
+    flux_future_destroy(f);
+    return;
+  }
+  formula = formula_str;
+  flux_future_destroy(f);
+}
+
 ////
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -255,6 +273,8 @@ static const struct flux_plugin_handler tab[] = {
 
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
   flux_t *h = flux_jobtap_get_flux(p);
+
+  init_formula(h);
 
   if (flux_plugin_register(p, "sea_priority", tab) < 0 ||
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||
