@@ -12,6 +12,7 @@
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
+#include <sstream>
 #include <string.h>
 #include <string>
 #include <vector>
@@ -372,7 +373,21 @@ static int run_get(int argc, char *argv[]) {
         results,
         {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
          {"Formula",
-          [](auto &value, auto index) -> auto { return value.expr; }}});
+          [](auto &value, auto index) -> auto { return value.expr; }},
+  {"Vars",
+   [](auto &value, auto index) -> auto {
+       std::stringstream ss;
+       bool first = true;
+       for(const auto &[name, value] : value.vars) {
+           if(!first) {
+               ss << ", ";
+           } else {
+               first = false;
+           }
+         ss << name << "=" << value;
+       }
+       return ss.str();
+   }}});
   }
   return 0;
 }
