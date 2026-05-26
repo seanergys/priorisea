@@ -78,7 +78,7 @@ static validate_timeframe_res validate_timeframe(timeframe time) {
 struct timeframe_from_str_res {
   bool ok;
   std::string message;
-  timeframe time;
+  timeframe timeframe_obj;
 };
 static timeframe_from_str_res timeframe_from_str(const std::string &str) {
   timeframe_from_str_res res;
@@ -90,14 +90,14 @@ static timeframe_from_str_res timeframe_from_str(const std::string &str) {
     res.message = "name is missing";
     return res;
   }
-  res.time.name = t;
+  res.timeframe_obj.name = t;
 
   if (!getline(ss, t, ',')) {
     res.ok = false;
     res.message = "cron is missing";
     return res;
   }
-  res.time.cron = t;
+  res.timeframe_obj.cron = t;
 
   if (!getline(ss, t, ',')) {
     res.ok = false;
@@ -110,7 +110,7 @@ static timeframe_from_str_res timeframe_from_str(const std::string &str) {
     res.message = "duration `" + t + "` is not a valid integer";
     return res;
   }
-  res.time.duration = duration;
+  res.timeframe_obj.duration = duration;
 
   if (!getline(ss, t, ',')) {
     res.ok = false;
@@ -123,9 +123,9 @@ static timeframe_from_str_res timeframe_from_str(const std::string &str) {
     res.message = "priority `" + t + "` is not a valid double";
     return res;
   }
-  res.time.priority = priority;
+  res.timeframe_obj.priority = priority;
 
-  auto validate_res = validate_timeframe(res.time);
+  auto validate_res = validate_timeframe(res.timeframe_obj);
   if (!validate_res.ok) {
     res.ok = false;
     res.message = validate_res.message;
@@ -167,50 +167,60 @@ static store_timeframe_res store_timeframe(timeframe time) {
   return res;
 }
 
+struct get_timeframe_res {
+  bool ok;
+  std::string message;
+  std::string name;
+  timeframe timeframe_obj;
+};
 struct get_timeframes_res {
   bool ok;
   std::string message;
-  std::vector<timeframe> timeframes;
+  std::vector<get_timeframe_res> res;
 };
 static get_timeframes_res get_timeframes(std::vector<std::string> names) {
   get_timeframes_res res;
-  flux_t *h;
-  if (!(h = flux_open(NULL, 0))) {
-    res.ok = false;
-    res.message = "Failed to connect to Flux.";
+  res.ok = false;
+
+  std::vector<std::string> keys;
+  for (auto timeframe_name : names) {
+    keys.push_back("priorisea.timeframe." + timeframe_name);
+  }
+
+  auto lookup_res = kvs_lookup(keys);
+  if (lookup_res.err != KVS_ERR_SUCCESS) {
+    res.message = "failed to lookup timeframes in KVS. Unknown error";
     return res;
   }
 
-  for (auto timeframe_name : names) {
-    flux_future_t *f;
-    if (!(f = flux_kvs_lookup(
-              h, NULL, 0, ("priorisea.timeframe." + timeframe_name).c_str()))) {
-      res.ok = false;
-      res.message = "Failed to retrieve time '" + timeframe_name + "'";
-      flux_close(h);
-      return res;
+  for (const auto &lookup_key_res : lookup_res.res) {
+    get_timeframe_res timeframe_res;
+    timeframe_res.ok = false;
+
+    size_t pos = lookup_key_res.key.rfind('.');
+    std::string timeframe_name = (pos == std::string::npos)
+                                     ? lookup_key_res.key
+                                     : lookup_key_res.key.substr(pos + 1);
+    timeframe_res.name = timeframe_name;
+
+    if (lookup_key_res.err != KVS_ERR_SUCCESS) {
+      timeframe_res.message =
+          "Failed to lookup timeframe '" + timeframe_name + "'";
+      res.res.push_back(timeframe_res);
+      continue;
     }
-    const char *timeframe_str;
-    if (flux_kvs_lookup_get(f, &timeframe_str) < 0) {
-      res.ok = false;
-      res.message = "Failed to get time '" + timeframe_name + "'";
-      flux_future_destroy(f);
-      flux_close(h);
-      return res;
+
+    auto from_res = timeframe_from_str(lookup_key_res.value);
+    if (!from_res.ok) {
+      timeframe_res.message = from_res.message;
+      res.res.push_back(timeframe_res);
+      continue;
     }
-    auto parse_res = timeframe_from_str(timeframe_str);
-    if (!parse_res.ok) {
-      res.ok = false;
-      res.message =
-          "Failed to parse time '" + timeframe_name + "': " + parse_res.message;
-      flux_future_destroy(f);
-      flux_close(h);
-      return res;
-    }
-    res.timeframes.push_back(parse_res.time);
-    flux_future_destroy(f);
+
+    timeframe_res.ok = true;
+    timeframe_res.timeframe_obj = from_res.timeframe_obj;
+    res.res.push_back(timeframe_res);
   }
-  flux_close(h);
 
   res.ok = true;
   return res;
@@ -356,12 +366,19 @@ static int run_get(int argc, char *argv[]) {
               << GET_TRY_HELP_MSG << std::endl;
     return -1;
   }
-  std::vector<timeframe> results = get_res.timeframes;
+  std::vector<timeframe> timeframes;
+  for (const auto &get_timeframe_res : get_res.res) {
+    if (get_timeframe_res.ok) {
+      timeframes.push_back(get_timeframe_res.timeframe_obj);
+    } else {
+      std::cerr << "Error: " << get_res.message << std::endl;
+    }
+  }
 
   if (json_flag) {
     auto obj = json_object();
 
-    for (const auto &f : results) {
+    for (const auto &f : timeframes) {
       auto expr = json_object();
       json_object_set_new(expr, "cron", json_string(f.cron.c_str()));
       json_object_set_new(expr, "duration", json_integer(f.duration));
@@ -373,7 +390,7 @@ static int run_get(int argc, char *argv[]) {
     json_decref(obj);
   } else {
     print_table(
-        results,
+        timeframes,
         {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
          {"Cron", [](auto &value, auto index) -> auto { return value.cron; }},
          {"Duration",
@@ -418,7 +435,7 @@ static int run_add(int argc, char *argv[]) {
               << ADD_TRY_HELP_MSG << std::endl;
     return -1;
   }
-  timeframe tf = parse_res.time;
+  timeframe tf = parse_res.timeframe_obj;
 
   auto store_res = store_timeframe(tf);
   if (!store_res.ok) {
@@ -468,11 +485,20 @@ static int run_edit(int argc, char *argv[]) {
               << EDIT_TRY_HELP_MSG << std::endl;
     return -1;
   }
-  auto timeframe = get_res.timeframes[0];
 
-  std::string cron_expression = timeframe.cron;
-  std::string duration_str = std::to_string(timeframe.duration);
-  std::string priority_str = std::to_string(timeframe.priority);
+  auto get_timeframe_res = get_res.res[0];
+  if (!get_timeframe_res.ok) {
+    std::cerr << "Error: 'priorisea time edit " << range_name << "'" << '\n'
+              << "  " << get_timeframe_res.message << '\n'
+              << EDIT_USAGE_MSG << '\n'
+              << EDIT_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+  auto timeframe_obj = get_timeframe_res.timeframe_obj;
+
+  std::string cron_expression = timeframe_obj.cron;
+  std::string duration_str = std::to_string(timeframe_obj.duration);
+  std::string priority_str = std::to_string(timeframe_obj.priority);
 
   for (int i = 1; i < argc; i += 2) {
     std::string field = argv[i];
@@ -508,7 +534,7 @@ static int run_edit(int argc, char *argv[]) {
     return -1;
   }
 
-  auto timeframe_str = timeframe.name + "," + cron_expression + "," +
+  auto timeframe_str = timeframe_obj.name + "," + cron_expression + "," +
                        duration_str + "," + priority_str;
   auto parse_res = timeframe_from_str(timeframe_str);
   if (!parse_res.ok) {
@@ -518,7 +544,7 @@ static int run_edit(int argc, char *argv[]) {
               << EDIT_TRY_HELP_MSG << std::endl;
     return -1;
   }
-  auto store_res = store_timeframe(parse_res.time);
+  auto store_res = store_timeframe(parse_res.timeframe_obj);
   if (!store_res.ok) {
     std::cerr << "Error: 'priorisea time edit ...'" << '\n'
               << "  " << store_res.message << '\n'

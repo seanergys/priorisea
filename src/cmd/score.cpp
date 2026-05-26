@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "score.hpp"
+#include "common/util.hpp"
+#include "lib/kvs.hpp"
 #include "lib/table.hpp"
 #include "tinyexpr.h"
 #include <flux/core.h>
@@ -12,27 +14,95 @@
 #include <vector>
 
 struct job {
-  std::string jobid;
+  int jobid;
   int score;
 };
-
 struct user {
-  std::string userid;
+  int userid;
   int score;
 };
 
-static const std::string USAGE_MSG = "Usage: priorisea score [-h] COMMAND ARGS";
-static const std::string TRY_HELP_MSG =
-    "Try 'priorisea score -h' for more information.";
-static const std::string HELP_MSG = USAGE_MSG + R"(
+////
 
-Manage and retrieve priority scores.
-Example: priorisea score job 12345
+struct get_job_res {
+  bool ok;
+  std::string message;
+  int jobid;
+  job job_obj;
+};
+struct get_jobs_res {
+  bool ok;
+  std::string message;
+  std::vector<get_job_res> res;
+};
+static get_jobs_res get_jobs(std::vector<int> &jobids) {
+  get_jobs_res res;
+  res.ok = false;
 
-COMMAND list and interpretation:
-  update: update score values
-  job: get score values for jobs
-  user: get score values for users)";
+  std::vector<std::string> keys;
+  for (const auto &jobid : jobids) {
+    keys.push_back("priorisea.job." + std::to_string(jobid));
+  }
+  auto kvs_res = kvs_lookup(keys);
+  if (kvs_res.err != KVS_ERR_SUCCESS) {
+    res.message = "Failed to lookup KVS. Unknown error";
+    return res;
+  }
+
+  for (const auto &lookup_key_res : kvs_res.res) {
+    get_job_res job_res;
+    job_res.ok = false;
+
+    size_t pos = lookup_key_res.key.rfind('.');
+    std::string jobid_str = (pos == std::string::npos)
+                                ? lookup_key_res.key
+                                : lookup_key_res.key.substr(pos + 1);
+    int jobid;
+    if (!parse_int(jobid_str, jobid)) {
+      job_res.message = "Failed to parse jobid from KVS key: " + jobid_str;
+      res.res.push_back(job_res);
+      continue;
+    }
+    job_res.jobid = jobid;
+
+    if (lookup_key_res.err != KVS_ERR_SUCCESS) {
+      job_res.message = "Failed to lookup KVS. Unknown error";
+      res.res.push_back(job_res);
+      continue;
+    }
+
+    int score;
+    if (!parse_int(lookup_key_res.value, score)) {
+      job_res.message =
+          "Failed to parse score from KVS value: " + lookup_key_res.value;
+      res.res.push_back(job_res);
+      continue;
+    }
+
+    job_res.ok = true;
+    job_res.job_obj = {.jobid = jobid, .score = score};
+    res.res.push_back(job_res);
+  }
+
+  res.ok = true;
+  return res;
+};
+
+bool validate_score(std::string formula, std::map<std::string, double> &vars) {
+  auto *te_vars = (te_variable *)malloc(vars.size() * sizeof(te_variable));
+  int i = 0;
+  for (const auto &[name, value] : vars) {
+    te_vars[i++] = {name.c_str(), &value};
+  }
+  int err = 0;
+  te_expr *compiled = te_compile(formula.c_str(), te_vars, i, &err);
+  if (!compiled)
+    return false;
+  te_free(compiled);
+  return true;
+}
+
+////
 
 static const std::string UPDATE_USAGE_MSG =
     "Usage: priorisea score update [-h] [OPTIONS] [JOBID...]";
@@ -57,7 +127,7 @@ static int run_update(int argc, char *argv[]) {
   }
 
   if (argc < 1) {
-    std::cout << UPDATE_USAGE_MSG << '\n' << UPDATE_TRY_HELP_MSG << std::endl;
+    std::cerr << UPDATE_USAGE_MSG << '\n' << UPDATE_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -67,7 +137,7 @@ static int run_update(int argc, char *argv[]) {
     if (arg == "--new") {
       new_flag = true;
     } else if (!arg.empty() && arg[0] == '-') {
-      std::cout << "Error: 'priorisea score update " << arg
+      std::cerr << "Error: 'priorisea score update " << arg
                 << "' is not a valid option" << '\n'
                 << UPDATE_USAGE_MSG << '\n'
                 << UPDATE_TRY_HELP_MSG << std::endl;
@@ -78,7 +148,7 @@ static int run_update(int argc, char *argv[]) {
   }
 
   if (job_ids.empty() && !new_flag) {
-    std::cout << "Error: 'priorisea score update ...'" << '\n'
+    std::cerr << "Error: 'priorisea score update ...'" << '\n'
               << "  job id or --new is missing" << '\n'
               << UPDATE_USAGE_MSG << '\n'
               << UPDATE_TRY_HELP_MSG << std::endl;
@@ -102,7 +172,7 @@ OPTIONS list and interpretation:
 
 static int run_job(int argc, char *argv[]) {
   bool json_flag = false;
-  std::vector<std::string> job_ids;
+  std::vector<int> jobids;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << JOB_HELP_MSG << std::endl;
@@ -110,7 +180,7 @@ static int run_job(int argc, char *argv[]) {
   }
 
   if (argc < 1) {
-    std::cout << JOB_USAGE_MSG << '\n' << JOB_TRY_HELP_MSG << std::endl;
+    std::cerr << JOB_USAGE_MSG << '\n' << JOB_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
@@ -119,44 +189,62 @@ static int run_job(int argc, char *argv[]) {
 
     if (arg == "--json") {
       json_flag = true;
-    } else if (!arg.empty() && arg[0] == '-') {
-      std::cout << "Error: 'priorisea score job " << arg
-                << "' is not a valid option" << '\n'
+      continue;
+    }
+    int jobid;
+    if (!parse_int(arg, jobid)) {
+      std::cerr << "Error: 'priorisea score job " << arg
+                << "' is not a valid job id" << '\n'
                 << JOB_USAGE_MSG << '\n'
                 << JOB_TRY_HELP_MSG << std::endl;
       return -1;
-    } else {
-      job_ids.push_back(arg);
     }
+
+    jobids.push_back(jobid);
   }
 
-  if (job_ids.empty()) {
-    std::cout << "Error: 'priorisea score job ...'" << '\n'
+  if (jobids.empty()) {
+    std::cerr << "Error: 'priorisea score job ...'" << '\n'
               << "  job id is missing" << '\n'
               << JOB_USAGE_MSG << '\n'
               << JOB_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
-  std::vector<job> jobs = {
-      {.jobid = "00000", .score = 0},
-      {.jobid = "12345", .score = 1},
-  };
+  auto get_res = get_jobs(jobids);
+  if (!get_res.ok) {
+    std::cerr << "Error: 'priorisea score job ...'" << '\n'
+              << "  " << get_res.message << '\n'
+              << JOB_USAGE_MSG << '\n'
+              << JOB_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  std::vector<job> jobs;
+  for (const auto &get_job_res : get_res.res) {
+    if (get_job_res.ok) {
+      jobs.push_back(get_job_res.job_obj);
+    } else {
+      std::cerr << "Error: " << get_job_res.message << std::endl;
+    }
+  }
 
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : jobs) {
-      json_object_set_new(obj, f.jobid.c_str(), json_integer(f.score));
+      json_object_set_new(obj, std::to_string(f.jobid).c_str(),
+                          json_integer(f.score));
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(jobs,
-                {{"Job Id",
-                  [](auto &value, auto index) -> auto { return value.jobid; }},
-                 {"Score", [](auto &value, auto index) -> auto {
-                    return std::to_string(value.score);
-                  }}});
+    print_table(jobs, {{"Job Id",
+                        [](auto &value, auto index) -> auto {
+                          return std::to_string(value.jobid);
+                        }},
+                       {"Score", [](auto &value, auto index) -> auto {
+                          return std::to_string(value.score);
+                        }}});
   }
   return 0;
 }
@@ -212,28 +300,42 @@ static int run_user(int argc, char *argv[]) {
   }
 
   std::vector<user> users = {
-      {.userid = "00000", .score = 0},
-      {.userid = "12345", .score = 1},
+      {.userid = 1000, .score = 0},
+      {.userid = 1001, .score = 1},
   };
 
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : users) {
-      json_object_set_new(obj, f.userid.c_str(), json_integer(f.score));
+      json_object_set_new(obj, std::to_string(f.userid).c_str(),
+                          json_integer(f.score));
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(users,
-                {{"User Id",
-                  [](auto &value, auto index) -> auto { return value.userid; }},
-                 {"Score", [](auto &value, auto index) -> auto {
-                    return std::to_string(value.score);
-                  }}});
+    print_table(users, {{"UserId",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.userid);
+                         }},
+                        {"Score", [](auto &value, auto index) -> auto {
+                           return std::to_string(value.score);
+                         }}});
   }
   return 0;
 }
 
+static const std::string USAGE_MSG = "Usage: priorisea score [-h] COMMAND ARGS";
+static const std::string TRY_HELP_MSG =
+    "Try 'priorisea score -h' for more information.";
+static const std::string HELP_MSG = USAGE_MSG + R"(
+
+Manage and retrieve priority scores.
+Example: priorisea score job 12345
+
+COMMAND list and interpretation:
+  update: update score values
+  job: get score values for jobs
+  user: get score values for users)";
 int run_score(int argc, char *argv[]) {
   if (argc < 1) {
     std::cout << USAGE_MSG << '\n' << TRY_HELP_MSG << std::endl;
@@ -258,18 +360,4 @@ int run_score(int argc, char *argv[]) {
               << TRY_HELP_MSG << std::endl;
     return -1;
   }
-}
-
-bool validate_score(std::string formula, std::map<std::string, double> &vars) {
-  auto *te_vars = (te_variable *)malloc(vars.size() * sizeof(te_variable));
-  int i = 0;
-  for (const auto &[name, value] : vars) {
-    te_vars[i++] = {name.c_str(), &value};
-  }
-  int err = 0;
-  te_expr *compiled = te_compile(formula.c_str(), te_vars, i, &err);
-  if (!compiled)
-    return false;
-  te_free(compiled);
-  return true;
 }

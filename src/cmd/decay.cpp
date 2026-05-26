@@ -4,6 +4,7 @@
 
 #include "decay.hpp"
 #include "common/util.hpp"
+#include "lib/kvs.hpp"
 #include "lib/table.hpp"
 #include <bits/stdc++.h>
 #include <flux/core.h>
@@ -125,34 +126,17 @@ static get_decay_res get_decay() {
   get_decay_res res;
   res.ok = false;
 
-  std::string decay_str;
-
-  flux_t *h;
-  if (!(h = flux_open(NULL, 0))) {
-    res.message = "failed to open Flux handle.";
+  auto lookup_res = kvs_lookup({"priorisea.decay"});
+  if (lookup_res.err != KVS_ERR_SUCCESS) {
+    res.message = "failed to lookup decay string in KVS. Unknown error";
     return res;
   }
-  flux_future_t *f;
-  if (!(f = flux_kvs_lookup(h, NULL, 0, "priorisea.decay"))) {
-    flux_close(h);
-    res.message = "failed to lookup decay string in KVS.";
+  auto lookup_key_res = lookup_res.res[0];
+  if (lookup_key_res.err != KVS_ERR_SUCCESS) {
+    res.message = "failed to lookup decay string in KVS. Unknown error";
     return res;
   }
-  const char *decay_str_tmp;
-  if (flux_kvs_lookup_get(f, &decay_str_tmp) < 0) {
-    flux_future_destroy(f);
-    flux_close(h);
-    res.message = "failed to get decay string from KVS.";
-    return res;
-  }
-  decay_str = decay_str_tmp;
-  flux_future_destroy(f);
-  flux_close(h);
-
-  if (decay_str.empty()) {
-    res.message = "decay not found";
-    return res;
-  }
+  auto decay_str = lookup_key_res.value;
 
   auto parse_res = decay_from_str(decay_str);
   if (!parse_res.ok) {
