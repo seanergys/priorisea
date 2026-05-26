@@ -2,13 +2,15 @@
 //
 // SPDX-License-Identifier: MIT
 
+#include "common/formula.hpp"
+#include "common/util.hpp"
 #include "tinyexpr.h"
-#include "util.hpp"
 #include <cerrno>
 #include <climits>
 #include <cmath>
 #include <cstdlib>
 #include <flux/core.h>
+#include <flux/core/flog.h>
 #include <flux/jobtap.h>
 #include <fmt/format.h>
 #include <jansson.h>
@@ -16,9 +18,7 @@
 #include <string.h>
 #include <string>
 
-static const int DEFAULT_SCORE = 0;
-static const int DEFAULT_PRIORITY = 0;
-static std::string formula;
+static formula priority_formula;
 static std::map<int, int> scores;
 
 static double min(double a, double b) { return a < b ? a : b; }
@@ -30,14 +30,28 @@ struct eval_formula_res {
   bool ok;
   double result;
 };
-static eval_formula_res eval_formula(const std::string &expr, double priority,
-                                     double score) {
-  te_variable vars[] = {{"priority", &priority},
-                        {"score", &score},
-                        {"min", (void *)min, TE_FUNCTION2},
-                        {"max", (void *)max, TE_FUNCTION2}};
+static eval_formula_res eval_formula(formula formula_obj,
+                                     std::map<std::string, double> &vars_over) {
+
+  std::map<std::string, double> vars_merged = vars_over;
+  for (const auto &[name, value] : formula_obj.vars) {
+    if (vars_merged.find(name) != vars_merged.end())
+      continue;
+    vars_merged[name] = value;
+  }
+
+  auto *te_vars =
+      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
+  int i = 0;
+
+  for (const auto &[name, value] : vars_merged) {
+    te_vars[i++] = {name.c_str(), &value};
+  }
+  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
+  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
+
   int err = 0;
-  te_expr *compiled = te_compile(expr.c_str(), vars, 3, &err);
+  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
   if (!compiled)
     return {false, 0};
   auto result = te_eval(compiled);
@@ -45,8 +59,9 @@ static eval_formula_res eval_formula(const std::string &expr, double priority,
   return {true, result};
 }
 
-static bool validate_formula(const std::string &expr) {
-  return eval_formula(expr, 0, 0).ok;
+static bool validate_formula(formula formula_obj) {
+  std::map<std::string, double> vars;
+  return eval_formula(formula_obj, vars).ok;
 }
 
 static void init_formula(flux_t *h) {
@@ -59,11 +74,12 @@ static void init_formula(flux_t *h) {
     flux_future_destroy(f);
     return;
   }
-  if (!validate_formula(formula_str)) {
+  auto from_res = formula_from_str(formula_str);
+  if (!from_res.ok || !validate_formula(from_res.formula_obj)) {
     flux_future_destroy(f);
     return;
   }
-  formula = formula_str;
+  priority_formula = from_res.formula_obj;
   flux_future_destroy(f);
 }
 
@@ -71,7 +87,8 @@ static void init_formula(flux_t *h) {
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  if (flux_respond_pack(h, msg, "{s:s}", "data", formula.c_str()) < 0) {
+  auto formula_str = formula_to_str(priority_formula);
+  if (flux_respond_pack(h, msg, "{s:s}", "data", formula_str.c_str()) < 0) {
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
   }
@@ -79,26 +96,32 @@ static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
 
 static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  const char *formula_value = nullptr;
-
-  if (flux_request_unpack(msg, NULL, "{s:s}", "data", &formula_value) < 0) {
+  const char *formula_str = nullptr;
+  if (flux_request_unpack(msg, NULL, "{s:s}", "data", &formula_str) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
 
-  if (!formula_value) {
+  if (!formula_str) {
     flux_respond_error(h, msg, EINVAL, "data is null");
     return;
   }
 
-  if (!validate_formula(formula_value)) {
-    auto errmsg = fmt::format("invalid formula: {}", formula_value);
+  auto from_res = formula_from_str(formula_str);
+  if (!from_res.ok) {
+    auto errmsg = fmt::format("invalid formula: {}", from_res.message);
     flux_respond_error(h, msg, EINVAL, errmsg.c_str());
     return;
   }
 
-  formula = formula_value;
+  if (!validate_formula(from_res.formula_obj)) {
+    auto errmsg = fmt::format("invalid formula: {}", from_res.formula_obj.expr);
+    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+    return;
+  }
+
+  priority_formula = from_res.formula_obj;
 
   flux_respond(h, msg, NULL);
 }
@@ -209,6 +232,8 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
   flux_respond(h, msg, NULL);
 }
 
+////
+
 static int priority_cb(flux_plugin_t *p, const char *topic,
                        flux_plugin_arg_t *args, void *data) {
   flux_t *h = flux_jobtap_get_flux(p);
@@ -220,24 +245,20 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
     return flux_jobtap_priority_unavail(p, args);
   }
 
+  std::map<std::string, double> vars_over;
+
   int64_t priority;
   if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority",
-                             &priority) < 0) {
-    priority = DEFAULT_PRIORITY;
-  }
-  double priority_d = static_cast<double>(priority);
-
-  double score = DEFAULT_SCORE;
-  auto it = scores.find(userid);
-  if (it != scores.end()) {
-    score = it->second;
+                             &priority) >= 0) {
+    vars_over["priority"] = static_cast<double>(priority);
   }
 
-  if (formula.empty()) {
-    flux_log_error(h, "formula not set");
-    return flux_jobtap_priority_unavail(p, args);
+  auto scores_it = scores.find(userid);
+  if (scores_it != scores.end()) {
+    vars_over["score"] = static_cast<double>(scores_it->second);
   }
-  auto eval_res = eval_formula(formula, priority, score);
+
+  auto eval_res = eval_formula(priority_formula, vars_over);
   if (!eval_res.ok) {
     flux_log_error(h, "formula evaluation failed");
     return flux_jobtap_priority_unavail(p, args);
@@ -264,6 +285,8 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
 
   return 0;
 }
+
+////
 
 static const struct flux_plugin_handler tab[] = {
     {"job.state.priority", priority_cb, NULL},

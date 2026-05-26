@@ -9,7 +9,7 @@ priorisea_SOURCES = main.cpp formula.cpp time.cpp score.cpp decay.cpp init.cpp
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
     -I$(top_srcdir)/external/croncpp/include \
-    -I$(top_srcdir)/src/common \
+    -I$(top_srcdir)/src \
     -I$(top_srcdir)/src/cmd/ \
     $(JANSSON_CFLAGS) \
     $(SEANERBUS_CFLAGS) \
@@ -17,7 +17,8 @@ priorisea_CPPFLAGS = \
 
 priorisea_LDADD = \
     $(top_builddir)/external/libtinyexpr.la \
-    $(top_builddir)/src/common/libcommon.la \
+    $(top_builddir)/src/common/libutil.la \
+    $(top_builddir)/src/common/libformula.la \
     $(top_builddir)/src/cmd/lib/libflux.la \
     $(top_builddir)/src/cmd/lib/libkvs.la \
     $(JANSSON_LIBS) \

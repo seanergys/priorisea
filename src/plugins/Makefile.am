@@ -14,14 +14,15 @@ sea_priority_la_SOURCES = sea_priority.cpp
 
 sea_priority_la_CPPFLAGS = \
    -I$(top_srcdir)/external/tinyexpr \
-   -I$(top_srcdir)/src/common \
+   -I$(top_srcdir)/src \
     $(JANSSON_CFLAGS) \
     $(FMT_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
 sea_priority_la_LIBADD = \
     $(top_builddir)/external/libtinyexpr.la \
-    $(top_builddir)/src/common/libcommon.la \
+    $(top_builddir)/src/common/libutil.la \
+    $(top_builddir)/src/common/libformula.la \
     $(JANSSON_LIBS) \
     $(FMT_LIBS)
 

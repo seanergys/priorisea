@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "decay.hpp"
+#include "common/util.hpp"
 #include "lib/table.hpp"
-#include "util.hpp"
 #include <bits/stdc++.h>
 #include <flux/core.h>
 #include <iostream>

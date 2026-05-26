@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "time.hpp"
+#include "common/util.hpp"
 #include "croncpp.h"
 #include "lib/table.hpp"
-#include "util.hpp"
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>

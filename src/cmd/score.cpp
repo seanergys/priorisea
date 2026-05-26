@@ -8,7 +8,6 @@
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
-#include <string.h>
 #include <string>
 #include <vector>
 
@@ -261,10 +260,14 @@ int run_score(int argc, char *argv[]) {
   }
 }
 
-bool validate_score(std::string formula) {
-  te_variable vars[] = {};
+bool validate_score(std::string formula, std::map<std::string, double> &vars) {
+  auto *te_vars = (te_variable *)malloc(vars.size() * sizeof(te_variable));
+  int i = 0;
+  for (const auto &[name, value] : vars) {
+    te_vars[i++] = {name.c_str(), &value};
+  }
   int err = 0;
-  te_expr *compiled = te_compile(formula.c_str(), vars, 0, &err);
+  te_expr *compiled = te_compile(formula.c_str(), te_vars, i, &err);
   if (!compiled)
     return false;
   te_free(compiled);
