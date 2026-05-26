@@ -22,14 +22,14 @@ struct flux_plugin_res {
 };
 
 struct flux_plugin_get_formula_res : flux_plugin_res {
-  std::string formula;
+  std::string payload;
 };
 flux_plugin_get_formula_res flux_plugin_get_formula();
 
 struct flux_plugin_set_formula_res : flux_plugin_res {
   bool formula_set;
 };
-flux_plugin_set_formula_res flux_plugin_set_formula(std::string formula);
+flux_plugin_set_formula_res flux_plugin_set_formula(std::string payload);
 
 struct flux_plugin_get_score_res : flux_plugin_res {
   std::map<int, int> scores;

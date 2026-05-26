@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-noinst_LTLIBRARIES = libcommon.la
-libcommon_la_SOURCES = util.cpp util.hpp
+noinst_LTLIBRARIES = libutil.la libformula.la
+libutil_la_SOURCES = util.cpp util.hpp
+libformula_la_SOURCES = formula.cpp formula.hpp

@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "formula.hpp"
+#include "common/formula.hpp"
+#include "common/util.hpp"
 #include "lib/flux.hpp"
 #include "lib/kvs.hpp"
 #include "lib/table.hpp"
@@ -14,12 +16,8 @@
 #include <string>
 #include <vector>
 
-struct formula {
-  std::string name;
-  std::string expr;
-};
-
-static const formula DEFAULT_PRIORITY = {.name = "priority", .expr = "0"};
+static const formula DEFAULT_PRIORITY = {
+    .name = "priority", .expr = "0", .vars = {{"priority", 0}, {"score", 0}}};
 static const formula DEFAULT_SCORE = {.name = "score", .expr = "1"};
 static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
                                                       DEFAULT_SCORE};
@@ -57,19 +55,28 @@ static get_formulas_res get_formulas(std::vector<std::string> &names) {
       res.res.push_back(formula_res);
       continue;
     }
-    const char *formula_value;
-    if (flux_kvs_lookup_get(f, &formula_value) < 0) {
+    const char *formula_str;
+    if (flux_kvs_lookup_get(f, &formula_str) < 0) {
       formula_res.message = "Failed to get formula '" + formula_name + "'";
       res.res.push_back(formula_res);
       flux_future_destroy(f);
       continue;
     }
+
+    auto from_res = formula_from_str(formula_str);
+    if (!from_res.ok) {
+      formula_res.message = from_res.message;
+      res.res.push_back(formula_res);
+      flux_future_destroy(f);
+      continue;
+    }
+
     formula_res.ok = true;
-    formula_res.formula_obj =
-        formula{.name = formula_name, .expr = formula_value};
+    formula_res.formula_obj = from_res.formula_obj;
     res.res.push_back(formula_res);
     flux_future_destroy(f);
   }
+
   flux_close(h);
   res.ok = true;
   return res;
@@ -79,21 +86,24 @@ struct update_formula_res {
   bool ok;
   std::string message;
 };
-static update_formula_res update_formula(std::string name, std::string expr) {
+static update_formula_res update_formula(formula &formula_obj) {
   update_formula_res res;
+  auto formula_str = formula_to_str(formula_obj);
   res.ok = false;
-  if (name != "score" && name != "priority") {
+
+  if (formula_obj.name != "score" && formula_obj.name != "priority") {
     res.message = "Invalid formula name. Must be 'score' or 'priority'.";
     return res;
   }
 
-  if (name == "score" && !validate_score(expr)) {
+  if (formula_obj.name == "score" &&
+      !validate_score(formula_obj.expr, formula_obj.vars)) {
     res.message = "Invalid score formula.";
     return res;
   }
 
-  if (name == "priority") {
-    auto plugin_set_res = flux_plugin_set_formula(expr);
+  if (formula_obj.name == "priority") {
+    auto plugin_set_res = flux_plugin_set_formula(formula_str);
     if (plugin_set_res.err != FLUX_PLUGIN_ERR_OK) {
       res.message = plugin_set_res.err_msg;
       return res;
@@ -102,13 +112,13 @@ static update_formula_res update_formula(std::string name, std::string expr) {
 
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
-  auto kvs_key = "priorisea.formula." + name;
+  auto kvs_key = "priorisea.formula." + formula_obj.name;
   auto txn = flux_kvs_txn_create();
   if (!txn) {
     res.message = "Failed to create KVS transaction.";
     return res;
   }
-  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), expr.c_str()) < 0) {
+  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), formula_str.c_str()) < 0) {
     res.message = "Failed to store formula in KVS.";
     return res;
   }
@@ -126,17 +136,16 @@ struct reset_formulas_res {
   bool ok;
   std::string message;
 };
-
 reset_formulas_res reset_formulas(std::vector<std::string> &names) {
   reset_formulas_res res;
   res.ok = false;
   for (const auto &name : names) {
     bool found = false;
-    std::string expr;
+    formula formula_obj;
 
     for (const auto &default_formula : DEFAULT_FORMULAS) {
       if (name == default_formula.name) {
-        expr = default_formula.expr;
+        formula_obj = default_formula;
         found = true;
         break;
       }
@@ -147,7 +156,7 @@ reset_formulas_res reset_formulas(std::vector<std::string> &names) {
       return res;
     }
 
-    auto update_res = update_formula(name, expr);
+    auto update_res = update_formula(formula_obj);
     if (!update_res.ok) {
       res.message = update_res.message;
       return res;
@@ -369,16 +378,19 @@ static int run_get(int argc, char *argv[]) {
 }
 
 static const std::string SET_USAGE_MSG =
-    "Usage: priorisea formula set [-h] NAME FORMULA";
+    "Usage: priorisea formula set [-h] NAME \"EXPR\" [--var NAME VALUE]...";
 static const std::string SET_TRY_HELP_MSG =
     "Try 'priorisea formula set -h' for more information.";
 static const std::string SET_HELP_MSG = std::string(SET_USAGE_MSG) + R"(
 
-Set a priority scoring formula.
-Example: priorisea formula set priority "score * 2"
+Set a formula used to calculate priority scores.
+Example: priorisea formula set priority "score * 2" --var score 10
+
+Be informed that setting the variable mean setting a default value, which can be overridden at runtime.
+Example: setting "score" in "priority" formula define the default user score, if not yet defined.
 
 OPTIONS list and interpretation:
-  --json: output in JSON format)";
+  --var:  a variable name and default value to set in the formula)";
 
 static int run_set(int argc, char *argv[]) {
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
@@ -386,16 +398,53 @@ static int run_set(int argc, char *argv[]) {
     return 0;
   }
 
-  if (argc != 2) {
+  if (argc < 2) {
     std::cout << SET_USAGE_MSG << '\n' << SET_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
-  std::string name = argv[0];
-  std::string expr = argv[1];
-  auto update_res = update_formula(name, expr);
+  formula formula_obj = {
+      .name = argv[0],
+      .expr = argv[1],
+  };
+
+  for (int i = 2; i < argc;) {
+    std::string arg = argv[i];
+    if (arg == "--var") {
+      if (i + 2 >= argc) {
+        std::cerr << "Error: 'priorisea formula set ..." << '\n'
+                  << "  '--var' requires a variable name and value" << '\n'
+                  << SET_USAGE_MSG << '\n'
+                  << SET_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      auto var_name = argv[i + 1];
+      auto var_value_str = argv[i + 2];
+      double var_value;
+      if (!parse_double(var_value_str, var_value)) {
+        std::cerr << "Error: 'priorisea formula set ..." << '\n'
+                  << "  '" << var_value_str << "' is not a valid double" << '\n'
+                  << SET_USAGE_MSG << '\n'
+                  << SET_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      formula_obj.vars[var_name] = var_value;
+      i += 3;
+    } else {
+      std::cerr << "Error: 'priorisea formula set ..." << '\n'
+                << "  '" << arg << "' is not a valid option" << '\n'
+                << SET_USAGE_MSG << '\n'
+                << SET_TRY_HELP_MSG << std::endl;
+      return -1;
+    }
+  }
+
+  auto update_res = update_formula(formula_obj);
   if (!update_res.ok) {
-    std::cerr << update_res.message << std::endl;
+    std::cerr << "Error: 'priorisea formula set ..." << '\n'
+              << "  " << update_res.message << '\n'
+              << SET_USAGE_MSG << '\n'
+              << SET_TRY_HELP_MSG << std::endl;
     return -1;
   }
 

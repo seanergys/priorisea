@@ -30,7 +30,7 @@
           #self.packages.${system}.default
         ];
         shellHook = ''
-            export CPATH="$PWD/external/croncpp/include:$PWD/external/tinyexpr:$PWD/src/common:$CPATH"
+            export CPATH="$PWD/external/croncpp/include:$PWD/external/tinyexpr:$PWD/src:$CPATH"
             remove-sea-priority() {
                 flux jobtap remove sea_priority.so
                 flux jobtap remove sea_debug.so

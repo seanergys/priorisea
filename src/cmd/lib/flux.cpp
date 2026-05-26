@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "flux.hpp"
-#include "util.hpp"
+#include "common/util.hpp"
 #include <flux/core.h>
 #include <flux/core/rpc.h>
 #include <jansson.h>
