@@ -92,11 +92,6 @@ static update_formula_res update_formula(formula &formula_obj) {
   auto formula_str = formula_to_str(formula_obj);
   res.ok = false;
 
-  if (formula_obj.name != "score" && formula_obj.name != "priority") {
-    res.message = "Invalid formula name. Must be 'score' or 'priority'.";
-    return res;
-  }
-
   if (formula_obj.name == "score" &&
       !validate_score(formula_obj.expr, formula_obj.vars)) {
     res.message = "Invalid score formula.";
@@ -374,20 +369,19 @@ static int run_get(int argc, char *argv[]) {
         {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
          {"Formula",
           [](auto &value, auto index) -> auto { return value.expr; }},
-  {"Vars",
-   [](auto &value, auto index) -> auto {
-       std::stringstream ss;
-       bool first = true;
-       for(const auto &[name, value] : value.vars) {
-           if(!first) {
-               ss << ", ";
-           } else {
-               first = false;
-           }
-         ss << name << "=" << value;
-       }
-       return ss.str();
-   }}});
+         {"Vars", [](auto &value, auto index) -> auto {
+            std::stringstream ss;
+            bool first = true;
+            for (const auto &[name, value] : value.vars) {
+              if (!first) {
+                ss << ", ";
+              } else {
+                first = false;
+              }
+              ss << name << "=" << value;
+            }
+            return ss.str();
+          }}});
   }
   return 0;
 }
