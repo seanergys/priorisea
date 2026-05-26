@@ -99,13 +99,11 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
   const char *formula_str = nullptr;
   if (flux_request_unpack(msg, NULL, "{s:s}", "data", &formula_str) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
-    flux_log_error(h, errmsg.c_str());
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
 
   if (!formula_str) {
-    flux_log_error(h, "data is null");
     flux_respond_error(h, msg, EINVAL, "data is null");
     return;
   }
@@ -113,14 +111,12 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
   auto from_res = formula_from_str(formula_str);
   if (!from_res.ok) {
     auto errmsg = fmt::format("invalid formula: {}", from_res.message);
-    flux_log_error(h, errmsg.c_str());
     flux_respond_error(h, msg, EINVAL, errmsg.c_str());
     return;
   }
 
   if (!validate_formula(from_res.formula_obj)) {
     auto errmsg = fmt::format("invalid formula: {}", from_res.formula_obj.expr);
-    flux_log_error(h, errmsg.c_str());
     flux_respond_error(h, msg, EINVAL, errmsg.c_str());
     return;
   }
