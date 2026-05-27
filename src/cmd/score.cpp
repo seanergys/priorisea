@@ -4,6 +4,7 @@
 
 #include "score.hpp"
 #include "common/util.hpp"
+#include "formula.hpp"
 #include "lib/kvs.hpp"
 #include "lib/table.hpp"
 #include "tinyexpr.h"
@@ -12,7 +13,6 @@
 #include <jansson.h>
 #include <string>
 #include <vector>
-#include "formula.hpp"
 
 struct job {
   std::string jobid;
@@ -154,17 +154,8 @@ static int run_update(int argc, char *argv[]) {
     if (arg == "--new") {
       new_flag = true;
     } else {
-    jobids.push_back(arg);
+      jobids.push_back(arg);
     }
-  }
-
-  // TODO: remove once --new flag is implemented
-  if (new_flag) {
-    std::cerr << "Error: 'priorisea score update ...'" << '\n'
-              << "  --new flag is not implemented" << '\n'
-              << UPDATE_USAGE_MSG << '\n'
-              << UPDATE_TRY_HELP_MSG << std::endl;
-    return -1;
   }
 
   if (jobids.empty() && !new_flag) {
@@ -175,84 +166,167 @@ static int run_update(int argc, char *argv[]) {
     return -1;
   }
 
-  flux_t *h;
-  if (!(h = flux_open(NULL, 0))) {
-      std::cerr << "Error: 'priorisea score update ...'" << '\n'
-                << "  could not connect to flux" << '\n'
-                << UPDATE_USAGE_MSG << '\n'
-                << UPDATE_TRY_HELP_MSG << std::endl;
-      return -1;
-  }
-
   std::string formula_name = "score";
   auto get_res = get_formula(formula_name);
-  if(!get_res.ok) {
+  if (!get_res.ok) {
+    std::cerr << "Error: 'priorisea score update ...'" << '\n'
+              << "  could not get formula: " << get_res.message << '\n'
+              << UPDATE_USAGE_MSG << '\n'
+              << UPDATE_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    std::cerr << "Error: 'priorisea score update ...'" << '\n'
+              << "  could not connect to flux" << '\n'
+              << UPDATE_USAGE_MSG << '\n'
+              << UPDATE_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  // used to store all the job results from the RPC
+  json_t *all_jobs = json_array();
+
+  if (new_flag) {
+    flux_future_t *f;
+    json_t *c;
+    int version = 0;
+    if (!(c = json_pack("{s:[i]}", "states", FLUX_JOB_STATE_INACTIVE))) {
       std::cerr << "Error: 'priorisea score update ...'" << '\n'
-                << "  could not get formula: " << get_res.message << '\n'
+                << "  failed to construct constraint object" << '\n'
                 << UPDATE_USAGE_MSG << '\n'
                 << UPDATE_TRY_HELP_MSG << std::endl;
       return -1;
+    }
+
+    if (!(f = flux_rpc_pack(h, "job-list.list", FLUX_NODEID_ANY,
+                            FLUX_RPC_STREAMING, "{s:i s:f s:[s] s:o}",
+                            "max_entries", 10, "since", (double)1779875864,
+                            "attrs", "all", "constraint", c))) {
+      std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                << "  failed to send job-list.list RPC" << '\n'
+                << UPDATE_USAGE_MSG << '\n'
+                << UPDATE_TRY_HELP_MSG << std::endl;
+      return -1;
+    }
+
+    while (1) {
+      json_t *jobs;
+      if (flux_rpc_get_unpack(f, "{s:o s?i}", "jobs", &jobs, "version",
+                              &version) < 0) {
+        if (errno == ENODATA) {
+          break;
+        }
+        std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                  << "  failed to unpack job-list.list response" << '\n'
+                  << UPDATE_USAGE_MSG << '\n'
+                  << UPDATE_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      json_array_extend(all_jobs, jobs);
+
+      /* version 0 protocol does not stream, all results in one response */
+      if (version == 0) {
+        break;
+      }
+      flux_future_reset(f);
+    }
+    flux_future_destroy(f);
   }
 
-  // TODO: support --new flag
-  for (const auto &jobid_str : jobids) {
-    flux_jobid_t jobid;
-    if(flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
-        std::cerr << "Error: invalid job id: '" << jobid_str << "'" << std::endl;
-        continue;
+  if (jobids.size() > 0) {
+    flux_future_t *f;
+    json_t *c;
+    int version = 0;
+    json_t *jobids_json = json_array();
+    for (const auto &jobid : jobids) {
+      json_array_append_new(jobids_json, json_string(jobid.c_str()));
     }
 
-    flux_future_t *f = flux_job_result(h, jobid, 0);
-    if(flux_future_wait_for(f, 1) < 0) {
-        std::cerr << "Error: job not ready (1): '" << jobid << "'" << std::endl;
-        continue;
+    if (!(c = json_pack("{s:o}", "ids", jobids_json))) {
+      std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                << "  failed to construct constraint object" << '\n'
+                << UPDATE_USAGE_MSG << '\n'
+                << UPDATE_TRY_HELP_MSG << std::endl;
+      return -1;
     }
 
-    int result;
-    double t_submit, t_run, t_cleanup;
-    int waitstatus;
-    bool exception;
+    if (!(f = flux_rpc_pack(h, "job-list.list", FLUX_NODEID_ANY,
+                            FLUX_RPC_STREAMING, "{s:i s:[s] s:o}",
+                            "max_entries", 10, "attrs", "all", "constraint",
+                            c))) {
+      std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                << "  failed to send job-list.list RPC" << '\n'
+                << UPDATE_USAGE_MSG << '\n'
+                << UPDATE_TRY_HELP_MSG << std::endl;
+      return -1;
+    }
 
-    flux_job_result_get_unpack(
-        f,
-        "{s:i s:f s:f s:f s:i s:b}",
-        "result", &result,
-        "t_submit", &t_submit,
-        "t_run", &t_run,
-        "t_cleanup", &t_cleanup,
-        "waitstatus", &waitstatus,
-        "exception_occurred", &exception
-    );
+    while (1) {
+      json_t *jobs;
+      if (flux_rpc_get_unpack(f, "{s:o s?i}", "jobs", &jobs, "version",
+                              &version) < 0) {
+        if (errno == ENODATA) {
+          break;
+        }
+        std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                  << "  failed to unpack job-list.list response" << '\n'
+                  << UPDATE_USAGE_MSG << '\n'
+                  << UPDATE_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      json_array_extend(all_jobs, jobs);
+
+      /* version 0 protocol does not stream, all results in one response */
+      if (version == 0) {
+        break;
+      }
+      flux_future_reset(f);
+    }
     flux_future_destroy(f);
+  }
 
-    // if the job does not exist, it will raise an exception
-    if(exception) {
-        std::cerr << "Error: exception occurred: '" << jobid << "'" << std::endl;
-        continue;
+  size_t index;
+  json_t *value;
+  json_array_foreach(all_jobs, index, value) {
+    // char *str = json_dumps (value, 0);
+    // printf ("%s\n", str);
+    // free (str);
+
+    json_int_t jobid;
+    if (json_unpack(value, "{s:I}", "id", &jobid) < 0) {
+      char *str = json_dumps(value, 0);
+      std::cerr << "Error: failed to unpack job id: " << str << std::endl;
+      free(str);
+      continue;
     }
 
-    std::cout << "jobid: " << jobid << " result: " << result << " t_submit: " << t_submit << " t_run: " << t_run << " t_cleanup: " << t_cleanup << " waitstatus: " << waitstatus << " exception: " << exception << std::endl;
+    // TODO: check if the job is completed/inactive
+    //  if not, skip it
 
     std::map<std::string, double> vars_over;
     auto eval_res = eval_formula(get_res.formula_obj, vars_over);
     if (!eval_res.ok) {
-        std::cerr << "Error: failed to evaluate formula" << std::endl;
-        continue;
+      std::cerr << "Error: failed to evaluate formula" << std::endl;
+      continue;
     }
 
     auto txn = flux_kvs_txn_create();
     if (!txn) {
-        std::cerr << "Error: failed to create KVS transaction." << std::endl;
-        continue;
+      std::cerr << "Error: failed to create KVS transaction." << std::endl;
+      continue;
     }
-    if (flux_kvs_txn_put(txn, 0, ("priorisea.job." + std::to_string(jobid)).c_str(), std::to_string(eval_res.result).c_str()) < 0) {
-        std::cerr << "Error: failed to store job score in KVS." << std::endl;
-        continue;
+    if (flux_kvs_txn_put(txn, 0,
+                         ("priorisea.job." + std::to_string(jobid)).c_str(),
+                         std::to_string(eval_res.result).c_str()) < 0) {
+      std::cerr << "Error: failed to store job score in KVS." << std::endl;
+      continue;
     }
     auto commit_res = kvs_commit(txn);
     if (commit_res != KVS_ERR_SUCCESS) {
-        std::cerr << "Error: failed to commit job score to KVS." << std::endl;
-        continue;
+      std::cerr << "Error: failed to commit job score to KVS." << std::endl;
+      continue;
     }
 
     std::cout << "Success: job score stored in KVS." << std::endl;

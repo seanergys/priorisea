@@ -8,7 +8,7 @@
 #include "lib/flux.hpp"
 #include "lib/kvs.hpp"
 #include "lib/table.hpp"
-#include "score.hpp"
+#include "tinyexpr.h"
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
@@ -16,18 +16,20 @@
 #include <string.h>
 #include <string>
 #include <vector>
-#include "tinyexpr.h"
 
 static const formula DEFAULT_PRIORITY = {
-    .name = "priority", .expr = "0", .vars = {{"priority", 0}, {"score", 0}}};
-static const formula DEFAULT_SCORE = {.name = "score", .expr = "1"};
+    .name = "priority",
+    .expr = "priority * 0.5 + score = 0.5",
+    .vars = {{"priority", 16}, {"score", 16}}};
+static const formula DEFAULT_SCORE = {.name = "score", .expr = "16"};
 static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
                                                       DEFAULT_SCORE};
 
 ////
 
 static bool validate_formula(formula formula_obj) {
-  auto *te_vars = (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
+  auto *te_vars =
+      (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
   int i = 0;
   for (const auto &[name, value] : formula_obj.vars) {
     te_vars[i++] = {name.c_str(), &value};

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "common/formula.hpp"
 #include <string>
 #include <vector>
-#include "common/formula.hpp"
 
 struct init_formulas_res {
   bool ok;
