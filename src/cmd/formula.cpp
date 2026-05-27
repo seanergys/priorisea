@@ -8,7 +8,7 @@
 #include "lib/flux.hpp"
 #include "lib/kvs.hpp"
 #include "lib/table.hpp"
-#include "score.hpp"
+#include "tinyexpr.h"
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
@@ -18,69 +18,87 @@
 #include <vector>
 
 static const formula DEFAULT_PRIORITY = {
-    .name = "priority", .expr = "0", .vars = {{"priority", 0}, {"score", 0}}};
-static const formula DEFAULT_SCORE = {.name = "score", .expr = "1"};
+    .name = "priority",
+    .expr = "priority * 0.5 + score * 0.5",
+    .vars = {{"priority", 16}, {"score", 16}}};
+static const formula DEFAULT_SCORE = {.name = "score", .expr = "16"};
 static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
                                                       DEFAULT_SCORE};
 
 ////
 
-struct get_formula_res {
-  bool ok;
-  std::string message;
-  std::string name;
-  formula formula_obj;
-};
-struct get_formulas_res {
-  bool ok;
-  std::string message;
-  std::vector<get_formula_res> res;
-};
-static get_formulas_res get_formulas(std::vector<std::string> &names) {
+static bool validate_formula(formula formula_obj) {
+  auto *te_vars =
+      (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
+  int i = 0;
+  for (const auto &[name, value] : formula_obj.vars) {
+    te_vars[i++] = {name.c_str(), &value};
+  }
+  int err = 0;
+  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
+  if (!compiled)
+    return false;
+  te_free(compiled);
+  return true;
+}
+
+get_formulas_res get_formulas(std::vector<std::string> &names) {
   get_formulas_res res;
   res.ok = false;
-  flux_t *h;
-  if (!(h = flux_open(NULL, 0))) {
-    res.message = "Failed to connect to Flux.";
+
+  std::vector<std::string> keys;
+  for (auto formula_name : names) {
+    keys.push_back("priorisea.formula." + formula_name);
+  }
+
+  auto lookup_res = kvs_lookup(keys);
+  if (lookup_res.err != KVS_ERR_SUCCESS) {
+    res.message = "failed to lookup decay string in KVS. Unknown error";
     return res;
   }
 
-  for (auto formula_name : names) {
+  for (const auto &lookup_key_res : lookup_res.res) {
     get_formula_res formula_res;
     formula_res.ok = false;
+
+    size_t pos = lookup_key_res.key.rfind('.');
+    std::string formula_name = (pos == std::string::npos)
+                                   ? lookup_key_res.key
+                                   : lookup_key_res.key.substr(pos + 1);
     formula_res.name = formula_name;
-    flux_future_t *f;
-    if (!(f = flux_kvs_lookup(h, NULL, 0,
-                              ("priorisea.formula." + formula_name).c_str()))) {
-      formula_res.message = "Failed to retrieve formula '" + formula_name + "'";
+
+    if (lookup_key_res.err != KVS_ERR_SUCCESS) {
+      formula_res.message = "Failed to lookup formula '" + formula_name + "'";
       res.res.push_back(formula_res);
-      continue;
-    }
-    const char *formula_str;
-    if (flux_kvs_lookup_get(f, &formula_str) < 0) {
-      formula_res.message = "Failed to get formula '" + formula_name + "'";
-      res.res.push_back(formula_res);
-      flux_future_destroy(f);
       continue;
     }
 
-    auto from_res = formula_from_str(formula_str);
+    auto from_res = formula_from_str(lookup_key_res.value);
     if (!from_res.ok) {
       formula_res.message = from_res.message;
       res.res.push_back(formula_res);
-      flux_future_destroy(f);
       continue;
     }
 
     formula_res.ok = true;
     formula_res.formula_obj = from_res.formula_obj;
     res.res.push_back(formula_res);
-    flux_future_destroy(f);
   }
 
-  flux_close(h);
   res.ok = true;
   return res;
+};
+
+get_formula_res get_formula(std::string &name) {
+  get_formula_res res;
+  std::vector<std::string> names = {name};
+  auto get_res = get_formulas(names);
+  if (!get_res.ok) {
+    res.ok = false;
+    res.message = get_res.message;
+    return res;
+  }
+  return get_res.res[0];
 };
 
 struct update_formula_res {
@@ -92,9 +110,8 @@ static update_formula_res update_formula(formula &formula_obj) {
   auto formula_str = formula_to_str(formula_obj);
   res.ok = false;
 
-  if (formula_obj.name == "score" &&
-      !validate_score(formula_obj.expr, formula_obj.vars)) {
-    res.message = "Invalid score formula.";
+  if (!validate_formula(formula_obj)) {
+    res.message = "Invalid formula.";
     return res;
   }
 
