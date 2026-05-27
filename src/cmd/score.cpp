@@ -189,6 +189,19 @@ static int run_update(int argc, char *argv[]) {
   json_t *all_jobs = json_array();
 
   if (new_flag) {
+    double since = 0;
+    auto lookup_res = kvs_lookup({"priorisea.max_t_inactive"});
+    if (lookup_res.err == KVS_ERR_SUCCESS &&
+        lookup_res.res[0].err == KVS_ERR_SUCCESS) {
+      if (!parse_double(lookup_res.res[0].value, since)) {
+        std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                  << "  failed to parse max_t_inactive value" << '\n'
+                  << UPDATE_USAGE_MSG << '\n'
+                  << UPDATE_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+    }
+
     flux_future_t *f;
     json_t *c;
     int version = 0;
@@ -202,8 +215,8 @@ static int run_update(int argc, char *argv[]) {
 
     if (!(f = flux_rpc_pack(h, "job-list.list", FLUX_NODEID_ANY,
                             FLUX_RPC_STREAMING, "{s:i s:f s:[s] s:o}",
-                            "max_entries", 10, "since", (double)1779875864,
-                            "attrs", "all", "constraint", c))) {
+                            "max_entries", 10, "since", since, "attrs", "all",
+                            "constraint", c))) {
       std::cerr << "Error: 'priorisea score update ...'" << '\n'
                 << "  failed to send job-list.list RPC" << '\n'
                 << UPDATE_USAGE_MSG << '\n'
@@ -211,6 +224,7 @@ static int run_update(int argc, char *argv[]) {
       return -1;
     }
 
+    double max_t_inactive = 0;
     while (1) {
       json_t *jobs;
       if (flux_rpc_get_unpack(f, "{s:o s?i}", "jobs", &jobs, "version",
@@ -224,6 +238,22 @@ static int run_update(int argc, char *argv[]) {
                   << UPDATE_TRY_HELP_MSG << std::endl;
         return -1;
       }
+
+      size_t index;
+      json_t *value;
+      json_array_foreach(jobs, index, value) {
+        double t_inactive;
+        if (json_unpack(value, "{s:f}", "t_inactive", &t_inactive) < 0) {
+          char *str = json_dumps(value, 0);
+          std::cerr << "Error: failed to unpack t_inactive: " << str
+                    << std::endl;
+          free(str);
+          continue;
+        }
+        if (t_inactive > max_t_inactive) {
+          max_t_inactive = t_inactive;
+        }
+      }
       json_array_extend(all_jobs, jobs);
 
       /* version 0 protocol does not stream, all results in one response */
@@ -231,6 +261,33 @@ static int run_update(int argc, char *argv[]) {
         break;
       }
       flux_future_reset(f);
+    }
+
+    if (max_t_inactive > 0) {
+      auto txn = flux_kvs_txn_create();
+      if (!txn) {
+        std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                  << "  failed to create KVS transaction" << '\n'
+                  << UPDATE_USAGE_MSG << '\n'
+                  << UPDATE_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      if (flux_kvs_txn_put(txn, 0, "priorisea.max_t_inactive",
+                           std::to_string(max_t_inactive).c_str()) < 0) {
+        std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                  << "  failed to store max_t_inactive in KVS" << '\n'
+                  << UPDATE_USAGE_MSG << '\n'
+                  << UPDATE_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      auto commit_res = kvs_commit(txn);
+      if (commit_res != KVS_ERR_SUCCESS) {
+        std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                  << "  failed to commit max_t_inactive to KVS" << '\n'
+                  << UPDATE_USAGE_MSG << '\n'
+                  << UPDATE_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
     }
     flux_future_destroy(f);
   }
@@ -276,6 +333,9 @@ static int run_update(int argc, char *argv[]) {
                   << UPDATE_TRY_HELP_MSG << std::endl;
         return -1;
       }
+
+      // TODO: check if the job is completed/inactive
+      //  if not, skip it
       json_array_extend(all_jobs, jobs);
 
       /* version 0 protocol does not stream, all results in one response */
@@ -287,12 +347,15 @@ static int run_update(int argc, char *argv[]) {
     flux_future_destroy(f);
   }
 
+  // TODO: --new and specifying jobid can both find the
+  // same job twice, thus updating it twice
   size_t index;
   json_t *value;
   json_array_foreach(all_jobs, index, value) {
-    // char *str = json_dumps (value, 0);
-    // printf ("%s\n", str);
-    // free (str);
+
+    char *str = json_dumps(value, 0);
+    printf("%s\n", str);
+    free(str);
 
     json_int_t jobid;
     if (json_unpack(value, "{s:I}", "id", &jobid) < 0) {
@@ -301,9 +364,6 @@ static int run_update(int argc, char *argv[]) {
       free(str);
       continue;
     }
-
-    // TODO: check if the job is completed/inactive
-    //  if not, skip it
 
     std::map<std::string, double> vars_over;
     auto eval_res = eval_formula(get_res.formula_obj, vars_over);

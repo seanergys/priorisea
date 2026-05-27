@@ -19,7 +19,7 @@
 
 static const formula DEFAULT_PRIORITY = {
     .name = "priority",
-    .expr = "priority * 0.5 + score = 0.5",
+    .expr = "priority * 0.5 + score * 0.5",
     .vars = {{"priority", 16}, {"score", 16}}};
 static const formula DEFAULT_SCORE = {.name = "score", .expr = "16"};
 static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
