@@ -12,9 +12,10 @@
 #include <jansson.h>
 #include <string>
 #include <vector>
+#include "formula.hpp"
 
 struct job {
-  int jobid;
+  std::string jobid;
   int score;
 };
 struct user {
@@ -22,12 +23,15 @@ struct user {
   int score;
 };
 
+static double min(double a, double b) { return a < b ? a : b; }
+static double max(double a, double b) { return a > b ? a : b; }
+
 ////
 
 struct get_job_res {
   bool ok;
   std::string message;
-  int jobid;
+  std::string jobid;
   job job_obj;
 };
 struct get_jobs_res {
@@ -35,13 +39,13 @@ struct get_jobs_res {
   std::string message;
   std::vector<get_job_res> res;
 };
-static get_jobs_res get_jobs(std::vector<int> &jobids) {
+static get_jobs_res get_jobs(std::vector<std::string> &jobids) {
   get_jobs_res res;
   res.ok = false;
 
   std::vector<std::string> keys;
   for (const auto &jobid : jobids) {
-    keys.push_back("priorisea.job." + std::to_string(jobid));
+    keys.push_back("priorisea.job." + jobid);
   }
   auto kvs_res = kvs_lookup(keys);
   if (kvs_res.err != KVS_ERR_SUCCESS) {
@@ -54,19 +58,14 @@ static get_jobs_res get_jobs(std::vector<int> &jobids) {
     job_res.ok = false;
 
     size_t pos = lookup_key_res.key.rfind('.');
-    std::string jobid_str = (pos == std::string::npos)
-                                ? lookup_key_res.key
-                                : lookup_key_res.key.substr(pos + 1);
-    int jobid;
-    if (!parse_int(jobid_str, jobid)) {
-      job_res.message = "Failed to parse jobid from KVS key: " + jobid_str;
-      res.res.push_back(job_res);
-      continue;
-    }
+    std::string jobid = (pos == std::string::npos)
+                            ? lookup_key_res.key
+                            : lookup_key_res.key.substr(pos + 1);
     job_res.jobid = jobid;
 
     if (lookup_key_res.err != KVS_ERR_SUCCESS) {
-      job_res.message = "Failed to lookup KVS. Unknown error";
+      job_res.message = "Failed to lookup KVS. Unknown error: " +
+                        std::to_string(lookup_key_res.err);
       res.res.push_back(job_res);
       continue;
     }
@@ -88,18 +87,37 @@ static get_jobs_res get_jobs(std::vector<int> &jobids) {
   return res;
 };
 
-bool validate_score(std::string formula, std::map<std::string, double> &vars) {
-  auto *te_vars = (te_variable *)malloc(vars.size() * sizeof(te_variable));
+struct eval_formula_res {
+  bool ok;
+  double result;
+};
+static eval_formula_res eval_formula(formula formula_obj,
+                                     std::map<std::string, double> &vars_over) {
+
+  std::map<std::string, double> vars_merged = vars_over;
+  for (const auto &[name, value] : formula_obj.vars) {
+    if (vars_merged.find(name) != vars_merged.end())
+      continue;
+    vars_merged[name] = value;
+  }
+
+  auto *te_vars =
+      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
   int i = 0;
-  for (const auto &[name, value] : vars) {
+
+  for (const auto &[name, value] : vars_merged) {
     te_vars[i++] = {name.c_str(), &value};
   }
+  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
+  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
+
   int err = 0;
-  te_expr *compiled = te_compile(formula.c_str(), te_vars, i, &err);
+  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
   if (!compiled)
-    return false;
+    return {false, 0};
+  auto result = te_eval(compiled);
   te_free(compiled);
-  return true;
+  return {true, result};
 }
 
 ////
@@ -119,7 +137,7 @@ OPTIONS list and interpretation:
 
 static int run_update(int argc, char *argv[]) {
   bool new_flag = false;
-  std::vector<std::string> job_ids;
+  std::vector<std::string> jobids;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << UPDATE_HELP_MSG << std::endl;
@@ -133,21 +151,23 @@ static int run_update(int argc, char *argv[]) {
 
   for (int i = 0; i < argc; i++) {
     std::string arg = argv[i];
-
     if (arg == "--new") {
       new_flag = true;
-    } else if (!arg.empty() && arg[0] == '-') {
-      std::cerr << "Error: 'priorisea score update " << arg
-                << "' is not a valid option" << '\n'
-                << UPDATE_USAGE_MSG << '\n'
-                << UPDATE_TRY_HELP_MSG << std::endl;
-      return -1;
     } else {
-      job_ids.push_back(arg);
+    jobids.push_back(arg);
     }
   }
 
-  if (job_ids.empty() && !new_flag) {
+  // TODO: remove once --new flag is implemented
+  if (new_flag) {
+    std::cerr << "Error: 'priorisea score update ...'" << '\n'
+              << "  --new flag is not implemented" << '\n'
+              << UPDATE_USAGE_MSG << '\n'
+              << UPDATE_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  if (jobids.empty() && !new_flag) {
     std::cerr << "Error: 'priorisea score update ...'" << '\n'
               << "  job id or --new is missing" << '\n'
               << UPDATE_USAGE_MSG << '\n'
@@ -155,6 +175,90 @@ static int run_update(int argc, char *argv[]) {
     return -1;
   }
 
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+      std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                << "  could not connect to flux" << '\n'
+                << UPDATE_USAGE_MSG << '\n'
+                << UPDATE_TRY_HELP_MSG << std::endl;
+      return -1;
+  }
+
+  std::string formula_name = "score";
+  auto get_res = get_formula(formula_name);
+  if(!get_res.ok) {
+      std::cerr << "Error: 'priorisea score update ...'" << '\n'
+                << "  could not get formula: " << get_res.message << '\n'
+                << UPDATE_USAGE_MSG << '\n'
+                << UPDATE_TRY_HELP_MSG << std::endl;
+      return -1;
+  }
+
+  // TODO: support --new flag
+  for (const auto &jobid_str : jobids) {
+    flux_jobid_t jobid;
+    if(flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
+        std::cerr << "Error: invalid job id: '" << jobid_str << "'" << std::endl;
+        continue;
+    }
+
+    flux_future_t *f = flux_job_result(h, jobid, 0);
+    if(flux_future_wait_for(f, 1) < 0) {
+        std::cerr << "Error: job not ready (1): '" << jobid << "'" << std::endl;
+        continue;
+    }
+
+    int result;
+    double t_submit, t_run, t_cleanup;
+    int waitstatus;
+    bool exception;
+
+    flux_job_result_get_unpack(
+        f,
+        "{s:i s:f s:f s:f s:i s:b}",
+        "result", &result,
+        "t_submit", &t_submit,
+        "t_run", &t_run,
+        "t_cleanup", &t_cleanup,
+        "waitstatus", &waitstatus,
+        "exception_occurred", &exception
+    );
+    flux_future_destroy(f);
+
+    // if the job does not exist, it will raise an exception
+    if(exception) {
+        std::cerr << "Error: exception occurred: '" << jobid << "'" << std::endl;
+        continue;
+    }
+
+    std::cout << "jobid: " << jobid << " result: " << result << " t_submit: " << t_submit << " t_run: " << t_run << " t_cleanup: " << t_cleanup << " waitstatus: " << waitstatus << " exception: " << exception << std::endl;
+
+    std::map<std::string, double> vars_over;
+    auto eval_res = eval_formula(get_res.formula_obj, vars_over);
+    if (!eval_res.ok) {
+        std::cerr << "Error: failed to evaluate formula" << std::endl;
+        continue;
+    }
+
+    auto txn = flux_kvs_txn_create();
+    if (!txn) {
+        std::cerr << "Error: failed to create KVS transaction." << std::endl;
+        continue;
+    }
+    if (flux_kvs_txn_put(txn, 0, ("priorisea.job." + std::to_string(jobid)).c_str(), std::to_string(eval_res.result).c_str()) < 0) {
+        std::cerr << "Error: failed to store job score in KVS." << std::endl;
+        continue;
+    }
+    auto commit_res = kvs_commit(txn);
+    if (commit_res != KVS_ERR_SUCCESS) {
+        std::cerr << "Error: failed to commit job score to KVS." << std::endl;
+        continue;
+    }
+
+    std::cout << "Success: job score stored in KVS." << std::endl;
+  }
+
+  flux_close(h);
   return 0;
 }
 
@@ -172,7 +276,7 @@ OPTIONS list and interpretation:
 
 static int run_job(int argc, char *argv[]) {
   bool json_flag = false;
-  std::vector<int> jobids;
+  std::vector<std::string> jobids;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << JOB_HELP_MSG << std::endl;
@@ -186,21 +290,11 @@ static int run_job(int argc, char *argv[]) {
 
   for (int i = 0; i < argc; i++) {
     std::string arg = argv[i];
-
     if (arg == "--json") {
       json_flag = true;
-      continue;
+    } else {
+      jobids.push_back(arg);
     }
-    int jobid;
-    if (!parse_int(arg, jobid)) {
-      std::cerr << "Error: 'priorisea score job " << arg
-                << "' is not a valid job id" << '\n'
-                << JOB_USAGE_MSG << '\n'
-                << JOB_TRY_HELP_MSG << std::endl;
-      return -1;
-    }
-
-    jobids.push_back(jobid);
   }
 
   if (jobids.empty()) {
@@ -232,19 +326,17 @@ static int run_job(int argc, char *argv[]) {
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : jobs) {
-      json_object_set_new(obj, std::to_string(f.jobid).c_str(),
-                          json_integer(f.score));
+      json_object_set_new(obj, f.jobid.c_str(), json_integer(f.score));
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(jobs, {{"Job Id",
-                        [](auto &value, auto index) -> auto {
-                          return std::to_string(value.jobid);
-                        }},
-                       {"Score", [](auto &value, auto index) -> auto {
-                          return std::to_string(value.score);
-                        }}});
+    print_table(jobs,
+                {{"Job Id",
+                  [](auto &value, auto index) -> auto { return value.jobid; }},
+                 {"Score", [](auto &value, auto index) -> auto {
+                    return std::to_string(value.score);
+                  }}});
   }
   return 0;
 }

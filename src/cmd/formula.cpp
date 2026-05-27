@@ -16,6 +16,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include "tinyexpr.h"
 
 static const formula DEFAULT_PRIORITY = {
     .name = "priority", .expr = "0", .vars = {{"priority", 0}, {"score", 0}}};
@@ -25,18 +26,21 @@ static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
 
 ////
 
-struct get_formula_res {
-  bool ok;
-  std::string message;
-  std::string name;
-  formula formula_obj;
-};
-struct get_formulas_res {
-  bool ok;
-  std::string message;
-  std::vector<get_formula_res> res;
-};
-static get_formulas_res get_formulas(std::vector<std::string> &names) {
+static bool validate_formula(formula formula_obj) {
+  auto *te_vars = (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
+  int i = 0;
+  for (const auto &[name, value] : formula_obj.vars) {
+    te_vars[i++] = {name.c_str(), &value};
+  }
+  int err = 0;
+  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
+  if (!compiled)
+    return false;
+  te_free(compiled);
+  return true;
+}
+
+get_formulas_res get_formulas(std::vector<std::string> &names) {
   get_formulas_res res;
   res.ok = false;
 
@@ -83,6 +87,18 @@ static get_formulas_res get_formulas(std::vector<std::string> &names) {
   return res;
 };
 
+get_formula_res get_formula(std::string &name) {
+  get_formula_res res;
+  std::vector<std::string> names = {name};
+  auto get_res = get_formulas(names);
+  if (!get_res.ok) {
+    res.ok = false;
+    res.message = get_res.message;
+    return res;
+  }
+  return get_res.res[0];
+};
+
 struct update_formula_res {
   bool ok;
   std::string message;
@@ -92,9 +108,8 @@ static update_formula_res update_formula(formula &formula_obj) {
   auto formula_str = formula_to_str(formula_obj);
   res.ok = false;
 
-  if (formula_obj.name == "score" &&
-      !validate_score(formula_obj.expr, formula_obj.vars)) {
-    res.message = "Invalid score formula.";
+  if (!validate_formula(formula_obj)) {
+    res.message = "Invalid formula.";
     return res;
   }
 
