@@ -2,10 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
-SUBDIRS = lib
-
 bin_PROGRAMS = priorisea
-priorisea_SOURCES = main.cpp formula.cpp time.cpp score.cpp decay.cpp init.cpp
+priorisea_SOURCES = main.cpp \
+    formula.cpp formula.hpp \
+    time.cpp time.hpp \
+    score.cpp score.hpp \
+    decay.cpp  decay.hpp \
+    init.cpp init.hpp
+
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
     -I$(top_srcdir)/external/croncpp/include \
@@ -16,11 +20,8 @@ priorisea_CPPFLAGS = \
     $(FLUX_CORE_CFLAGS)
 
 priorisea_LDADD = \
+    $(top_builddir)/src/lib/libpriorisea.la \
     $(top_builddir)/external/libtinyexpr.la \
-    $(top_builddir)/src/common/libutil.la \
-    $(top_builddir)/src/common/libformula.la \
-    $(top_builddir)/src/cmd/lib/libflux.la \
-    $(top_builddir)/src/cmd/lib/libkvs.la \
     $(JANSSON_LIBS) \
     $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)

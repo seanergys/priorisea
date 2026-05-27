@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "common/formula.hpp"
-#include "common/util.hpp"
+#include "lib/formula.hpp"
+#include "lib/util.hpp"
 #include "tinyexpr.h"
 #include <cerrno>
 #include <climits>

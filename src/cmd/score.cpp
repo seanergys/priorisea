@@ -3,122 +3,14 @@
 // SPDX-License-Identifier: MIT
 
 #include "score.hpp"
-#include "common/util.hpp"
-#include "formula.hpp"
-#include "lib/kvs.hpp"
-#include "lib/table.hpp"
-#include "tinyexpr.h"
+#include "lib/flux.hpp"
+#include "lib/score.hpp"
+#include "lib/util.hpp"
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
 #include <string>
 #include <vector>
-
-struct job {
-  std::string jobid;
-  int score;
-};
-struct user {
-  int userid;
-  int score;
-};
-
-static double min(double a, double b) { return a < b ? a : b; }
-static double max(double a, double b) { return a > b ? a : b; }
-
-////
-
-struct get_job_res {
-  bool ok;
-  std::string message;
-  std::string jobid;
-  job job_obj;
-};
-struct get_jobs_res {
-  bool ok;
-  std::string message;
-  std::vector<get_job_res> res;
-};
-static get_jobs_res get_jobs(std::vector<std::string> &jobids) {
-  get_jobs_res res;
-  res.ok = false;
-
-  std::vector<std::string> keys;
-  for (const auto &jobid : jobids) {
-    keys.push_back("priorisea.job." + jobid);
-  }
-  auto kvs_res = kvs_lookup(keys);
-  if (kvs_res.err != KVS_ERR_SUCCESS) {
-    res.message = "Failed to lookup KVS. Unknown error";
-    return res;
-  }
-
-  for (const auto &lookup_key_res : kvs_res.res) {
-    get_job_res job_res;
-    job_res.ok = false;
-
-    size_t pos = lookup_key_res.key.rfind('.');
-    std::string jobid = (pos == std::string::npos)
-                            ? lookup_key_res.key
-                            : lookup_key_res.key.substr(pos + 1);
-    job_res.jobid = jobid;
-
-    if (lookup_key_res.err != KVS_ERR_SUCCESS) {
-      job_res.message = "Failed to lookup KVS. Unknown error: " +
-                        std::to_string(lookup_key_res.err);
-      res.res.push_back(job_res);
-      continue;
-    }
-
-    int score;
-    if (!parse_int(lookup_key_res.value, score)) {
-      job_res.message =
-          "Failed to parse score from KVS value: " + lookup_key_res.value;
-      res.res.push_back(job_res);
-      continue;
-    }
-
-    job_res.ok = true;
-    job_res.job_obj = {.jobid = jobid, .score = score};
-    res.res.push_back(job_res);
-  }
-
-  res.ok = true;
-  return res;
-};
-
-struct eval_formula_res {
-  bool ok;
-  double result;
-};
-static eval_formula_res eval_formula(formula formula_obj,
-                                     std::map<std::string, double> &vars_over) {
-
-  std::map<std::string, double> vars_merged = vars_over;
-  for (const auto &[name, value] : formula_obj.vars) {
-    if (vars_merged.find(name) != vars_merged.end())
-      continue;
-    vars_merged[name] = value;
-  }
-
-  auto *te_vars =
-      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
-  int i = 0;
-
-  for (const auto &[name, value] : vars_merged) {
-    te_vars[i++] = {name.c_str(), &value};
-  }
-  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
-  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
-
-  int err = 0;
-  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
-  if (!compiled)
-    return {false, 0};
-  auto result = te_eval(compiled);
-  te_free(compiled);
-  return {true, result};
-}
 
 ////
 
@@ -191,8 +83,8 @@ static int run_update(int argc, char *argv[]) {
   if (new_flag) {
     double since = 0;
     auto lookup_res = kvs_lookup({"priorisea.max_t_inactive"});
-    if (lookup_res.err == KVS_ERR_SUCCESS &&
-        lookup_res.res[0].err == KVS_ERR_SUCCESS) {
+    if (lookup_res.err == FLUX_KVS_ERR_SUCCESS &&
+        lookup_res.res[0].err == FLUX_KVS_ERR_SUCCESS) {
       if (!parse_double(lookup_res.res[0].value, since)) {
         std::cerr << "Error: 'priorisea score update ...'" << '\n'
                   << "  failed to parse max_t_inactive value" << '\n'
@@ -281,7 +173,7 @@ static int run_update(int argc, char *argv[]) {
         return -1;
       }
       auto commit_res = kvs_commit(txn);
-      if (commit_res != KVS_ERR_SUCCESS) {
+      if (commit_res != FLUX_KVS_ERR_SUCCESS) {
         std::cerr << "Error: 'priorisea score update ...'" << '\n'
                   << "  failed to commit max_t_inactive to KVS" << '\n'
                   << UPDATE_USAGE_MSG << '\n'
@@ -384,7 +276,7 @@ static int run_update(int argc, char *argv[]) {
       continue;
     }
     auto commit_res = kvs_commit(txn);
-    if (commit_res != KVS_ERR_SUCCESS) {
+    if (commit_res != FLUX_KVS_ERR_SUCCESS) {
       std::cerr << "Error: failed to commit job score to KVS." << std::endl;
       continue;
     }

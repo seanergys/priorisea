@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: MIT
 
 #include "init.hpp"
-#include "decay.hpp"
-#include "formula.hpp"
+#include "lib/decay.hpp"
+#include "lib/formula.hpp"
 #include <cstring>
 #include <iostream>
 #include <string>
+
+////
 
 static const std::string USAGE_MSG = "Usage: priorisea init [-h]";
 static const std::string TRY_HELP_MSG =
