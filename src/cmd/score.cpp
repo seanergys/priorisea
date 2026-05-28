@@ -359,6 +359,7 @@ Manage and retrieve priority scores.
 Example: priorisea score job 12345
 
 COMMAND list and interpretation:
+  init: initialize the score database
   update: update score values
   job: get score values for jobs
   user: get score values for users)";
