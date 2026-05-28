@@ -43,8 +43,8 @@ get_jobs_res get_jobs(std::vector<std::string> &jobids) {
       continue;
     }
 
-    int score;
-    if (!parse_int(lookup_key_res.value, score)) {
+    double score;
+    if (!parse_double(lookup_key_res.value, score)) {
       job_res.message =
           "Failed to parse score from KVS value: " + lookup_key_res.value;
       res.res.push_back(job_res);
@@ -102,4 +102,84 @@ bool validate_score(formula formula_obj) {
     return false;
   te_free(compiled);
   return true;
+}
+
+store_t_inactive_res store_t_inactive(double t_inactive) {
+  store_t_inactive_res res;
+  res.ok = false;
+  auto txn = flux_kvs_txn_create();
+  if (!txn) {
+    res.message = "failed to create KVS transaction";
+    return res;
+  }
+  if (flux_kvs_txn_put(txn, 0, "priorisea.t_inactive",
+                       std::to_string(t_inactive).c_str()) < 0) {
+    res.message = "failed to store max_t_inactive in KVS";
+    return res;
+  }
+  auto commit_res = kvs_commit(txn);
+  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
+    res.message = "failed to commit max_t_inactive to KVS";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+get_t_inactive_res get_t_inactive() {
+  get_t_inactive_res res;
+  res.ok = false;
+  auto lookup_res = kvs_lookup({"priorisea.t_inactive"});
+  if (lookup_res.err != FLUX_KVS_ERR_SUCCESS) {
+    res.message = "failed to lookup t_inactive in KVS";
+    return res;
+  }
+  if (lookup_res.res[0].err != FLUX_KVS_ERR_SUCCESS) {
+    res.message = "failed to lookup t_inactive in KVS";
+    return res;
+  }
+  double t_inactive;
+  if (!parse_double(lookup_res.res[0].value, res.t_inactive)) {
+    res.message = "failed to parse t_inactive value";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+store_job_res store_job(job job_obj) {
+  store_job_res res;
+  res.ok = false;
+  auto txn = flux_kvs_txn_create();
+  if (!txn) {
+    res.message = "failed to create KVS transaction";
+    return res;
+  }
+  if (flux_kvs_txn_put(txn, 0, ("priorisea.job." + job_obj.jobid).c_str(),
+                       std::to_string(job_obj.score).c_str()) < 0) {
+    res.message = "failed to store job score in KVS";
+    return res;
+  }
+  auto commit_res = kvs_commit(txn);
+  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
+    res.message = "failed to commit job score to KVS";
+    return res;
+  }
+  res.ok = true;
+  return res;
+}
+
+init_score_res init_score() {
+  init_score_res res;
+  res.ok = false;
+  auto get_t_inactive_res = get_t_inactive();
+  if (!get_t_inactive_res.ok) {
+    auto store_t_inactive_res = store_t_inactive(0);
+    if (!store_t_inactive_res.ok) {
+      res.message = store_t_inactive_res.message;
+      return res;
+    }
+  }
+  res.ok = true;
+  return res;
 }

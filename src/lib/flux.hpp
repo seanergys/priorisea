@@ -36,6 +36,32 @@ enum FLUX_KVS_ERR {
   FLUX_KVS_ERR_LOOKUP_MISSING,
 };
 
+struct flux_list_job_res {
+  long long id;
+  int userid;
+  int urgency;
+  int priority;
+  double t_submit;
+  double t_depend;
+  double t_run;
+  double t_cleanup;
+  double t_inactive;
+  int state;
+  std::string name;
+  std::string cwd;
+  int ntasks;
+  int ncores;
+  double duration;
+  int nnodes;
+  std::string ranks;
+  std::string nodelist;
+  bool success;
+  bool exception_occured;
+  int result;
+  double expiration;
+  int waitstatus;
+};
+
 ////
 
 struct flux_plugin_get_formula_res : flux_plugin_res {
@@ -74,3 +100,25 @@ struct kvs_lookups_res {
   std::vector<kvs_lookup_res> res;
 };
 kvs_lookups_res kvs_lookup(std::vector<std::string> keys);
+
+struct flux_list_job_unpack_res {
+  bool ok;
+  std::string message;
+  flux_list_job_res job;
+};
+flux_list_job_unpack_res flux_list_job_unpack(json_t *value);
+
+struct flux_list_inactive_res {
+  bool ok;
+  std::string message;
+  double t_inactive_max;
+  std::vector<flux_list_job_unpack_res> jobs;
+};
+flux_list_inactive_res flux_list_inactive(double since, int max_entries);
+
+struct flux_list_res {
+  bool ok;
+  std::string message;
+  std::vector<flux_list_job_unpack_res> jobs;
+};
+flux_list_res flux_list(std::vector<std::string> jobids, int max_entries);

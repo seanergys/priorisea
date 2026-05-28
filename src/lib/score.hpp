@@ -12,12 +12,12 @@
 
 struct job {
   std::string jobid;
-  int score;
+  double score;
 };
 
 struct user {
   int userid;
-  int score;
+  double score;
 };
 
 ////
@@ -43,3 +43,28 @@ eval_formula_res eval_formula(formula formula_obj,
                               std::map<std::string, double> &vars_over);
 
 bool validate_score(formula formula_obj);
+
+struct store_t_inactive_res {
+  bool ok;
+  std::string message;
+};
+store_t_inactive_res store_t_inactive(double t_inactive);
+
+struct get_t_inactive_res {
+  bool ok;
+  std::string message;
+  double t_inactive;
+};
+get_t_inactive_res get_t_inactive();
+
+struct store_job_res {
+  bool ok;
+  std::string message;
+};
+store_job_res store_job(job job_obj);
+
+struct init_score_res {
+  bool ok;
+  std::string message;
+};
+init_score_res init_score();
