@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: MIT
 
 #include "init.hpp"
-#include "decay.hpp"
-#include "formula.hpp"
+#include "lib/decay.hpp"
+#include "lib/formula.hpp"
+#include "lib/score.hpp"
 #include <cstring>
 #include <iostream>
 #include <string>
+
+////
 
 static const std::string USAGE_MSG = "Usage: priorisea init [-h]";
 static const std::string TRY_HELP_MSG =
@@ -44,6 +47,17 @@ int run_init(int argc, char *argv[]) {
                  "initialization"
               << '\n'
               << "  " << init_formulas_res.message << '\n'
+              << USAGE_MSG << '\n'
+              << TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  auto init_score_res = init_score();
+  if (!init_score_res.ok) {
+    std::cerr << "Error: 'priorisea init' went wrong during score "
+                 "initialization"
+              << '\n'
+              << "  " << init_score_res.message << '\n'
               << USAGE_MSG << '\n'
               << TRY_HELP_MSG << std::endl;
     return -1;

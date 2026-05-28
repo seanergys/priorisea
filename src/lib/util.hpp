@@ -1,13 +1,16 @@
-#include <algorithm>
-#include <functional>
-#include <iomanip>
 // SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
 //
 // SPDX-License-Identifier: MIT
 
+#pragma once
+#include <algorithm>
+#include <functional>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
+
+////
 
 template <typename T> struct column {
   std::string header;
@@ -65,3 +68,8 @@ void print_table(const std::vector<T> &rows,
 
   std::cout << std::endl;
 }
+
+////
+
+bool parse_int(const std::string &s, int &out);
+bool parse_double(const std::string &s, double &out);

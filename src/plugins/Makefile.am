@@ -5,11 +5,6 @@
 jobtapdir = $(libdir)/flux/job-manager/plugins/
 jobtap_LTLIBRARIES = sea_debug.la sea_priority.la
 
-sea_debug_la_SOURCES = sea_debug.cpp
-sea_debug_la_CPPFLAGS = $(JANSSON_CFLAGS) $(FLUX_CORE_CFLAGS)
-sea_debug_la_LIBADD = $(JANSSON_LIBS)
-sea_debug_la_LDFLAGS = -module -avoid-version
-
 sea_priority_la_SOURCES = sea_priority.cpp
 
 sea_priority_la_CPPFLAGS = \
@@ -20,11 +15,15 @@ sea_priority_la_CPPFLAGS = \
     $(FLUX_CORE_CFLAGS)
 
 sea_priority_la_LIBADD = \
+    $(top_builddir)/src/lib/libpriorisea.la \
     $(top_builddir)/external/libtinyexpr.la \
-    $(top_builddir)/src/common/libutil.la \
-    $(top_builddir)/src/common/libformula.la \
     $(JANSSON_LIBS) \
-    $(FMT_LIBS)
-
+    $(FMT_LIBS) \
+    $(FLUX_CORE_LIBS)
 
 sea_priority_la_LDFLAGS = -module -avoid-version
+
+sea_debug_la_SOURCES = sea_debug.cpp
+sea_debug_la_CPPFLAGS = $(JANSSON_CFLAGS) $(FLUX_CORE_CFLAGS)
+sea_debug_la_LIBADD = $(JANSSON_LIBS)
+sea_debug_la_LDFLAGS = -module -avoid-version
