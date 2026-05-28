@@ -342,8 +342,10 @@ flux_list_job_unpack_res flux_list_job_unpack(json_t *value) {
   return res;
 }
 
-flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
-  flux_list_inactive_res res;
+flux_list_inactive_stream_res
+flux_list_inactive_stream(double since, int max_entries,
+                          std::function<void(json_t *)> callback) {
+  flux_list_inactive_stream_res res;
   res.ok = false;
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
@@ -379,15 +381,7 @@ flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
       return res;
     }
 
-    size_t index;
-    json_t *value;
-    json_array_foreach(jobs, index, value) {
-      auto unpack_res = flux_list_job_unpack(value);
-      res.jobs.push_back(unpack_res);
-      if (unpack_res.ok && unpack_res.job.t_inactive > t_inactive_max) {
-        t_inactive_max = unpack_res.job.t_inactive;
-      }
-    }
+    callback(jobs);
 
     /* version 0 protocol does not stream, all results in one response */
     if (version == 0) {
@@ -396,6 +390,30 @@ flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
     flux_future_reset(f);
   }
   flux_future_destroy(f);
+  res.ok = true;
+  return res;
+}
+
+flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
+  flux_list_inactive_res res;
+  res.ok = false;
+  double t_inactive_max = since;
+  auto stream_res = flux_list_inactive_stream(
+      since, max_entries, [&t_inactive_max, &res](json_t *jobs) {
+        size_t index;
+        json_t *value;
+        json_array_foreach(jobs, index, value) {
+          auto unpack_res = flux_list_job_unpack(value);
+          res.jobs.push_back(unpack_res);
+          if (unpack_res.ok && unpack_res.job.t_inactive > t_inactive_max) {
+            t_inactive_max = unpack_res.job.t_inactive;
+          }
+        }
+      });
+  if (!stream_res.ok) {
+    res.message = stream_res.message;
+    return res;
+  }
   res.ok = true;
   res.t_inactive_max = t_inactive_max;
   return res;

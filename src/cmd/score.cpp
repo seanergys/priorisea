@@ -48,12 +48,13 @@ static const std::string UPDATE_TRY_HELP_MSG =
     "Try 'priorisea score update -h' for more information.";
 static const std::string UPDATE_HELP_MSG = UPDATE_USAGE_MSG + R"(
 
-Update priority scores for jobs.
+Update priority scores for jobs and users.
+Run this command when to sync with the decay expression, to update new jobs, or to recompute existing scores.
 Example: priorisea score update 12345 67890
 Example: priorisea score update --new
 
 OPTIONS list and interpretation:
-  --new: update scores only for new jobs)";
+  --new: update scores for all new jobs)";
 
 static int run_update(int argc, char *argv[]) {
   bool new_flag = false;
@@ -96,7 +97,7 @@ static int run_update(int argc, char *argv[]) {
     return -1;
   }
 
-  std::vector<flux_list_job_res> all_jobs;
+  std::vector<flux_list_job_res> jobs_to_update;
 
   if (new_flag) {
     auto get_t_inactive_res = get_t_inactive();
@@ -120,11 +121,11 @@ static int run_update(int argc, char *argv[]) {
 
     for (auto &get_inactive_job_res : list_inactive_res.jobs) {
       if (get_inactive_job_res.ok) {
-        all_jobs.push_back(get_inactive_job_res.job);
+        jobs_to_update.push_back(get_inactive_job_res.job);
       }
     }
 
-    if (!all_jobs.empty()) {
+    if (!jobs_to_update.empty()) {
       auto store_t_inactive_res =
           store_t_inactive(list_inactive_res.t_inactive_max);
       if (!store_t_inactive_res.ok) {
@@ -149,27 +150,29 @@ static int run_update(int argc, char *argv[]) {
 
     for (auto &get_job_res : list_res.jobs) {
       if (get_job_res.ok) {
-        all_jobs.push_back(get_job_res.job);
+        jobs_to_update.push_back(get_job_res.job);
       }
     }
   }
 
   // TODO: --new and specifying jobid can both find the
   // same job twice, thus updating it twice
-  for (const auto &list_job : all_jobs) {
-    std::map<std::string, double> vars_over;
-    auto eval_res = eval_formula(get_formula_res.formula_obj, vars_over);
-    if (!eval_res.ok) {
-      std::cerr << "Error: failed to evaluate formula" << std::endl;
+  for (const auto &list_job : jobs_to_update) {
+    auto update_res = update_job(list_job, get_formula_res.formula_obj);
+    if (!update_res.ok) {
+      std::cerr << "Error: " << update_res.message << std::endl;
       continue;
     }
+  }
 
-    auto store_job_res =
-        store_job({std::to_string(list_job.id), eval_res.result});
-    if (!store_job_res.ok) {
-      std::cerr << "Error: " << store_job_res.message << std::endl;
-      continue;
-    }
+  // Compute users scores
+  auto update_users_res = update_users();
+  if (!update_users_res.ok) {
+    std::cerr << "Error: 'priorisea score update ...'" << '\n'
+              << "  " << update_users_res.message << '\n'
+              << UPDATE_USAGE_MSG << '\n'
+              << UPDATE_TRY_HELP_MSG << std::endl;
+    return -1;
   }
 
   return 0;

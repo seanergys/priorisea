@@ -5,6 +5,7 @@
 #pragma once
 
 #include <flux/core.h>
+#include <functional>
 #include <jansson.h>
 #include <map>
 #include <string>
@@ -107,6 +108,14 @@ struct flux_list_job_unpack_res {
   flux_list_job_res job;
 };
 flux_list_job_unpack_res flux_list_job_unpack(json_t *value);
+
+struct flux_list_inactive_stream_res {
+  bool ok;
+  std::string message;
+};
+flux_list_inactive_stream_res
+flux_list_inactive_stream(double since, int max_entries,
+                          std::function<void(json_t *)> callback);
 
 struct flux_list_inactive_res {
   bool ok;
