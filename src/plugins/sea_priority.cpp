@@ -19,7 +19,7 @@
 #include <string>
 
 static formula priority_formula;
-static std::map<int, int> scores;
+static std::map<int, double> scores;
 
 static double min(double a, double b) { return a < b ? a : b; }
 static double max(double a, double b) { return a > b ? a : b; }
@@ -154,16 +154,7 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
       return;
     }
 
-    json_int_t user_id_j = json_integer_value(elem);
-
-    if (user_id_j < INT_MIN || user_id_j > INT_MAX) {
-      auto errmsg = fmt::format("user_id at element {} is out of int range", i);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      json_decref(res);
-      return;
-    }
-
-    int user_id = static_cast<int>(user_id_j);
+    int user_id = json_integer_value(elem);
     auto it = scores.find(user_id);
 
     if (it == scores.end()) {
@@ -174,7 +165,7 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
     }
 
     std::string user_id_key = std::to_string(user_id);
-    json_object_set_new(res, user_id_key.c_str(), json_integer(it->second));
+    json_object_set_new(res, user_id_key.c_str(), json_real(it->second));
   }
 
   if (flux_respond_pack(h, msg, "{s:o}", "data", res) < 0) {
@@ -210,23 +201,14 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
       return;
     }
 
-    if (!json_is_integer(score_j)) {
-      auto errmsg =
-          fmt::format("score for user_id {} is not an integer", user_id);
+    if (!json_is_real(score_j)) {
+      auto errmsg = fmt::format("score for user_id {} is not an real", user_id);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
       return;
     }
 
-    json_int_t score_value = json_integer_value(score_j);
-
-    if (score_value < INT_MIN || score_value > INT_MAX) {
-      auto errmsg =
-          fmt::format("score for user_id {} is out of int range", user_id);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      return;
-    }
-
-    scores[user_id] = static_cast<int>(score_value);
+    double score_value = json_real_value(score_j);
+    scores[user_id] = score_value;
   }
 
   flux_respond(h, msg, NULL);

@@ -381,6 +381,7 @@ update_users_res update_users() {
         }
       });
 
+  std::map<int, double> scores;
   for (const auto &[userid, value] : sum_aggs) {
     double score = 0;
     for (const auto &agg : value) {
@@ -388,11 +389,18 @@ update_users_res update_users() {
         score += agg.sum / agg.count;
       }
     }
+    scores[userid] = score;
     auto store_res = store_user({.userid = userid, .score = score});
     if (!store_res.ok) {
       std::cerr << "Error: failed to store user score: " << store_res.message
                 << '\n';
     }
+  }
+
+  auto plugin_set_scores_res = flux_plugin_set_score(scores);
+  if (plugin_set_scores_res.err != FLUX_PLUGIN_ERR_OK) {
+    res.message = plugin_set_scores_res.err_msg;
+    return res;
   }
 
   res.ok = true;

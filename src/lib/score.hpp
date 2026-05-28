@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+#pragma once
 #include "flux.hpp"
 #include "formula.hpp"
 #include <flux/core.h>

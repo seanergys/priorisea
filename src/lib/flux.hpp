@@ -76,14 +76,14 @@ struct flux_plugin_set_formula_res : flux_plugin_res {
 flux_plugin_set_formula_res flux_plugin_set_formula(std::string payload);
 
 struct flux_plugin_get_score_res : flux_plugin_res {
-  std::map<int, int> scores;
+  std::map<int, double> scores;
 };
 flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids);
 
 struct flux_plugin_set_score_res : flux_plugin_res {
   bool score_set;
 };
-flux_plugin_set_score_res flux_plugin_set_score(std::map<int, int> scores);
+flux_plugin_set_score_res flux_plugin_set_score(std::map<int, double> scores);
 
 FLUX_KVS_ERR kvs_commit(flux_kvs_txn_t *txn);
 

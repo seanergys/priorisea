@@ -138,7 +138,7 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
     };
   }
 
-  std::map<int, int> score_map;
+  std::map<int, double> score_map;
   const char *user_id_key;
   json_t *score_value;
   json_object_foreach(scores, user_id_key, score_value) {
@@ -146,7 +146,7 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
     if (!parse_int(std::string(user_id_key), user_id)) {
       continue;
     }
-    int score = json_integer_value(score_value);
+    double score = json_real_value(score_value);
     score_map[user_id] = score;
   }
   json_decref(scores);
@@ -161,7 +161,7 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
   };
 }
 
-flux_plugin_set_score_res flux_plugin_set_score(std::map<int, int> scores) {
+flux_plugin_set_score_res flux_plugin_set_score(std::map<int, double> scores) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
@@ -176,7 +176,7 @@ flux_plugin_set_score_res flux_plugin_set_score(std::map<int, int> scores) {
   json_t *scores_json = json_object();
   for (const auto &[user_id, score] : scores) {
     json_object_set_new(scores_json, std::to_string(user_id).c_str(),
-                        json_integer(score));
+                        json_real(score));
   }
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_score",
                           FLUX_NODEID_ANY, 0, "{s:o}", "data", scores_json))) {
