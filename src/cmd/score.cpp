@@ -137,7 +137,7 @@ static int run_update(int argc, char *argv[]) {
     }
   }
 
-  if (jobids.size() > 0) {
+  if (!jobids.empty()) {
     auto list_res = flux_list(jobids, 10);
     if (!list_res.ok) {
       std::cerr << "Error: 'priorisea score update ...'" << '\n'
@@ -268,7 +268,7 @@ OPTIONS list and interpretation:
 
 static int run_user(int argc, char *argv[]) {
   bool json_flag = false;
-  std::vector<std::string> user_ids;
+  std::vector<int> userids;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
     std::cout << USER_HELP_MSG << std::endl;
@@ -292,11 +292,19 @@ static int run_user(int argc, char *argv[]) {
                 << USER_TRY_HELP_MSG << std::endl;
       return -1;
     } else {
-      user_ids.push_back(arg);
+      int userid;
+      if (!parse_int(arg, userid)) {
+        std::cout << "Error: 'priorisea score user ..." << '\n'
+                  << "  '" << arg << "' is not a valid user id" << '\n'
+                  << USER_USAGE_MSG << '\n'
+                  << USER_TRY_HELP_MSG << std::endl;
+        return -1;
+      }
+      userids.push_back(userid);
     }
   }
 
-  if (user_ids.empty()) {
+  if (userids.empty()) {
     std::cout << "Error: 'priorisea score user ...'" << '\n'
               << "  user id is missing" << '\n'
               << USER_USAGE_MSG << '\n'
@@ -304,10 +312,23 @@ static int run_user(int argc, char *argv[]) {
     return -1;
   }
 
-  std::vector<user> users = {
-      {.userid = 1000, .score = 0},
-      {.userid = 1001, .score = 1},
-  };
+  auto get_res = get_users(userids);
+  if (!get_res.ok) {
+    std::cerr << "Error: 'priorisea score user ...'" << '\n'
+              << get_res.message << '\n'
+              << USER_USAGE_MSG << '\n'
+              << USER_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+
+  std::vector<user> users;
+  for (const auto &user : get_res.res) {
+    if (!user.ok) {
+      std::cerr << "Error: " << user.message << std::endl;
+      continue;
+    }
+    users.push_back(user.user_obj);
+  }
 
   if (json_flag) {
     auto obj = json_object();

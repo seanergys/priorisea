@@ -68,3 +68,16 @@ struct init_score_res {
   std::string message;
 };
 init_score_res init_score();
+
+struct get_user_res {
+  bool ok;
+  std::string message;
+  int userid;
+  user user_obj;
+};
+struct get_users_res {
+  bool ok;
+  std::string message;
+  std::vector<get_user_res> res;
+};
+get_users_res get_users(std::vector<int> &userids);

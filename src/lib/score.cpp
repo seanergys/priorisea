@@ -183,3 +183,58 @@ init_score_res init_score() {
   res.ok = true;
   return res;
 }
+
+get_users_res get_users(std::vector<int> &userids) {
+  get_users_res res;
+  res.ok = false;
+
+  std::vector<std::string> keys;
+  for (const auto &userid : userids) {
+    keys.push_back("priorisea.user." + std::to_string(userid));
+  }
+  auto kvs_res = kvs_lookup(keys);
+  if (kvs_res.err != FLUX_KVS_ERR_SUCCESS) {
+    res.message = "Failed to lookup KVS. Unknown error";
+    return res;
+  }
+
+  for (const auto &lookup_key_res : kvs_res.res) {
+    get_user_res user_res;
+    user_res.ok = false;
+
+    size_t pos = lookup_key_res.key.rfind('.');
+    std::string userid_str = (pos == std::string::npos)
+                                 ? lookup_key_res.key
+                                 : lookup_key_res.key.substr(pos + 1);
+
+    int userid;
+    if (!parse_int(userid_str, userid)) {
+      user_res.message = "Failed to parse userid from KVS key: " + userid_str;
+      res.res.push_back(user_res);
+      continue;
+    }
+    user_res.userid = userid;
+
+    if (lookup_key_res.err != FLUX_KVS_ERR_SUCCESS) {
+      user_res.message = "Failed to lookup KVS. Unknown error: " +
+                         std::to_string(lookup_key_res.err);
+      res.res.push_back(user_res);
+      continue;
+    }
+
+    double score;
+    if (!parse_double(lookup_key_res.value, score)) {
+      user_res.message =
+          "Failed to parse score from KVS value: " + lookup_key_res.value;
+      res.res.push_back(user_res);
+      continue;
+    }
+
+    user_res.ok = true;
+    user_res.user_obj = {.userid = userid, .score = score};
+    res.res.push_back(user_res);
+  }
+
+  res.ok = true;
+  return res;
+};
