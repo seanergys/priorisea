@@ -429,3 +429,15 @@ get_users_res list_users() {
 
   return get_users(userids);
 }
+
+get_jobs_res list_jobs() {
+  get_jobs_res res;
+  res.ok = false;
+
+  auto ls_res = flux_kvs_ls_dir("priorisea.job");
+  if (!ls_res.ok) {
+    res.message = ls_res.message;
+    return res;
+  }
+  return get_jobs(ls_res.keys);
+}

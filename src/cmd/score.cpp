@@ -179,7 +179,7 @@ static int run_update(int argc, char *argv[]) {
 }
 
 static const std::string JOB_USAGE_MSG =
-    "Usage: priorisea score job [-h] [OPTIONS] JOBID [JOBID...]";
+    "Usage: priorisea score job [-h] [OPTIONS] [JOBID...]";
 static const std::string JOB_TRY_HELP_MSG =
     "Try 'priorisea score job -h' for more information.";
 static const std::string JOB_HELP_MSG = JOB_TRY_HELP_MSG + R"(
@@ -188,10 +188,12 @@ Retrieve score values for one or more jobs.
 Example: priorisea score job 12345 67890
 
 OPTIONS list and interpretation:
-  --json: output in JSON format)";
+  --json: output in JSON format
+  --all : output all jobs)";
 
 static int run_job(int argc, char *argv[]) {
   bool json_flag = false;
+  bool all_flag = false;
   std::vector<std::string> jobids;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
@@ -208,12 +210,14 @@ static int run_job(int argc, char *argv[]) {
     std::string arg = argv[i];
     if (arg == "--json") {
       json_flag = true;
+    } else if (arg == "--all") {
+      all_flag = true;
     } else {
       jobids.push_back(arg);
     }
   }
 
-  if (jobids.empty()) {
+  if (!all_flag && jobids.empty()) {
     std::cerr << "Error: 'priorisea score job ...'" << '\n'
               << "  job id is missing" << '\n'
               << JOB_USAGE_MSG << '\n'
@@ -221,21 +225,40 @@ static int run_job(int argc, char *argv[]) {
     return -1;
   }
 
-  auto get_res = get_jobs(jobids);
-  if (!get_res.ok) {
-    std::cerr << "Error: 'priorisea score job ...'" << '\n'
-              << "  " << get_res.message << '\n'
-              << JOB_USAGE_MSG << '\n'
-              << JOB_TRY_HELP_MSG << std::endl;
-    return -1;
-  }
-
   std::vector<job> jobs;
-  for (const auto &get_job_res : get_res.res) {
-    if (get_job_res.ok) {
-      jobs.push_back(get_job_res.job_obj);
-    } else {
-      std::cerr << "Error: " << get_job_res.message << std::endl;
+  if (all_flag) {
+    auto list_res = list_jobs();
+    if (!list_res.ok) {
+      std::cerr << "Error: 'priorisea score job ...'" << '\n'
+                << list_res.message << '\n'
+                << JOB_USAGE_MSG << '\n'
+                << JOB_TRY_HELP_MSG << std::endl;
+      return -1;
+    }
+
+    for (const auto &job : list_res.res) {
+      if (!job.ok) {
+        std::cerr << "Error: " << job.message << std::endl;
+        continue;
+      }
+      jobs.push_back(job.job_obj);
+    }
+  } else {
+    auto get_res = get_jobs(jobids);
+    if (!get_res.ok) {
+      std::cerr << "Error: 'priorisea score job ...'" << '\n'
+                << "  " << get_res.message << '\n'
+                << JOB_USAGE_MSG << '\n'
+                << JOB_TRY_HELP_MSG << std::endl;
+      return -1;
+    }
+
+    for (const auto &get_job_res : get_res.res) {
+      if (get_job_res.ok) {
+        jobs.push_back(get_job_res.job_obj);
+      } else {
+        std::cerr << "Error: " << get_job_res.message << std::endl;
+      }
     }
   }
 
@@ -258,7 +281,7 @@ static int run_job(int argc, char *argv[]) {
 }
 
 static const std::string USER_USAGE_MSG =
-    "Usage: priorisea score user [-h] [OPTIONS] USERID [USERID...]";
+    "Usage: priorisea score user [-h] [OPTIONS] [USERID...]";
 static const std::string USER_TRY_HELP_MSG =
     "Try 'priorisea score user -h' for more information.";
 static const std::string USER_HELP_MSG = USER_USAGE_MSG + R"(
@@ -267,10 +290,12 @@ Retrieve score values for one or more users.
 Example: priorisea score user alice bob
 
 OPTIONS list and interpretation:
-  --json: output in JSON format)";
+  --json: output in JSON format
+  --all : output all users)";
 
 static int run_user(int argc, char *argv[]) {
   bool json_flag = false;
+  bool all_flag = false;
   std::vector<int> userids;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
@@ -288,12 +313,8 @@ static int run_user(int argc, char *argv[]) {
 
     if (arg == "--json") {
       json_flag = true;
-    } else if (!arg.empty() && arg[0] == '-') {
-      std::cout << "Error: 'priorisea score user " << arg
-                << "' is not a valid option" << '\n'
-                << USER_USAGE_MSG << '\n'
-                << USER_TRY_HELP_MSG << std::endl;
-      return -1;
+    } else if (arg == "--all") {
+      all_flag = true;
     } else {
       int userid;
       if (!parse_int(arg, userid)) {
@@ -307,7 +328,7 @@ static int run_user(int argc, char *argv[]) {
     }
   }
 
-  if (userids.empty()) {
+  if (!all_flag && userids.empty()) {
     std::cout << "Error: 'priorisea score user ...'" << '\n'
               << "  user id is missing" << '\n'
               << USER_USAGE_MSG << '\n'
@@ -315,22 +336,42 @@ static int run_user(int argc, char *argv[]) {
     return -1;
   }
 
-  auto get_res = get_users(userids);
-  if (!get_res.ok) {
-    std::cerr << "Error: 'priorisea score user ...'" << '\n'
-              << get_res.message << '\n'
-              << USER_USAGE_MSG << '\n'
-              << USER_TRY_HELP_MSG << std::endl;
-    return -1;
-  }
-
   std::vector<user> users;
-  for (const auto &user : get_res.res) {
-    if (!user.ok) {
-      std::cerr << "Error: " << user.message << std::endl;
-      continue;
+
+  if (all_flag) {
+    auto list_res = list_users();
+    if (!list_res.ok) {
+      std::cerr << "Error: 'priorisea score user ...'" << '\n'
+                << list_res.message << '\n'
+                << USER_USAGE_MSG << '\n'
+                << USER_TRY_HELP_MSG << std::endl;
+      return -1;
     }
-    users.push_back(user.user_obj);
+
+    for (const auto &user : list_res.res) {
+      if (!user.ok) {
+        std::cerr << "Error: " << user.message << std::endl;
+        continue;
+      }
+      users.push_back(user.user_obj);
+    }
+  } else {
+    auto get_res = get_users(userids);
+    if (!get_res.ok) {
+      std::cerr << "Error: 'priorisea score user ...'" << '\n'
+                << get_res.message << '\n'
+                << USER_USAGE_MSG << '\n'
+                << USER_TRY_HELP_MSG << std::endl;
+      return -1;
+    }
+
+    for (const auto &user : get_res.res) {
+      if (!user.ok) {
+        std::cerr << "Error: " << user.message << std::endl;
+        continue;
+      }
+      users.push_back(user.user_obj);
+    }
   }
 
   if (json_flag) {
