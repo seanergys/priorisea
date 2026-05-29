@@ -138,7 +138,7 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
     };
   }
 
-  std::map<int, int> score_map;
+  std::map<int, double> score_map;
   const char *user_id_key;
   json_t *score_value;
   json_object_foreach(scores, user_id_key, score_value) {
@@ -146,7 +146,7 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
     if (!parse_int(std::string(user_id_key), user_id)) {
       continue;
     }
-    int score = json_integer_value(score_value);
+    double score = json_real_value(score_value);
     score_map[user_id] = score;
   }
   json_decref(scores);
@@ -161,7 +161,7 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
   };
 }
 
-flux_plugin_set_score_res flux_plugin_set_score(std::map<int, int> scores) {
+flux_plugin_set_score_res flux_plugin_set_score(std::map<int, double> scores) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
@@ -176,7 +176,7 @@ flux_plugin_set_score_res flux_plugin_set_score(std::map<int, int> scores) {
   json_t *scores_json = json_object();
   for (const auto &[user_id, score] : scores) {
     json_object_set_new(scores_json, std::to_string(user_id).c_str(),
-                        json_integer(score));
+                        json_real(score));
   }
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_score",
                           FLUX_NODEID_ANY, 0, "{s:o}", "data", scores_json))) {
@@ -342,8 +342,10 @@ flux_list_job_unpack_res flux_list_job_unpack(json_t *value) {
   return res;
 }
 
-flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
-  flux_list_inactive_res res;
+flux_list_inactive_stream_res
+flux_list_inactive_stream(double since, int max_entries,
+                          std::function<void(json_t *)> callback) {
+  flux_list_inactive_stream_res res;
   res.ok = false;
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
@@ -379,15 +381,7 @@ flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
       return res;
     }
 
-    size_t index;
-    json_t *value;
-    json_array_foreach(jobs, index, value) {
-      auto unpack_res = flux_list_job_unpack(value);
-      res.jobs.push_back(unpack_res);
-      if (unpack_res.ok && unpack_res.job.t_inactive > t_inactive_max) {
-        t_inactive_max = unpack_res.job.t_inactive;
-      }
-    }
+    callback(jobs);
 
     /* version 0 protocol does not stream, all results in one response */
     if (version == 0) {
@@ -396,6 +390,30 @@ flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
     flux_future_reset(f);
   }
   flux_future_destroy(f);
+  res.ok = true;
+  return res;
+}
+
+flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
+  flux_list_inactive_res res;
+  res.ok = false;
+  double t_inactive_max = since;
+  auto stream_res = flux_list_inactive_stream(
+      since, max_entries, [&t_inactive_max, &res](json_t *jobs) {
+        size_t index;
+        json_t *value;
+        json_array_foreach(jobs, index, value) {
+          auto unpack_res = flux_list_job_unpack(value);
+          res.jobs.push_back(unpack_res);
+          if (unpack_res.ok && unpack_res.job.t_inactive > t_inactive_max) {
+            t_inactive_max = unpack_res.job.t_inactive;
+          }
+        }
+      });
+  if (!stream_res.ok) {
+    res.message = stream_res.message;
+    return res;
+  }
   res.ok = true;
   res.t_inactive_max = t_inactive_max;
   return res;
@@ -457,6 +475,40 @@ flux_list_res flux_list(std::vector<std::string> jobids, int max_entries) {
     flux_future_reset(f);
   }
   flux_future_destroy(f);
+  res.ok = true;
+  return res;
+}
+
+flux_kvs_ls_dir_res flux_kvs_ls_dir(std::string key) {
+  flux_kvs_ls_dir_res res;
+  res.ok = false;
+
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    res.message = "failed to open flux";
+    return res;
+  }
+  flux_future_t *f;
+  const flux_kvsdir_t *dir;
+  if (!(f = flux_kvs_lookup(h, NULL, FLUX_KVS_READDIR, key.c_str())) ||
+      flux_kvs_lookup_get_dir(f, &dir) < 0) {
+    res.message = "failed to lookup dir";
+    return res;
+  }
+
+  flux_kvsitr_t *itr;
+
+  if (!(itr = flux_kvsitr_create(dir))) {
+    res.message = "failed to create itr";
+    flux_future_destroy(f);
+    return res;
+  }
+
+  const char *name;
+  while ((name = flux_kvsitr_next(itr))) {
+    res.keys.push_back(name);
+  }
+
   res.ok = true;
   return res;
 }

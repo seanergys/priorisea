@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "lib/formula.hpp"
+#include "lib/score.hpp"
 #include "lib/util.hpp"
 #include "tinyexpr.h"
 #include <cerrno>
-#include <climits>
 #include <cmath>
 #include <cstdlib>
 #include <flux/core.h>
@@ -19,19 +19,19 @@
 #include <string>
 
 static formula priority_formula;
-static std::map<int, int> scores;
+static std::map<int, double> scores;
 
 static double min(double a, double b) { return a < b ? a : b; }
 static double max(double a, double b) { return a > b ? a : b; }
 
 ////
 
-struct eval_formula_res {
+struct eval_priority_res {
   bool ok;
   double result;
 };
-static eval_formula_res eval_formula(formula formula_obj,
-                                     std::map<std::string, double> &vars_over) {
+static eval_priority_res
+eval_priority(formula formula_obj, std::map<std::string, double> &vars_over) {
 
   std::map<std::string, double> vars_merged = vars_over;
   for (const auto &[name, value] : formula_obj.vars) {
@@ -64,23 +64,22 @@ static bool validate_formula(formula formula_obj) {
   return eval_formula(formula_obj, vars).ok;
 }
 
-static void init_formula(flux_t *h) {
-  flux_future_t *f;
-  if (!(f = flux_kvs_lookup(h, NULL, 0, "priorisea.formula.priority"))) {
-    return;
+static void init_formula() {
+  auto get_res = get_formula("priority");
+  if (get_res.ok) {
+    priority_formula = get_res.formula_obj;
   }
-  const char *formula_str;
-  if (flux_kvs_lookup_get(f, &formula_str) < 0) {
-    flux_future_destroy(f);
-    return;
+}
+
+static void init_scores() {
+  auto list_res = list_users();
+  if (list_res.ok) {
+    for (auto &user_res : list_res.res) {
+      if (user_res.ok) {
+        scores[user_res.userid] = user_res.user_obj.score;
+      }
+    }
   }
-  auto from_res = formula_from_str(formula_str);
-  if (!from_res.ok || !validate_formula(from_res.formula_obj)) {
-    flux_future_destroy(f);
-    return;
-  }
-  priority_formula = from_res.formula_obj;
-  flux_future_destroy(f);
 }
 
 ////
@@ -154,16 +153,7 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
       return;
     }
 
-    json_int_t user_id_j = json_integer_value(elem);
-
-    if (user_id_j < INT_MIN || user_id_j > INT_MAX) {
-      auto errmsg = fmt::format("user_id at element {} is out of int range", i);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      json_decref(res);
-      return;
-    }
-
-    int user_id = static_cast<int>(user_id_j);
+    int user_id = json_integer_value(elem);
     auto it = scores.find(user_id);
 
     if (it == scores.end()) {
@@ -174,7 +164,7 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
     }
 
     std::string user_id_key = std::to_string(user_id);
-    json_object_set_new(res, user_id_key.c_str(), json_integer(it->second));
+    json_object_set_new(res, user_id_key.c_str(), json_real(it->second));
   }
 
   if (flux_respond_pack(h, msg, "{s:o}", "data", res) < 0) {
@@ -210,23 +200,14 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
       return;
     }
 
-    if (!json_is_integer(score_j)) {
-      auto errmsg =
-          fmt::format("score for user_id {} is not an integer", user_id);
+    if (!json_is_real(score_j)) {
+      auto errmsg = fmt::format("score for user_id {} is not an real", user_id);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
       return;
     }
 
-    json_int_t score_value = json_integer_value(score_j);
-
-    if (score_value < INT_MIN || score_value > INT_MAX) {
-      auto errmsg =
-          fmt::format("score for user_id {} is out of int range", user_id);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      return;
-    }
-
-    scores[user_id] = static_cast<int>(score_value);
+    double score_value = json_real_value(score_j);
+    scores[user_id] = score_value;
   }
 
   flux_respond(h, msg, NULL);
@@ -297,7 +278,8 @@ static const struct flux_plugin_handler tab[] = {
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
   flux_t *h = flux_jobtap_get_flux(p);
 
-  init_formula(h);
+  init_formula();
+  init_scores();
 
   if (flux_plugin_register(p, "sea_priority", tab) < 0 ||
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||

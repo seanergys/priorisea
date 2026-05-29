@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+#pragma once
 #include <flux/core.h>
 #include <jansson.h>
 #include <string>

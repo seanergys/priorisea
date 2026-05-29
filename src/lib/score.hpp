@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+#pragma once
+#include "flux.hpp"
 #include "formula.hpp"
 #include <flux/core.h>
 #include <map>
@@ -68,3 +70,36 @@ struct init_score_res {
   std::string message;
 };
 init_score_res init_score();
+
+struct get_user_res {
+  bool ok;
+  std::string message;
+  int userid;
+  user user_obj;
+};
+struct get_users_res {
+  bool ok;
+  std::string message;
+  std::vector<get_user_res> res;
+};
+get_users_res get_users(std::vector<int> &userids);
+
+struct store_user_res {
+  bool ok;
+  std::string message;
+};
+store_user_res store_user(user user_obj);
+
+struct update_job_res {
+  bool ok;
+  std::string message;
+};
+update_job_res update_job(flux_list_job_res job_obj, formula formula_obj);
+
+struct update_users_res {
+  bool ok;
+  std::string message;
+};
+update_users_res update_users();
+
+get_users_res list_users();

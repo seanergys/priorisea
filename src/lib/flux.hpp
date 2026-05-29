@@ -5,6 +5,7 @@
 #pragma once
 
 #include <flux/core.h>
+#include <functional>
 #include <jansson.h>
 #include <map>
 #include <string>
@@ -75,14 +76,14 @@ struct flux_plugin_set_formula_res : flux_plugin_res {
 flux_plugin_set_formula_res flux_plugin_set_formula(std::string payload);
 
 struct flux_plugin_get_score_res : flux_plugin_res {
-  std::map<int, int> scores;
+  std::map<int, double> scores;
 };
 flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids);
 
 struct flux_plugin_set_score_res : flux_plugin_res {
   bool score_set;
 };
-flux_plugin_set_score_res flux_plugin_set_score(std::map<int, int> scores);
+flux_plugin_set_score_res flux_plugin_set_score(std::map<int, double> scores);
 
 FLUX_KVS_ERR kvs_commit(flux_kvs_txn_t *txn);
 
@@ -108,6 +109,14 @@ struct flux_list_job_unpack_res {
 };
 flux_list_job_unpack_res flux_list_job_unpack(json_t *value);
 
+struct flux_list_inactive_stream_res {
+  bool ok;
+  std::string message;
+};
+flux_list_inactive_stream_res
+flux_list_inactive_stream(double since, int max_entries,
+                          std::function<void(json_t *)> callback);
+
 struct flux_list_inactive_res {
   bool ok;
   std::string message;
@@ -122,3 +131,10 @@ struct flux_list_res {
   std::vector<flux_list_job_unpack_res> jobs;
 };
 flux_list_res flux_list(std::vector<std::string> jobids, int max_entries);
+
+struct flux_kvs_ls_dir_res {
+  bool ok;
+  std::string message;
+  std::vector<std::string> keys;
+};
+flux_kvs_ls_dir_res flux_kvs_ls_dir(std::string dir);

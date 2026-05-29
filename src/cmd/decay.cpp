@@ -6,7 +6,6 @@
 #include "lib/decay.hpp"
 #include "lib/util.hpp"
 #include <bits/stdc++.h>
-#include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
 #include <string>
@@ -116,6 +115,7 @@ static const std::string SET_TRY_HELP_MSG =
     "Try 'priorisea decay set -h' for more information.";
 static const std::string SET_HELP_MSG = SET_USAGE_MSG + R"(
 Set the decay parameters for priority scores.
+This command will not update the users score values.
 The decay expression is a list of 'duration:priority' pairs separated by commas.
 Example: priorisea decay set 86400:1,604800:0.5,1209600:0.25)";
 

@@ -4,7 +4,6 @@
 
 #include "lib/formula.hpp"
 #include "lib/util.hpp"
-#include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
 #include <sstream>
