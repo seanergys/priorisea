@@ -47,12 +47,12 @@ __Time ranges__
 
 `duration` is the length of the time range in seconds.
 
-- `time list` _list time ranges_
-- `time get <range_name1> <range_name2> ...` _get time ranges_
-- `time get <range_name1> <range_name2> ... --json` _get time range as array of {"name": "some_name", "cron": "some_cron", "duration": some_duration, "priority": some_priority}_
-- `time add <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _add time range_
-- `time edit <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _edit time range_
-- `time delete <range_name1> <range_name2> ...` _delete time range_
+- `timewin list` _list time windows_
+- `timewin get <range_name1> <range_name2> ...` _get time windows_
+- `timewin get <range_name1> <range_name2> ... --json` _get time window as array of {"name": "some_name", "cron": "some_cron", "duration": some_duration, "priority": some_priority}_
+- `timewin add <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _add time window_
+- `timewin edit <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _edit time window_
+- `timewin delete <range_name1> <range_name2> ...` _delete time window_
 
 __Scores__
 - `score update --new` _compute new jobs score_

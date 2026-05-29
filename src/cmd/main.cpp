@@ -6,7 +6,7 @@
 #include "formula.hpp"
 #include "init.hpp"
 #include "score.hpp"
-#include "time.hpp"
+#include "timewin.hpp"
 #include <iostream>
 
 static const std::string USAGE_MSG = "Usage: priorisea [-h] COMMAND ARGS";
@@ -18,11 +18,11 @@ Interact with Seanergys' priority plugin and database to manage priorities.
 Example: priorisea formula list
 
 COMMAND list and interpretation:
-  init:    initialize default formulas and decay expression
-  decay:   manage priority decay
+  init   : initialize default formulas and decay expression
+  decay  : manage priority decay
   formula: manage priority formulas
-  time:    manage priority time
-  score:   manage priority scores)";
+  timewin: manage priority time windows
+  score  : manage priority scores)";
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     return run_init(argc - 2, argv + 2);
   } else if (cmd == "formula") {
     return run_formula(argc - 2, argv + 2);
-  } else if (cmd == "time") {
+  } else if (cmd == "timewin") {
     return run_time(argc - 2, argv + 2);
   } else if (cmd == "score") {
     return run_score(argc - 2, argv + 2);
