@@ -96,7 +96,14 @@ static int run_list(int argc, char *argv[]) {
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : results) {
-      json_object_set_new(obj, f.name.c_str(), json_string(f.expr.c_str()));
+        auto f_json_obj = json_object();
+        json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
+        auto var_json_obj = json_object();
+        for(const auto [var_name, var_value] : f.vars) {
+            json_object_set_new(var_json_obj, var_name.c_str(), json_string(std::to_string(var_value).c_str()));
+        }
+        json_object_set_new(f_json_obj, "vars", var_json_obj);
+        json_object_set_new(obj, f.name.c_str(), f_json_obj);
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
@@ -188,12 +195,19 @@ static int run_get(int argc, char *argv[]) {
   }
 
   if (json_flag) {
-    auto obj = json_object();
-    for (const auto &f : results) {
-      json_object_set_new(obj, f.name.c_str(), json_string(f.expr.c_str()));
-    }
-    std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
-    json_decref(obj);
+      auto obj = json_object();
+      for (const auto &f : results) {
+          auto f_json_obj = json_object();
+          json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
+          auto var_json_obj = json_object();
+          for(const auto [var_name, var_value] : f.vars) {
+              json_object_set_new(var_json_obj, var_name.c_str(), json_string(std::to_string(var_value).c_str()));
+          }
+          json_object_set_new(f_json_obj, "vars", var_json_obj);
+          json_object_set_new(obj, f.name.c_str(), f_json_obj);
+      }
+      std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
+      json_decref(obj);
   } else {
     print_table(
         results,
