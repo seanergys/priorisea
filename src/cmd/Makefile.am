@@ -5,7 +5,7 @@
 bin_PROGRAMS = priorisea
 priorisea_SOURCES = main.cpp \
     formula.cpp formula.hpp \
-    time.cpp time.hpp \
+    timewin.cpp timewin.hpp \
     score.cpp score.hpp \
     decay.cpp  decay.hpp \
     init.cpp init.hpp

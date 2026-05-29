@@ -22,5 +22,5 @@ libpriorisea_la_SOURCES = \
     flux.cpp flux.hpp \
     formula.cpp formula.hpp \
     score.cpp score.hpp \
-    time.cpp time.hpp \
+    timewin.cpp timewin.hpp \
     util.cpp util.hpp
