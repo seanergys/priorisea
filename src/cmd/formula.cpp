@@ -75,19 +75,17 @@ static int run_list(int argc, char *argv[]) {
     }
   }
 
-  // TODO: Retrieve the formula list from the database
-  std::vector<std::string> formulas_name;
-  for (const auto &default_formula : DEFAULT_FORMULAS) {
-    formulas_name.push_back(default_formula.name);
-  }
-  auto get_formula_res = get_formulas(formulas_name);
-  if (!get_formula_res.ok) {
-    std::cerr << get_formula_res.message << std::endl;
+  auto list_formulas_res = list_formulas();
+  if (!list_formulas_res.ok) {
+    std::cout << "Error: 'priorisea formula list ..." << "  "
+              << list_formulas_res.message << '\n'
+              << LIST_USAGE_MSG << '\n'
+              << LIST_TRY_HELP_MSG << std::endl;
     return -1;
   }
 
   std::vector<formula> results;
-  for (const auto &get_res : get_formula_res.res) {
+  for (const auto &get_res : list_formulas_res.res) {
     if (get_res.ok) {
       results.push_back(get_res.formula_obj);
     } else {
@@ -96,16 +94,31 @@ static int run_list(int argc, char *argv[]) {
   }
 
   if (json_flag) {
-    auto obj = json_array();
+    auto obj = json_object();
     for (const auto &f : results) {
-      json_array_append_new(obj, json_string(f.name.c_str()));
+      json_object_set_new(obj, f.name.c_str(), json_string(f.expr.c_str()));
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name", [](auto &value, auto index) -> auto {
-                             return value.name;
-                           }}});
+    print_table(
+        results,
+        {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
+         {"Formula",
+          [](auto &value, auto index) -> auto { return value.expr; }},
+         {"Vars", [](auto &value, auto index) -> auto {
+            std::stringstream ss;
+            bool first = true;
+            for (const auto &[name, value] : value.vars) {
+              if (!first) {
+                ss << ", ";
+              } else {
+                first = false;
+              }
+              ss << name << "=" << value;
+            }
+            return ss.str();
+          }}});
   }
 
   return 0;

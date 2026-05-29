@@ -75,3 +75,5 @@ struct formula_from_str_res {
   formula formula_obj;
 };
 formula_from_str_res formula_from_str(std::string formula_str);
+
+get_formulas_res list_formulas();

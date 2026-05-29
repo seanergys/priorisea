@@ -242,3 +242,16 @@ formula_from_str_res formula_from_str(std::string formula_str) {
   res.ok = true;
   return res;
 }
+
+get_formulas_res list_formulas() {
+  get_formulas_res res;
+  res.ok = false;
+
+  auto ls_res = flux_kvs_ls_dir("priorisea.formula");
+  if (!ls_res.ok) {
+    res.message = ls_res.message;
+    return res;
+  }
+
+  return get_formulas(ls_res.keys);
+}
