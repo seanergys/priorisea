@@ -87,8 +87,7 @@ static int run_update(int argc, char *argv[]) {
     return -1;
   }
 
-  std::string formula_name = "score";
-  auto get_formula_res = get_formula(formula_name);
+  auto get_formula_res = get_formula("job_score");
   if (!get_formula_res.ok) {
     std::cerr << "Error: 'priorisea score update ...'" << '\n'
               << "  could not get formula: " << get_formula_res.message << '\n'

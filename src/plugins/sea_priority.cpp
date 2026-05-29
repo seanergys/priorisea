@@ -31,7 +31,7 @@ struct eval_priority_res {
   double result;
 };
 static eval_priority_res
-eval_priority(formula formula_obj, std::map<std::string, double> &vars_over) {
+eval_formula_priority(formula formula_obj, std::map<std::string, double> &vars_over) {
 
   std::map<std::string, double> vars_merged = vars_over;
   for (const auto &[name, value] : formula_obj.vars) {
@@ -61,11 +61,11 @@ eval_priority(formula formula_obj, std::map<std::string, double> &vars_over) {
 
 static bool validate_formula(formula formula_obj) {
   std::map<std::string, double> vars;
-  return eval_formula(formula_obj, vars).ok;
+  return eval_formula_priority(formula_obj, vars).ok;
 }
 
 static void init_formula() {
-  auto get_res = get_formula("priority");
+  auto get_res = get_formula("job_priority");
   if (get_res.ok) {
     priority_formula = get_res.formula_obj;
   }
@@ -231,15 +231,15 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
   int64_t priority;
   if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority",
                              &priority) >= 0) {
-    vars_over["priority"] = static_cast<double>(priority);
+    vars_over["prev_priority"] = static_cast<double>(priority);
   }
 
   auto scores_it = scores.find(userid);
   if (scores_it != scores.end()) {
-    vars_over["score"] = static_cast<double>(scores_it->second);
+    vars_over["user_score"] = static_cast<double>(scores_it->second);
   }
 
-  auto eval_res = eval_formula(priority_formula, vars_over);
+  auto eval_res = eval_formula_priority(priority_formula, vars_over);
   if (!eval_res.ok) {
     flux_log_error(h, "formula evaluation failed");
     return flux_jobtap_priority_unavail(p, args);

@@ -62,7 +62,7 @@ get_jobs_res get_jobs(std::vector<std::string> &jobids) {
   return res;
 };
 
-eval_formula_res eval_formula(formula formula_obj,
+eval_formula_job_score_res eval_formula_job_score(formula formula_obj,
                               std::map<std::string, double> &vars_over) {
 
   std::map<std::string, double> vars_merged = vars_over;
@@ -91,7 +91,7 @@ eval_formula_res eval_formula(formula formula_obj,
   return {true, result};
 }
 
-bool validate_score(formula formula_obj) {
+bool validate_formula_job_score(formula formula_obj) {
   auto *te_vars =
       (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
   int i = 0;
@@ -269,7 +269,7 @@ update_job_res update_job(flux_list_job_res job_obj, formula formula_obj) {
   res.ok = false;
 
   std::map<std::string, double> vars_over;
-  auto eval_res = eval_formula(formula_obj, vars_over);
+  auto eval_res = eval_formula_job_score(formula_obj, vars_over);
   if (!eval_res.ok) {
     res.message = "failed to evaluate formula";
     return res;

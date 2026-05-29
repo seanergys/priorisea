@@ -88,12 +88,12 @@ update_formula_res update_formula(formula &formula_obj) {
   auto formula_str = formula_to_str(formula_obj);
   res.ok = false;
 
-  if (formula_obj.name == "score" && !validate_score(formula_obj)) {
+  if (formula_obj.name == "job_score" && !validate_formula_job_score(formula_obj)) {
     res.message = "Invalid formula.";
     return res;
   }
 
-  if (formula_obj.name == "priority") {
+  if (formula_obj.name == "job_priority") {
     auto plugin_set_res = flux_plugin_set_formula(formula_str);
     if (plugin_set_res.err != FLUX_PLUGIN_ERR_OK) {
       res.message = plugin_set_res.err_msg;

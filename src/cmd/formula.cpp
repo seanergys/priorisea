@@ -49,7 +49,7 @@ static const std::string LIST_TRY_HELP_MSG =
     "Try 'priorisea formula list -h' for more information.";
 static const std::string LIST_HELP_MSG = LIST_USAGE_MSG + R"(
 
-List the available priority scoring formulas.
+List the available scoring formulas.
 Example: priorisea formula list
 
 OPTIONS list and interpretation:
@@ -137,8 +137,8 @@ static const std::string GET_TRY_HELP_MSG =
     "Try 'priorisea formula get -h' for more information.";
 static const std::string GET_HELP_MSG = GET_USAGE_MSG + R"(
 
-Retrieve one or more priority scoring formulas from the database.
-Example: priorisea formula get priority score
+Retrieve one or more scoring formulas from the database.
+Example: priorisea formula get job_priority job_score
 
 OPTIONS list and interpretation:
   --json: output in JSON format)";
@@ -237,11 +237,11 @@ static const std::string SET_TRY_HELP_MSG =
     "Try 'priorisea formula set -h' for more information.";
 static const std::string SET_HELP_MSG = std::string(SET_USAGE_MSG) + R"(
 
-Set a formula used to calculate priority scores.
-Example: priorisea formula set priority "score * 2" --var score 10
+Set a formula used to calculate scores.
+Example: priorisea formula set job_priority "user_score * 2" --var user_score 10
 
 Be informed that setting the variable mean setting a default value, which can be overridden at runtime.
-Example: setting "score" in "priority" formula define the default user score, if not yet defined.
+Example: setting "user_score" in "job_priority" formula define the default user score, if not yet defined.
 
 OPTIONS list and interpretation:
   --var:  a variable name and default value to set in the formula)";
@@ -311,8 +311,8 @@ static const std::string RESET_TRY_HELP_MSG =
     "Try 'priorisea formula reset -h' for more information.";
 static const std::string RESET_HELP_MSG = RESET_USAGE_MSG + R"(
 
-Reset one or more priority scoring formulas to their default values.
-Example: priorisea formula reset priority score)";
+Reset one or more scoring formulas to their default values.
+Example: priorisea formula reset job_priority job_score)";
 static int run_reset(int argc, char *argv[]) {
   if (argc < 1) {
     std::cout << RESET_USAGE_MSG << '\n' << RESET_TRY_HELP_MSG << std::endl;
@@ -345,14 +345,14 @@ static const std::string TRY_HELP_MSG =
     "Try 'priorisea formula -h' for more information.";
 static const std::string HELP_MSG = USAGE_MSG + R"(
 
-Manage priority scoring formulas.
+Manage scoring formulas.
 Example: priorisea formula list
 
 COMMAND list and interpretation:
-  init: initialize default formulas
-  list: list formula names
-  get: get formula values
-  set: set a formula
+  init : initialize default formulas
+  list : list formula names
+  get  : get formula values
+  set  : set a formula
   reset: reset formulas to default values)";
 int run_formula(int argc, char *argv[]) {
   if (argc < 1) {

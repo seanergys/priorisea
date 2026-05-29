@@ -37,14 +37,14 @@ struct get_jobs_res {
 };
 get_jobs_res get_jobs(std::vector<std::string> &jobids);
 
-struct eval_formula_res {
+struct eval_formula_job_score_res {
   bool ok;
   double result;
 };
-eval_formula_res eval_formula(formula formula_obj,
+eval_formula_job_score_res eval_formula_job_score(formula formula_obj,
                               std::map<std::string, double> &vars_over);
 
-bool validate_score(formula formula_obj);
+bool validate_formula_job_score(formula formula_obj);
 
 struct store_t_inactive_res {
   bool ok;
