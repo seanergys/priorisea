@@ -478,3 +478,37 @@ flux_list_res flux_list(std::vector<std::string> jobids, int max_entries) {
   res.ok = true;
   return res;
 }
+
+flux_kvs_ls_dir_res flux_kvs_ls_dir(std::string key) {
+  flux_kvs_ls_dir_res res;
+  res.ok = false;
+
+  flux_t *h;
+  if (!(h = flux_open(NULL, 0))) {
+    res.message = "failed to open flux";
+    return res;
+  }
+  flux_future_t *f;
+  const flux_kvsdir_t *dir;
+  if (!(f = flux_kvs_lookup(h, NULL, FLUX_KVS_READDIR, key.c_str())) ||
+      flux_kvs_lookup_get_dir(f, &dir) < 0) {
+    res.message = "failed to lookup dir";
+    return res;
+  }
+
+  flux_kvsitr_t *itr;
+
+  if (!(itr = flux_kvsitr_create(dir))) {
+    res.message = "failed to create itr";
+    flux_future_destroy(f);
+    return res;
+  }
+
+  const char *name;
+  while ((name = flux_kvsitr_next(itr))) {
+    res.keys.push_back(name);
+  }
+
+  res.ok = true;
+  return res;
+}

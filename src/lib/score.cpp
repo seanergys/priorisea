@@ -406,3 +406,26 @@ update_users_res update_users() {
   res.ok = true;
   return res;
 }
+
+get_users_res list_users() {
+  get_users_res res;
+  res.ok = false;
+
+  auto ls_res = flux_kvs_ls_dir("priorisea.user");
+  if (!ls_res.ok) {
+    res.message = ls_res.message;
+    return res;
+  }
+
+  std::vector<int> userids;
+  for (const auto &userid_str : ls_res.keys) {
+    int userid;
+    if (!parse_int(userid_str, userid)) {
+      std::cerr << "Error: failed to parse userid: " << userid_str << '\n';
+      continue;
+    }
+    userids.push_back(userid);
+  }
+
+  return get_users(userids);
+}

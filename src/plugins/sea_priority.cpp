@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "lib/formula.hpp"
+#include "lib/score.hpp"
 #include "lib/util.hpp"
 #include "tinyexpr.h"
 #include <cerrno>
-#include <climits>
 #include <cmath>
 #include <cstdlib>
 #include <flux/core.h>
@@ -26,12 +26,12 @@ static double max(double a, double b) { return a > b ? a : b; }
 
 ////
 
-struct eval_formula_res {
+struct eval_priority_res {
   bool ok;
   double result;
 };
-static eval_formula_res eval_formula(formula formula_obj,
-                                     std::map<std::string, double> &vars_over) {
+static eval_priority_res
+eval_priority(formula formula_obj, std::map<std::string, double> &vars_over) {
 
   std::map<std::string, double> vars_merged = vars_over;
   for (const auto &[name, value] : formula_obj.vars) {
@@ -64,23 +64,22 @@ static bool validate_formula(formula formula_obj) {
   return eval_formula(formula_obj, vars).ok;
 }
 
-static void init_formula(flux_t *h) {
-  flux_future_t *f;
-  if (!(f = flux_kvs_lookup(h, NULL, 0, "priorisea.formula.priority"))) {
-    return;
+static void init_formula() {
+  auto get_res = get_formula("priority");
+  if (get_res.ok) {
+    priority_formula = get_res.formula_obj;
   }
-  const char *formula_str;
-  if (flux_kvs_lookup_get(f, &formula_str) < 0) {
-    flux_future_destroy(f);
-    return;
+}
+
+static void init_scores() {
+  auto list_res = list_users();
+  if (list_res.ok) {
+    for (auto &user_res : list_res.res) {
+      if (user_res.ok) {
+        scores[user_res.userid] = user_res.user_obj.score;
+      }
+    }
   }
-  auto from_res = formula_from_str(formula_str);
-  if (!from_res.ok || !validate_formula(from_res.formula_obj)) {
-    flux_future_destroy(f);
-    return;
-  }
-  priority_formula = from_res.formula_obj;
-  flux_future_destroy(f);
 }
 
 ////
@@ -279,7 +278,8 @@ static const struct flux_plugin_handler tab[] = {
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
   flux_t *h = flux_jobtap_get_flux(p);
 
-  init_formula(h);
+  init_formula();
+  init_scores();
 
   if (flux_plugin_register(p, "sea_priority", tab) < 0 ||
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||

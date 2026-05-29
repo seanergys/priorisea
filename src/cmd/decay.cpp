@@ -6,7 +6,6 @@
 #include "lib/decay.hpp"
 #include "lib/util.hpp"
 #include <bits/stdc++.h>
-#include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
 #include <string>

@@ -131,3 +131,10 @@ struct flux_list_res {
   std::vector<flux_list_job_unpack_res> jobs;
 };
 flux_list_res flux_list(std::vector<std::string> jobids, int max_entries);
+
+struct flux_kvs_ls_dir_res {
+  bool ok;
+  std::string message;
+  std::vector<std::string> keys;
+};
+flux_kvs_ls_dir_res flux_kvs_ls_dir(std::string dir);

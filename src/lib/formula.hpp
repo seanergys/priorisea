@@ -35,7 +35,7 @@ struct get_formula_res {
   std::string name;
   formula formula_obj;
 };
-get_formula_res get_formula(std::string &name);
+get_formula_res get_formula(std::string name);
 
 struct get_formulas_res {
   bool ok;
@@ -65,7 +65,7 @@ init_formulas_res init_formulas();
 
 get_formulas_res get_formulas(std::vector<std::string> &names);
 
-get_formula_res get_formula(std::string &name);
+get_formula_res get_formula(std::string name);
 
 std::string formula_to_str(formula formula_obj);
 

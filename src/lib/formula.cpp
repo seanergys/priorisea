@@ -71,7 +71,7 @@ get_formulas_res get_formulas(std::vector<std::string> &names) {
   return res;
 };
 
-get_formula_res get_formula(std::string &name) {
+get_formula_res get_formula(std::string name) {
   get_formula_res res;
   std::vector<std::string> names = {name};
   auto get_res = get_formulas(names);
