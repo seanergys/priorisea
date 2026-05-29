@@ -62,3 +62,5 @@ struct del_timeframes_res {
   std::string message;
 };
 del_timeframes_res del_timeframes(std::vector<std::string> names);
+
+get_timeframes_res list_timeframes();

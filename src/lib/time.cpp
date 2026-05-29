@@ -202,3 +202,16 @@ del_timeframes_res del_timeframes(std::vector<std::string> names) {
   res.ok = true;
   return res;
 }
+
+get_timeframes_res list_timeframes() {
+  get_timeframes_res res;
+  res.ok = false;
+
+  auto ls_res = flux_kvs_ls_dir("priorisea.timeframe");
+  if (!ls_res.ok) {
+    res.message = ls_res.message;
+    return res;
+  }
+
+  return get_timeframes(ls_res.keys);
+}

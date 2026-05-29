@@ -103,3 +103,5 @@ struct update_users_res {
 update_users_res update_users();
 
 get_users_res list_users();
+
+get_jobs_res list_jobs();

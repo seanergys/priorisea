@@ -61,27 +61,48 @@ static int run_list(int argc, char *argv[]) {
     }
   }
 
-  std::cerr << "Error: 'priorisea time list' is not yet implemented"
-            << std::endl;
-  return -1;
-
-  std::vector<timeframe> results = {
-      {.name = "daily", .cron = "0 0 * * *", .duration = 3600, .priority = 10},
-      {.name = "hourly", .cron = "0 * * * *", .duration = 60, .priority = 10}};
+  auto list_res = list_timeframes();
+  if (!list_res.ok) {
+    std::cerr << "Error: 'priorisea time list ...'" << '\n'
+              << "  " << list_res.message << '\n'
+              << LIST_USAGE_MSG << '\n'
+              << LIST_TRY_HELP_MSG << std::endl;
+    return -1;
+  }
+  std::vector<timeframe> timeframes;
+  for (const auto &get_timeframe_res : list_res.res) {
+    if (get_timeframe_res.ok) {
+      timeframes.push_back(get_timeframe_res.timeframe_obj);
+    } else {
+      std::cerr << "Error: " << list_res.message << std::endl;
+    }
+  }
 
   if (json_flag) {
-    auto obj = json_array();
+    auto obj = json_object();
 
-    for (const auto &t : results) {
-      json_array_append_new(obj, json_string(t.name.c_str()));
+    for (const auto &f : timeframes) {
+      auto expr = json_object();
+      json_object_set_new(expr, "cron", json_string(f.cron.c_str()));
+      json_object_set_new(expr, "duration", json_integer(f.duration));
+      json_object_set_new(expr, "priority", json_real(f.priority));
+      json_object_set_new(obj, f.name.c_str(), expr);
     }
 
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
   } else {
-    print_table(results, {{"Name", [](auto &value, auto index) -> auto {
-                             return value.name;
-                           }}});
+    print_table(
+        timeframes,
+        {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
+         {"Cron", [](auto &value, auto index) -> auto { return value.cron; }},
+         {"Duration",
+          [](auto &value, auto index) -> auto {
+            return std::to_string(value.duration);
+          }},
+         {"Priority", [](auto &value, auto index) -> auto {
+            return std::to_string(value.priority);
+          }}});
   }
 
   return 0;
