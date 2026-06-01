@@ -13,6 +13,32 @@ RUN apt update && apt install -y \
     libfmt-dev
 
 #
+# Build flux-security
+#
+WORKDIR /opt
+
+RUN wget https://github.com/flux-framework/flux-security/releases/download/v0.15.0/flux-security-0.15.0.tar.gz && \
+    tar -xzf flux-security-0.15.0.tar.gz
+
+WORKDIR /opt/flux-security-0.15.0
+
+RUN apt install -y \
+    autoconf \
+    automake \
+    libtool \
+    make \
+    pkg-config \
+    libsodium-dev \
+    libjansson-dev \
+    uuid-dev \
+    libmunge-dev \
+    libpam0g-dev \
+    python3-dev
+RUN ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install
+
+#
 # Build flux-core
 #
 WORKDIR /opt
@@ -24,7 +50,7 @@ WORKDIR /opt/flux-core-0.85.0
 
 RUN yes | bash scripts/install-deps-deb.sh
 
-RUN ./configure --prefix=/usr/local && \
+RUN ./configure --prefix=/usr/local --with-flux-security && \
     make -j$(nproc) && \
     make install
 

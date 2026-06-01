@@ -85,25 +85,28 @@ static int run_list(int argc, char *argv[]) {
   }
 
   std::vector<formula> results;
+  bool failed = false;
   for (const auto &get_res : list_formulas_res.res) {
     if (get_res.ok) {
       results.push_back(get_res.formula_obj);
     } else {
       std::cerr << "Error: " << get_res.message << std::endl;
+      failed = true;
     }
   }
 
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : results) {
-        auto f_json_obj = json_object();
-        json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
-        auto var_json_obj = json_object();
-        for(const auto [var_name, var_value] : f.vars) {
-            json_object_set_new(var_json_obj, var_name.c_str(), json_string(std::to_string(var_value).c_str()));
-        }
-        json_object_set_new(f_json_obj, "vars", var_json_obj);
-        json_object_set_new(obj, f.name.c_str(), f_json_obj);
+      auto f_json_obj = json_object();
+      json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
+      auto var_json_obj = json_object();
+      for (const auto [var_name, var_value] : f.vars) {
+        json_object_set_new(var_json_obj, var_name.c_str(),
+                            json_real(var_value));
+      }
+      json_object_set_new(f_json_obj, "vars", var_json_obj);
+      json_object_set_new(obj, f.name.c_str(), f_json_obj);
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
@@ -127,7 +130,9 @@ static int run_list(int argc, char *argv[]) {
             return ss.str();
           }}});
   }
-
+  if (failed) {
+    return -1;
+  }
   return 0;
 }
 
@@ -186,28 +191,31 @@ static int run_get(int argc, char *argv[]) {
     return -1;
   }
   std::vector<formula> results;
+  bool failed = false;
   for (const auto &get_formula_res : get_formula_res.res) {
     if (get_formula_res.ok) {
       results.push_back(get_formula_res.formula_obj);
     } else {
       std::cerr << "Error: " << get_formula_res.message << std::endl;
+      failed = true;
     }
   }
 
   if (json_flag) {
-      auto obj = json_object();
-      for (const auto &f : results) {
-          auto f_json_obj = json_object();
-          json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
-          auto var_json_obj = json_object();
-          for(const auto [var_name, var_value] : f.vars) {
-              json_object_set_new(var_json_obj, var_name.c_str(), json_string(std::to_string(var_value).c_str()));
-          }
-          json_object_set_new(f_json_obj, "vars", var_json_obj);
-          json_object_set_new(obj, f.name.c_str(), f_json_obj);
+    auto obj = json_object();
+    for (const auto &f : results) {
+      auto f_json_obj = json_object();
+      json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
+      auto var_json_obj = json_object();
+      for (const auto [var_name, var_value] : f.vars) {
+        json_object_set_new(var_json_obj, var_name.c_str(),
+                            json_real(var_value));
       }
-      std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
-      json_decref(obj);
+      json_object_set_new(f_json_obj, "vars", var_json_obj);
+      json_object_set_new(obj, f.name.c_str(), f_json_obj);
+    }
+    std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
+    json_decref(obj);
   } else {
     print_table(
         results,
@@ -227,6 +235,9 @@ static int run_get(int argc, char *argv[]) {
             }
             return ss.str();
           }}});
+  }
+  if (failed) {
+    return -1;
   }
   return 0;
 }

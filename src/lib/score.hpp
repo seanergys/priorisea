@@ -41,8 +41,9 @@ struct eval_formula_job_score_res {
   bool ok;
   double result;
 };
-eval_formula_job_score_res eval_formula_job_score(formula formula_obj,
-                              std::map<std::string, double> &vars_over);
+eval_formula_job_score_res
+eval_formula_job_score(formula formula_obj,
+                       std::map<std::string, double> &vars_over);
 
 bool validate_formula_job_score(formula formula_obj);
 

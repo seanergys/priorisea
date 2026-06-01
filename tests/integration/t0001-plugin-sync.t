@@ -3,7 +3,7 @@
 test_description="test flux plugin sync with database"
 
 SUBMIT_AS=${SHARNESS_TEST_SRCDIR}/scripts/submit_as.py
-PRIORITY_FORMULA="TODO"
+PRIORITY_FORMULA="10"
 USERID=1005
 
 . `dirname $0`/sharness.sh
@@ -11,12 +11,9 @@ USERID=1005
 PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
 test_under_flux 1
 
-test_expect_success 'load priority plugin' '
+test_expect_success 'basic initialization' '
     flux jobtap load ${PRIORITY_PLUGIN}
-'
-
-test_expect_success 'check that priority plugin is loaded' '
-    flux jobtap list | grep sea_priority
+    priorisea init
 '
 
 test_expect_success 'set priority formula' '

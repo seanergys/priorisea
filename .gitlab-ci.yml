@@ -1,7 +1,7 @@
 stages:
     - prebuild
     - build
-    #- test
+    - test
 
 variables:
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
@@ -35,8 +35,8 @@ build-image:
         - docker build -t $IMAGE_TAG .
         - docker push $IMAGE_TAG
 
-#test:
-#    stage: test
-#    image: $IMAGE_TAG
-#    script:
-#        - make check
+test:
+    stage: test
+    image: $IMAGE_TAG
+    script:
+        - make check

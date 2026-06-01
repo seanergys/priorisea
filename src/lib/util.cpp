@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "util.hpp"
+#include <cmath>
 #include <stdexcept>
 
 bool parse_int(const std::string &s, int &out) {
@@ -26,6 +27,9 @@ bool parse_double(const std::string &s, double &out) {
     size_t pos = 0;
     double value = std::stod(s, &pos);
     if (pos != s.size()) {
+      return false;
+    }
+    if (!std::isfinite(value)) {
       return false;
     }
     out = value;

@@ -88,7 +88,8 @@ update_formula_res update_formula(formula &formula_obj) {
   auto formula_str = formula_to_str(formula_obj);
   res.ok = false;
 
-  if (formula_obj.name == "job_score" && !validate_formula_job_score(formula_obj)) {
+  if (formula_obj.name == "job_score" &&
+      !validate_formula_job_score(formula_obj)) {
     res.message = "Invalid formula.";
     return res;
   }

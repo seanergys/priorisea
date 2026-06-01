@@ -31,7 +31,8 @@ struct eval_priority_res {
   double result;
 };
 static eval_priority_res
-eval_formula_priority(formula formula_obj, std::map<std::string, double> &vars_over) {
+eval_formula_priority(formula formula_obj,
+                      std::map<std::string, double> &vars_over) {
 
   std::map<std::string, double> vars_merged = vars_over;
   for (const auto &[name, value] : formula_obj.vars) {

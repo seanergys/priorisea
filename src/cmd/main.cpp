@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   if (argc < 2) {
     std::cout << USAGE_MSG << std::endl;
     std::cout << TRY_HELP_MSG << std::endl;
-    return 1;
+    return -1;
   }
 
   std::string cmd = argv[1];
