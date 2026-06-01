@@ -87,8 +87,7 @@ static int run_update(int argc, char *argv[]) {
     return -1;
   }
 
-  std::string formula_name = "score";
-  auto get_formula_res = get_formula(formula_name);
+  auto get_formula_res = get_formula("job_score");
   if (!get_formula_res.ok) {
     std::cerr << "Error: 'priorisea score update ...'" << '\n'
               << "  could not get formula: " << get_formula_res.message << '\n'
@@ -98,7 +97,7 @@ static int run_update(int argc, char *argv[]) {
   }
 
   std::vector<flux_list_job_res> jobs_to_update;
-
+  bool failed = false;
   if (new_flag) {
     auto get_t_inactive_res = get_t_inactive();
     if (!get_t_inactive_res.ok) {
@@ -139,7 +138,7 @@ static int run_update(int argc, char *argv[]) {
   }
 
   if (!jobids.empty()) {
-    auto list_res = flux_list(jobids, 10);
+    auto list_res = flux_list(jobids);
     if (!list_res.ok) {
       std::cerr << "Error: 'priorisea score update ...'" << '\n'
                 << "  " << list_res.message << '\n'
@@ -151,6 +150,9 @@ static int run_update(int argc, char *argv[]) {
     for (auto &get_job_res : list_res.jobs) {
       if (get_job_res.ok) {
         jobs_to_update.push_back(get_job_res.job);
+      } else {
+        std::cerr << "Error: " << get_job_res.message << std::endl;
+        failed = true;
       }
     }
   }
@@ -161,6 +163,7 @@ static int run_update(int argc, char *argv[]) {
     auto update_res = update_job(list_job, get_formula_res.formula_obj);
     if (!update_res.ok) {
       std::cerr << "Error: " << update_res.message << std::endl;
+      failed = true;
       continue;
     }
   }
@@ -175,6 +178,9 @@ static int run_update(int argc, char *argv[]) {
     return -1;
   }
 
+  if (failed) {
+    return -1;
+  }
   return 0;
 }
 
@@ -226,6 +232,7 @@ static int run_job(int argc, char *argv[]) {
   }
 
   std::vector<job> jobs;
+  bool failed = false;
   if (all_flag) {
     auto list_res = list_jobs();
     if (!list_res.ok) {
@@ -239,9 +246,10 @@ static int run_job(int argc, char *argv[]) {
     for (const auto &job : list_res.res) {
       if (!job.ok) {
         std::cerr << "Error: " << job.message << std::endl;
-        continue;
+        failed = true;
+      } else {
+        jobs.push_back(job.job_obj);
       }
-      jobs.push_back(job.job_obj);
     }
   } else {
     auto get_res = get_jobs(jobids);
@@ -258,6 +266,7 @@ static int run_job(int argc, char *argv[]) {
         jobs.push_back(get_job_res.job_obj);
       } else {
         std::cerr << "Error: " << get_job_res.message << std::endl;
+        failed = true;
       }
     }
   }
@@ -276,6 +285,9 @@ static int run_job(int argc, char *argv[]) {
                  {"Score", [](auto &value, auto index) -> auto {
                     return std::to_string(value.score);
                   }}});
+  }
+  if (failed) {
+    return -1;
   }
   return 0;
 }
@@ -337,7 +349,7 @@ static int run_user(int argc, char *argv[]) {
   }
 
   std::vector<user> users;
-
+  bool failed = false;
   if (all_flag) {
     auto list_res = list_users();
     if (!list_res.ok) {
@@ -351,6 +363,7 @@ static int run_user(int argc, char *argv[]) {
     for (const auto &user : list_res.res) {
       if (!user.ok) {
         std::cerr << "Error: " << user.message << std::endl;
+        failed = true;
         continue;
       }
       users.push_back(user.user_obj);
@@ -368,6 +381,7 @@ static int run_user(int argc, char *argv[]) {
     for (const auto &user : get_res.res) {
       if (!user.ok) {
         std::cerr << "Error: " << user.message << std::endl;
+        failed = true;
         continue;
       }
       users.push_back(user.user_obj);
@@ -390,6 +404,9 @@ static int run_user(int argc, char *argv[]) {
                         {"Score", [](auto &value, auto index) -> auto {
                            return std::to_string(value.score);
                          }}});
+  }
+  if (failed) {
+    return -1;
   }
   return 0;
 }

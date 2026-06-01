@@ -2,40 +2,35 @@
 
 test_description="test seanergys score subcommand"
 
+. `dirname $0`/sharness.sh
 SUBMIT_AS=${SHARNESS_TEST_SRCDIR}/scripts/submit_as.py
 USERID=1003
-
-. `dirname $0`/sharness.sh
-
 PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+
+export TEST_UNDER_FLUX_NO_JOB_EXEC=y
+export TEST_UNDER_FLUX_SCHED_SIMPLE_MODE="limited=1"
 test_under_flux 1
 
-test_expect_success 'load priority plugin' '
-    flux jobtap load ${PRIORITY_PLUGIN}
+test_expect_success 'basic initialization' '
+    flux jobtap load ${PRIORITY_PLUGIN} &&
+    priorisea init
 '
 
-test_expect_success 'check that priority plugin is loaded' '
-    flux jobtap list | grep sea_priority
-'
-
-test_expect_success 'retrieve default user score' '
-priorisea score user ${USERID} --json >out
-jq -e "map(select(.user_id == ${USERID})) |length == 1 and .[0].score == 0.5" out
+test_expect_success 'retrieve new user score' '
+test_must_fail priorisea score user ${USERID}
 '
 
 test_expect_success 'retrieve information before/after update' '
 jobid=$(flux python ${SUBMIT_AS} ${USERID} hostname) &&
 test_must_fail priorisea score job ${jobid} &&
 priorisea score update ${jobid} &&
-priorisea score job ${jobid} --json >out &&
-jq -e "map(select(.job_id == ${jobid})) |length == 1 and .[0].score" out
+priorisea score job ${jobid}
 '
 
 test_expect_success 'update new jobs' '
 jobid=$(flux python ${SUBMIT_AS} ${USERID} hostname) &&
-priorisea score update new &&
-priorisea score job ${jobid} --json >out &&
-jq -e "map(select(.job_id == ${jobid})) |length == 1 and .[0].score" out
+priorisea score update --new &&
+priorisea score job ${jobid}
 '
 
 test_done

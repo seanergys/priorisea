@@ -15,15 +15,15 @@ struct formula {
   std::map<std::string, double> vars;
 };
 
-static const formula DEFAULT_PRIORITY = {
-    .name = "priority",
-    .expr = "priority * 0.5 + score * 0.5",
-    .vars = {{"priority", 16}, {"score", 16}}};
+static const formula DEFAULT_JOB_PRIORITY = {
+    .name = "job_priority",
+    .expr = "prev_priority * 0.5 + user_score * 0.5",
+    .vars = {{"prev_priority", 16}, {"user_score", 16}}};
 
-static const formula DEFAULT_SCORE = {.name = "score", .expr = "16"};
+static const formula DEFAULT_JOB_SCORE = {.name = "job_score", .expr = "16"};
 
-static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_PRIORITY,
-                                                      DEFAULT_SCORE};
+static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
+                                                      DEFAULT_JOB_SCORE};
 
 ////
 

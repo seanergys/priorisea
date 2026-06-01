@@ -58,9 +58,13 @@ struct flux_list_job_res {
   std::string nodelist;
   bool success;
   bool exception_occured;
+  // std::string exception_type;
+  // int exception_severity;
+  // std::string exception_note;
   int result;
   double expiration;
-  int waitstatus;
+  // json_t annotations;
+  // int waitstatus;
 };
 
 ////
@@ -130,7 +134,7 @@ struct flux_list_res {
   std::string message;
   std::vector<flux_list_job_unpack_res> jobs;
 };
-flux_list_res flux_list(std::vector<std::string> jobids, int max_entries);
+flux_list_res flux_list(std::vector<std::string> jobids);
 
 struct flux_kvs_ls_dir_res {
   bool ok;

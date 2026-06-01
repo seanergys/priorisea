@@ -107,6 +107,7 @@ OPTIONS list and interpretation:
 
 static int run_get(int argc, char *argv[]) {
   bool json_flag = false;
+
   std::vector<std::string> timewins_names;
 
   if (argc > 0 && strcmp(argv[0], "-h") == 0) {
@@ -137,11 +138,13 @@ static int run_get(int argc, char *argv[]) {
     return -1;
   }
   std::vector<timewin> timewins;
+  bool failed = false;
   for (const auto &get_timewin_res : get_res.res) {
     if (get_timewin_res.ok) {
       timewins.push_back(get_timewin_res.timewin_obj);
     } else {
-      std::cerr << "Error: " << get_res.message << std::endl;
+      std::cerr << "Error: " << get_timewin_res.message << std::endl;
+      failed = true;
     }
   }
 
@@ -170,6 +173,9 @@ static int run_get(int argc, char *argv[]) {
          {"Priority", [](auto &value, auto index) -> auto {
             return std::to_string(value.priority);
           }}});
+  }
+  if (failed) {
+    return -1;
   }
   return 0;
 }

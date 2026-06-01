@@ -1,11 +1,10 @@
 TESTS = \
     t1000-basic.t \
     t1001-formula-cmd.t \
-    t1002-time-cmd.t \
+    t1002-timewin-cmd.t \
     t1003-score-cmd.t \
     t1004-decay-cmd.t \
-    t1005-plugin-sync.t \
-    t1006-plugin-rpc.t
+    t1005-plugin-reload.t
 
 EXTRA_DIST = \
     $(TESTS) \
@@ -14,4 +13,4 @@ EXTRA_DIST = \
     test-lib.sh
 
 TESTS_ENVIRONMENT = \
-    SHARNESS_TEST_SRCDIR=$(srcdir)
+    SHARNESS_TEST_SRCDIR=$(abs_srcdir)

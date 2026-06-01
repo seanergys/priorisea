@@ -49,7 +49,7 @@ static const std::string LIST_TRY_HELP_MSG =
     "Try 'priorisea formula list -h' for more information.";
 static const std::string LIST_HELP_MSG = LIST_USAGE_MSG + R"(
 
-List the available priority scoring formulas.
+List the available scoring formulas.
 Example: priorisea formula list
 
 OPTIONS list and interpretation:
@@ -85,18 +85,28 @@ static int run_list(int argc, char *argv[]) {
   }
 
   std::vector<formula> results;
+  bool failed = false;
   for (const auto &get_res : list_formulas_res.res) {
     if (get_res.ok) {
       results.push_back(get_res.formula_obj);
     } else {
       std::cerr << "Error: " << get_res.message << std::endl;
+      failed = true;
     }
   }
 
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : results) {
-      json_object_set_new(obj, f.name.c_str(), json_string(f.expr.c_str()));
+      auto f_json_obj = json_object();
+      json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
+      auto var_json_obj = json_object();
+      for (const auto [var_name, var_value] : f.vars) {
+        json_object_set_new(var_json_obj, var_name.c_str(),
+                            json_real(var_value));
+      }
+      json_object_set_new(f_json_obj, "vars", var_json_obj);
+      json_object_set_new(obj, f.name.c_str(), f_json_obj);
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
@@ -120,7 +130,9 @@ static int run_list(int argc, char *argv[]) {
             return ss.str();
           }}});
   }
-
+  if (failed) {
+    return -1;
+  }
   return 0;
 }
 
@@ -130,8 +142,8 @@ static const std::string GET_TRY_HELP_MSG =
     "Try 'priorisea formula get -h' for more information.";
 static const std::string GET_HELP_MSG = GET_USAGE_MSG + R"(
 
-Retrieve one or more priority scoring formulas from the database.
-Example: priorisea formula get priority score
+Retrieve one or more scoring formulas from the database.
+Example: priorisea formula get job_priority job_score
 
 OPTIONS list and interpretation:
   --json: output in JSON format)";
@@ -179,18 +191,28 @@ static int run_get(int argc, char *argv[]) {
     return -1;
   }
   std::vector<formula> results;
+  bool failed = false;
   for (const auto &get_formula_res : get_formula_res.res) {
     if (get_formula_res.ok) {
       results.push_back(get_formula_res.formula_obj);
     } else {
       std::cerr << "Error: " << get_formula_res.message << std::endl;
+      failed = true;
     }
   }
 
   if (json_flag) {
     auto obj = json_object();
     for (const auto &f : results) {
-      json_object_set_new(obj, f.name.c_str(), json_string(f.expr.c_str()));
+      auto f_json_obj = json_object();
+      json_object_set_new(f_json_obj, "expr", json_string(f.expr.c_str()));
+      auto var_json_obj = json_object();
+      for (const auto [var_name, var_value] : f.vars) {
+        json_object_set_new(var_json_obj, var_name.c_str(),
+                            json_real(var_value));
+      }
+      json_object_set_new(f_json_obj, "vars", var_json_obj);
+      json_object_set_new(obj, f.name.c_str(), f_json_obj);
     }
     std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
     json_decref(obj);
@@ -214,6 +236,9 @@ static int run_get(int argc, char *argv[]) {
             return ss.str();
           }}});
   }
+  if (failed) {
+    return -1;
+  }
   return 0;
 }
 
@@ -223,11 +248,11 @@ static const std::string SET_TRY_HELP_MSG =
     "Try 'priorisea formula set -h' for more information.";
 static const std::string SET_HELP_MSG = std::string(SET_USAGE_MSG) + R"(
 
-Set a formula used to calculate priority scores.
-Example: priorisea formula set priority "score * 2" --var score 10
+Set a formula used to calculate scores.
+Example: priorisea formula set job_priority "user_score * 2" --var user_score 10
 
 Be informed that setting the variable mean setting a default value, which can be overridden at runtime.
-Example: setting "score" in "priority" formula define the default user score, if not yet defined.
+Example: setting "user_score" in "job_priority" formula define the default user score, if not yet defined.
 
 OPTIONS list and interpretation:
   --var:  a variable name and default value to set in the formula)";
@@ -297,8 +322,8 @@ static const std::string RESET_TRY_HELP_MSG =
     "Try 'priorisea formula reset -h' for more information.";
 static const std::string RESET_HELP_MSG = RESET_USAGE_MSG + R"(
 
-Reset one or more priority scoring formulas to their default values.
-Example: priorisea formula reset priority score)";
+Reset one or more scoring formulas to their default values.
+Example: priorisea formula reset job_priority job_score)";
 static int run_reset(int argc, char *argv[]) {
   if (argc < 1) {
     std::cout << RESET_USAGE_MSG << '\n' << RESET_TRY_HELP_MSG << std::endl;
@@ -331,14 +356,14 @@ static const std::string TRY_HELP_MSG =
     "Try 'priorisea formula -h' for more information.";
 static const std::string HELP_MSG = USAGE_MSG + R"(
 
-Manage priority scoring formulas.
+Manage scoring formulas.
 Example: priorisea formula list
 
 COMMAND list and interpretation:
-  init: initialize default formulas
-  list: list formula names
-  get: get formula values
-  set: set a formula
+  init : initialize default formulas
+  list : list formula names
+  get  : get formula values
+  set  : set a formula
   reset: reset formulas to default values)";
 int run_formula(int argc, char *argv[]) {
   if (argc < 1) {

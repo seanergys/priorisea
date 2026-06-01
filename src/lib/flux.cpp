@@ -6,7 +6,9 @@
 #include "util.hpp"
 #include <flux/core.h>
 #include <flux/core/future.h>
+#include <flux/core/job.h>
 #include <flux/core/rpc.h>
+#include <flux/core/types.h>
 #include <jansson.h>
 
 flux_plugin_get_formula_res flux_plugin_get_formula() {
@@ -317,7 +319,7 @@ flux_list_job_unpack_res flux_list_job_unpack(json_t *value) {
   const char *name, *cwd, *ranks, *nodelist;
   if (json_unpack(value,
                   "{s:I s:i s:i s:i s:f s:f s:f s:f s:f s:i s:s s:s s:i s:i "
-                  "s:f s:i s:s s:s s:b s:b s:i s:f s:i}",
+                  "s:f s:i s:s s:s s:b s:b s:i s:f}",
                   "id", &res.job.id, "userid", &res.job.userid, "urgency",
                   &res.job.urgency, "priority", &res.job.priority, "t_submit",
                   &res.job.t_submit, "t_depend", &res.job.t_depend, "t_run",
@@ -328,9 +330,8 @@ flux_list_job_unpack_res flux_list_job_unpack(json_t *value) {
                   &res.job.nnodes, "ranks", &ranks, "nodelist", &nodelist,
                   "success", &res.job.success, "exception_occurred",
                   &res.job.exception_occured, "result", &res.job.result,
-                  "expiration", &res.job.expiration, "waitstatus",
-                  &res.job.waitstatus) < 0) {
-    res.message = "failed to unpack t_inactive";
+                  "expiration", &res.job.expiration) < 0) {
+    res.message = "failed to unpack flux job info";
     return res;
   }
   res.job.name = strdup(name);
@@ -419,7 +420,7 @@ flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
   return res;
 }
 
-flux_list_res flux_list(std::vector<std::string> jobids, int max_entries) {
+flux_list_res flux_list(std::vector<std::string> jobids) {
   flux_list_res res;
   res.ok = false;
 
@@ -432,49 +433,30 @@ flux_list_res flux_list(std::vector<std::string> jobids, int max_entries) {
     return res;
   }
 
-  json_t *jobids_json = json_array();
   for (const auto &jobid : jobids) {
-    json_array_append_new(jobids_json, json_string(jobid.c_str()));
-  }
-
-  if (!(c = json_pack("{s:o}", "ids", jobids_json))) {
-    res.message = "failed to construct constraint object";
-    return res;
-  }
-
-  if (!(f = flux_rpc_pack(h, "job-list.list", FLUX_NODEID_ANY,
-                          FLUX_RPC_STREAMING, "{s:i s:[s] s:o}", "max_entries",
-                          max_entries, "attrs", "all", "constraint", c))) {
-    res.message = "failed to send job-list.list RPC";
-    return res;
-  }
-
-  while (1) {
-    json_t *jobs;
-    if (flux_rpc_get_unpack(f, "{s:o s?i}", "jobs", &jobs, "version",
-                            &version) < 0) {
-      if (errno == ENODATA) {
-        break;
-      }
-      res.message = "failed to unpack job-list.list response";
-      return res;
+    flux_jobid_t id;
+    if (flux_job_id_parse(jobid.c_str(), &id) < 0) {
+      res.jobs.push_back(
+          {.ok = false, .message = "failed to parse job id: " + jobid});
+      continue;
     }
-
-    // TODO: check if the job is completed/inactive
-    // if not, skip it
+    flux_future_t *f;
+    if (!(f = flux_job_list_id(h, id, "[\"all\"]"))) {
+      res.jobs.push_back(
+          {.ok = false, .message = "failed to list job: " + jobid});
+      continue;
+    }
     json_t *value;
-    size_t index;
-    json_array_foreach(jobs, index, value) {
-      res.jobs.push_back(flux_list_job_unpack(value));
+    if (flux_rpc_get_unpack(f, "{s:o}", "job", &value) < 0) {
+      res.jobs.push_back(
+          {.ok = false, .message = "failed to get job list: " + jobid});
+      flux_future_destroy(f);
+      continue;
     }
-
-    /* version 0 protocol does not stream, all results in one response */
-    if (version == 0) {
-      break;
-    }
-    flux_future_reset(f);
+    res.jobs.push_back(flux_list_job_unpack(value));
+    flux_future_destroy(f);
   }
-  flux_future_destroy(f);
+
   res.ok = true;
   return res;
 }
