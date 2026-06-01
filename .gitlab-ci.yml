@@ -39,4 +39,5 @@ test:
     stage: test
     image: $IMAGE_TAG
     script:
+        - cd /app
         - make check
