@@ -4,214 +4,195 @@
 
 #include "timewin.hpp"
 #include "croncpp.h"
+#include "error.hpp"
 #include "flux.hpp"
 #include "util.hpp"
+#include <cerrno>
 #include <flux/core.h>
 #include <iostream>
 #include <jansson.h>
 #include <sstream>
 #include <string.h>
 #include <string>
+#include <variant>
 #include <vector>
 
-std::string timewin_to_str(timewin timewin_obj) {
+std::string ps_timewin_to_str(const ps_timewin_t &timewin) {
   std::stringstream ss;
-  ss << timewin_obj.name << "," << timewin_obj.cron << ","
-     << timewin_obj.duration << "," << timewin_obj.priority;
+  ss << timewin.name << "," << timewin.cron << "," << timewin.duration << ","
+     << timewin.priority;
   return ss.str();
 }
 
-validate_cron_res validate_cron(const std::string &expr, std::string &error) {
-  validate_cron_res res;
+ps_result_t<ps_success_t> ps_validate_cron(const std::string &expr) {
   try {
     cron::make_cron(expr);
-    res.ok = true;
-    return res;
+    return ps_success_t{};
   } catch (cron::bad_cronexpr const &ex) {
-    res.ok = false;
-    res.message = ex.what();
-    return res;
+    return ps_error(ps_cron_parse_err_t{.cron = ex.what()});
   }
 }
 
-validate_timewin_res validate_timewin(timewin timewin_obj) {
-  validate_timewin_res res;
-  if (timewin_obj.name.empty()) {
-    res.ok = false;
-    res.message = "timewin_obj name is missing.";
-    return res;
+ps_result_t<ps_success_t> ps_validate_timewin(const ps_timewin_t &timewin) {
+  if (timewin.name.empty()) {
+    return ps_error(ps_str_empty_t{});
   }
-  auto cron_res = validate_cron(timewin_obj.cron, res.message);
-  if (!cron_res.ok) {
-    res.ok = false;
-    res.message = cron_res.message;
-    return res;
+  auto cron_res = ps_validate_cron(timewin.cron);
+  if (!ps_is_ok(cron_res)) {
+    return cron_res;
   }
-  if (timewin_obj.duration < 0) {
-    res.ok = false;
-    res.message = "duration is not a positive integer";
-    return res;
+  if (timewin.duration < 0) {
+    return ps_error(ps_timewin_neg_duration_t{.duration = timewin.duration});
   }
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }
 
-timewin_from_str_res timewin_from_str(const std::string &str) {
-  timewin_from_str_res res;
-
+ps_result_t<ps_timewin_t> ps_timewin_from_str(const std::string &str) {
+  ps_timewin_t timewin;
   std::stringstream ss(str);
   std::string t;
   if (!getline(ss, t, ',')) {
-    res.ok = false;
-    res.message = "name is missing";
-    return res;
+    return ps_error(ps_timewin_name_missing_t{});
   }
-  res.timewin_obj.name = t;
+  timewin.name = t;
 
   if (!getline(ss, t, ',')) {
-    res.ok = false;
-    res.message = "cron is missing";
-    return res;
+    return ps_error(ps_timewin_cron_missing_t{});
   }
-  res.timewin_obj.cron = t;
+  timewin.cron = t;
 
   if (!getline(ss, t, ',')) {
-    res.ok = false;
-    res.message = "duration is missing";
-    return res;
+    return ps_error(ps_timewin_duration_missing_t{});
   }
   int duration = 0;
   if (!parse_int(t, duration)) {
-    res.ok = false;
-    res.message = "duration `" + t + "` is not a valid integer";
-    return res;
+    return ps_error(ps_parse_int_err_t{});
   }
-  res.timewin_obj.duration = duration;
+  timewin.duration = duration;
 
   if (!getline(ss, t, ',')) {
-    res.ok = false;
-    res.message = "priority is missing";
-    return res;
+    return ps_error(ps_timewin_priority_missing_t{});
   }
   double priority = 0;
   if (!parse_double(t, priority)) {
-    res.ok = false;
-    res.message = "priority `" + t + "` is not a valid double";
-    return res;
+    return ps_error(ps_timewin_priority_parse_err_t{});
   }
-  res.timewin_obj.priority = priority;
+  timewin.priority = priority;
 
-  auto validate_res = validate_timewin(res.timewin_obj);
-  if (!validate_res.ok) {
-    res.ok = false;
-    res.message = validate_res.message;
-    return res;
+  auto validate_res = ps_validate_timewin(timewin);
+  if (!ps_is_ok(validate_res)) {
+    return ps_forward_error<ps_timewin_t>(validate_res, "validating timewin");
   }
-
-  res.ok = true;
-  return res;
+  return timewin;
 }
 
-store_timewin_res store_timewin(timewin timewin_obj) {
-  store_timewin_res res;
+ps_result_t<ps_success_t> ps_db_timewin_set(const ps_timewin_t &timewin) {
+  auto timewin_str = ps_timewin_to_str(timewin);
 
-  std::string timewin_str = timewin_to_str(timewin_obj);
-
-  auto txn = flux_kvs_txn_create();
-  if (!txn) {
-    res.ok = false;
-    res.message = "Failed to create KVS transaction.";
-    return res;
+  flux_kvs_txn_t *txn;
+  if (!(txn = flux_kvs_txn_create())) {
+    return ps_error(ps_flux_txn_create_err_t{.msg = strerror(errno)});
   }
-  if (flux_kvs_txn_put(txn, 0,
-                       ("priorisea.timewin." + timewin_obj.name).c_str(),
-                       timewin_str.c_str()) < 0) {
-    res.ok = false;
-    res.message = "Failed to store timewin in KVS transaction.";
-    return res;
+  auto key = "priorisea.timewin." + timewin.name;
+  auto value = timewin_str;
+  if (flux_kvs_txn_put(txn, 0, key.c_str(), value.c_str()) < 0) {
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = key, .value = value, .msg = strerror(errno)});
   }
-  auto commit_res = kvs_commit(txn);
-  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
-    res.ok = false;
-    res.message = "Failed to commit timewin to KVS.";
-    return res;
-  }
-  res.ok = true;
-  return res;
+  return ps_flux_kvs_commit(txn);
 }
 
-get_timewins_res get_timewins(std::vector<std::string> names) {
-  get_timewins_res res;
-  res.ok = false;
-
+ps_result_t<ps_db_timewins_get_t>
+ps_db_timewins_get(const std::vector<std::string> &names) {
   std::vector<std::string> keys;
   for (auto timewin_name : names) {
     keys.push_back("priorisea.timewin." + timewin_name);
   }
 
-  auto lookup_res = kvs_lookup(keys);
-  if (lookup_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to lookup timewins in KVS. Unknown error";
-    return res;
+  auto lookup_res = ps_flux_kvs_lookup(keys);
+  if (!ps_is_ok(lookup_res)) {
+    std::stringstream ss;
+    ss << "looking up timewin keys in flux kvs: ";
+    for (const auto timewin_name : names) {
+      ss << timewin_name << " ";
+    }
+    return ps_forward_error<ps_db_timewins_get_t>(lookup_res, ss.str());
   }
 
-  for (const auto &lookup_key_res : lookup_res.res) {
-    get_timewin_res timewin_res;
-    timewin_res.ok = false;
-
+  ps_db_timewins_get_t res;
+  for (const auto &lookup_key_res : ps_unwrap(lookup_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
     std::string timewin_name = (pos == std::string::npos)
                                    ? lookup_key_res.key
                                    : lookup_key_res.key.substr(pos + 1);
-    timewin_res.name = timewin_name;
 
-    if (lookup_key_res.err != FLUX_KVS_ERR_SUCCESS) {
-      timewin_res.message = "Failed to lookup timewin '" + timewin_name + "'";
-      res.res.push_back(timewin_res);
+    if (!ps_is_ok(lookup_key_res.value)) {
+      res.push_back(
+          {.name = timewin_name,
+           .result = ps_forward_error<ps_timewin_t>(
+               lookup_key_res.value,
+               "getting timewin '" + timewin_name + "' from flux kvs")});
       continue;
     }
 
-    auto from_res = timewin_from_str(lookup_key_res.value);
-    if (!from_res.ok) {
-      timewin_res.message = from_res.message;
-      res.res.push_back(timewin_res);
-      continue;
-    }
+    auto lkv = lookup_key_res.value;
+    auto lookup_key_value = ps_unwrap(lkv);
 
-    timewin_res.ok = true;
-    timewin_res.timewin_obj = from_res.timewin_obj;
-    res.res.push_back(timewin_res);
+    auto from_res = ps_timewin_from_str(lookup_key_value);
+    res.push_back({.name = timewin_name, .result = from_res});
   }
 
-  res.ok = true;
   return res;
 }
 
-del_timewins_res del_timewins(std::vector<std::string> names) {
-  del_timewins_res res;
+ps_result_t<ps_timewin_t> ps_db_timewin_get(const std::string &name) {
+  auto get_res = ps_db_timewins_get({name});
+  if (!ps_is_ok(get_res)) {
+    return ps_forward_error<ps_timewin_t>(get_res, "getting timewin '" + name +
+                                                       "' from database");
+  }
+  return ps_unwrap(get_res)[0].result;
+}
+
+ps_result_t<ps_db_timewins_del_t>
+ps_db_timewins_del(const std::vector<std::string> &names) {
   std::vector<std::string> keys;
   for (auto name : names) {
     keys.push_back("priorisea.timewin." + name);
   }
-  auto remove_res = kvs_remove(keys);
-  if (remove_res != FLUX_KVS_ERR_SUCCESS) {
-    res.ok = false;
-    res.message = "failed to delete times";
-    return res;
+  auto remove_res = ps_flux_kvs_remove(keys);
+  if (!ps_is_ok(remove_res)) {
+    std::stringstream ss;
+    ss << "removing timewin keys from flux kvs: ";
+    for (const auto timewin_name : names) {
+      ss << timewin_name << " ";
+    }
+    return ps_forward_error<ps_db_timewins_del_t>(remove_res, ss.str());
   }
-  res.ok = true;
+  ps_db_timewins_del_t res;
+  for (const auto &kv : ps_unwrap(remove_res)) {
+    size_t pos = kv.key.rfind('.');
+    std::string timewin_name =
+        (pos == std::string::npos) ? kv.key : kv.key.substr(pos + 1);
+    res.push_back({.name = timewin_name, .result = kv.result});
+  }
   return res;
 }
 
-get_timewins_res list_timewins() {
-  get_timewins_res res;
-  res.ok = false;
-
-  auto ls_res = flux_kvs_ls_dir("priorisea.timewin");
-  if (!ls_res.ok) {
-    res.message = ls_res.message;
-    return res;
+ps_result_t<ps_success_t> ps_db_timewin_del(const std::string &name) {
+  auto del_res = ps_db_timewins_del({name});
+  if (!ps_is_ok(del_res)) {
+    return ps_forward_error<ps_success_t>(del_res, "deleting timewin '" + name +
+                                                       "' from database");
   }
+  return ps_success_t{};
+}
 
-  return get_timewins(ls_res.keys);
+ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list() {
+  auto ls_res = ps_flux_kvs_ls_dir("priorisea.timewin");
+  if (!ps_is_ok(ls_res)) {
+    return ps_forward_error<ps_db_timewins_get_t>(
+        ls_res, "listing timewins from flux kvs");
+  }
+  return ps_db_timewins_get(ps_unwrap(ls_res));
 }

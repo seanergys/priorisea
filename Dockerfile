@@ -88,4 +88,5 @@ RUN git submodule update --init --recursive
 RUN ./autogen.sh && \
     ./configure --prefix=/usr/local && \
     make -j$(nproc) && \
-    make install
+    make install && \
+    strip /usr/local/bin/priorisea

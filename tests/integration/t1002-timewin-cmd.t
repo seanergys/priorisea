@@ -13,7 +13,7 @@ test_expect_success 'basic initialization' '
 '
 
 test_expect_success 'add a time window' '
-priorisea timewin add test_01 "* * * * * *" 3600 100
+priorisea timewin add test_01 -c "* * * * * *" -d 3600 -p 100
 '
 
 test_expect_success 'find a time window' '
@@ -30,7 +30,7 @@ jq -e "
 '
 
 test_expect_success 'edit a time window' '
-priorisea timewin edit test_01 --cron "1 */1 * * * *" --duration 60 --priority 10 &&
+priorisea timewin edit test_01 -c "1 */1 * * * *" -d 60 -p 10 &&
 priorisea timewin get test_01 --json >out &&
 jq -e "
   .test_01.cron == \"1 */1 * * * *\" and
@@ -40,7 +40,7 @@ jq -e "
 '
 
 test_expect_success 'set negative priority' '
-priorisea timewin edit test_01 --priority -100 &&
+priorisea timewin edit test_01 -p -100 &&
 priorisea timewin get test_01 --json >out &&
 jq -e "
   .test_01.priority == -100
@@ -48,17 +48,17 @@ jq -e "
 '
 
 test_expect_success 'edit a time window with invalid cron' '
-test_must_fail priorisea timewin edit test_01 --cron "* * * * * * *" &&
-test_must_fail priorisea timewin edit test_01 --cron "* * * * *"
+test_must_fail priorisea timewin edit test_01 -c "* * * * * * *" &&
+test_must_fail priorisea timewin edit test_01 -c "* * * * *"
 '
 
 test_expect_success 'edit a time window with invalid duration' '
-test_must_fail priorisea timewin edit test_01 --duration -3600 &&
-test_must_fail priorisea timewin edit test_01 --duration nan
+test_must_fail priorisea timewin edit test_01 -d -3600 &&
+test_must_fail priorisea timewin edit test_01 -d nan
 '
 
 test_expect_success 'edit a time window with invalid priority' '
-test_must_fail priorisea timewin edit test_01 --priority nan
+test_must_fail priorisea timewin edit test_01 -p nan
 '
 
 test_expect_success 'delete a time window' '

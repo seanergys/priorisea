@@ -27,7 +27,7 @@ AC_CONFIG_FILES([
  Makefile
  external/Makefile
  src/Makefile
- src/cmd/Makefile
+ src/cli/Makefile
  src/lib/Makefile
  src/plugins/Makefile
  tests/integration/Makefile

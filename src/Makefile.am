@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: MIT
 
-SUBDIRS = lib cmd plugins
+SUBDIRS = lib cli plugins

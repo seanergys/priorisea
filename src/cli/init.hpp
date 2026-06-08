@@ -3,4 +3,5 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-int run_init(int argc, char *argv[]);
+#include <CLI/CLI.hpp>
+void register_init_command(CLI::App *app);

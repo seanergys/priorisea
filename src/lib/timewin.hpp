@@ -3,64 +3,45 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "error.hpp"
+#include "types.hpp"
 #include <flux/core.h>
 #include <jansson.h>
 #include <string>
 #include <vector>
 
-struct timewin {
+struct ps_db_timewin_get_entry_t {
   std::string name;
-  std::string cron;
-  int duration;
-  double priority;
+  ps_result_t<ps_timewin_t> result;
 };
+using ps_db_timewins_get_t = std::vector<ps_db_timewin_get_entry_t>;
+
+struct ps_db_timewin_del_entry_t {
+  std::string name;
+  ps_result_t<ps_success_t> result;
+};
+using ps_db_timewins_del_t = std::vector<ps_db_timewin_del_entry_t>;
 
 ////
 
-std::string timewin_to_str(timewin timewin_obj);
+std::string ps_timewin_to_str(const ps_timewin_t &timewin);
 
-struct validate_cron_res {
-  bool ok;
-  std::string message;
-};
-validate_cron_res validate_cron(const std::string &expr, std::string &error);
+ps_result_t<ps_success_t> ps_validate_cron(const std::string &expr);
 
-struct validate_timewin_res {
-  bool ok;
-  std::string message;
-};
-validate_timewin_res validate_timewin(timewin timewin_obj);
+ps_result_t<ps_success_t> ps_validate_timewin(const ps_timewin_t &timewin);
 
-struct timewin_from_str_res {
-  bool ok;
-  std::string message;
-  timewin timewin_obj;
-};
-timewin_from_str_res timewin_from_str(const std::string &str);
+ps_result_t<ps_timewin_t> ps_timewin_from_str(const std::string &str);
 
-struct store_timewin_res {
-  bool ok;
-  std::string message;
-};
-store_timewin_res store_timewin(timewin timewin_obj);
+ps_result_t<ps_success_t> ps_db_timewin_set(const ps_timewin_t &timewin);
 
-struct get_timewin_res {
-  bool ok;
-  std::string message;
-  std::string name;
-  timewin timewin_obj;
-};
-struct get_timewins_res {
-  bool ok;
-  std::string message;
-  std::vector<get_timewin_res> res;
-};
-get_timewins_res get_timewins(std::vector<std::string> names);
+ps_result_t<ps_db_timewins_get_t>
+ps_db_timewins_get(const std::vector<std::string> &names);
 
-struct del_timewins_res {
-  bool ok;
-  std::string message;
-};
-del_timewins_res del_timewins(std::vector<std::string> names);
+ps_result_t<ps_timewin_t> ps_db_timewin_get(const std::string &name);
 
-get_timewins_res list_timewins();
+ps_result_t<ps_db_timewins_del_t>
+ps_db_timewins_del(const std::vector<std::string> &names);
+
+ps_result_t<ps_success_t> ps_db_timewin_del(const std::string &name);
+
+ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list();

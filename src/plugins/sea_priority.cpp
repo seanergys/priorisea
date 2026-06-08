@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
+#include "lib/error.hpp"
 #include "lib/formula.hpp"
 #include "lib/score.hpp"
+#include "lib/types.hpp"
 #include "lib/util.hpp"
 #include "tinyexpr.h"
 #include <cerrno>
@@ -18,24 +20,19 @@
 #include <string.h>
 #include <string>
 
-static formula priority_formula;
-static std::map<int, double> scores;
+static ps_formula_t priority_formula;
+static ps_score_map_t scores;
 
 static double min(double a, double b) { return a < b ? a : b; }
 static double max(double a, double b) { return a > b ? a : b; }
 
 ////
 
-struct eval_priority_res {
-  bool ok;
-  double result;
-};
-static eval_priority_res
-eval_formula_priority(formula formula_obj,
-                      std::map<std::string, double> &vars_over) {
-
+static ps_result_t<double>
+eval_formula_priority(const ps_formula_t &formula,
+                      const std::map<std::string, double> &vars_over) {
   std::map<std::string, double> vars_merged = vars_over;
-  for (const auto &[name, value] : formula_obj.vars) {
+  for (const auto &[name, value] : formula.vars) {
     if (vars_merged.find(name) != vars_merged.end())
       continue;
     vars_merged[name] = value;
@@ -52,33 +49,35 @@ eval_formula_priority(formula formula_obj,
   te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
 
   int err = 0;
-  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
-  if (!compiled)
-    return {false, 0};
+  te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
+  if (!compiled) {
+    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
+  }
   auto result = te_eval(compiled);
   te_free(compiled);
-  return {true, result};
+  return result;
 }
 
-static bool validate_formula(formula formula_obj) {
+static bool validate_formula_priority(const ps_formula_t &formula) {
   std::map<std::string, double> vars;
-  return eval_formula_priority(formula_obj, vars).ok;
+  return (ps_is_ok(eval_formula_priority(formula, vars)));
 }
 
 static void init_formula() {
-  auto get_res = get_formula("job_priority");
-  if (get_res.ok) {
-    priority_formula = get_res.formula_obj;
+  auto get_res = ps_db_formula_get("job_priority");
+  if (ps_is_ok(get_res)) {
+    priority_formula = ps_unwrap(get_res);
   }
 }
 
 static void init_scores() {
-  auto list_res = list_users();
-  if (list_res.ok) {
-    for (auto &user_res : list_res.res) {
-      if (user_res.ok) {
-        scores[user_res.userid] = user_res.user_obj.score;
-      }
+  auto list_res = ps_db_users_list();
+  if (!ps_is_ok(list_res))
+    return;
+  for (const auto &user_res : ps_unwrap(list_res)) {
+    if (ps_is_ok(user_res.result)) {
+      auto urr = user_res.result;
+      scores[user_res.userid] = ps_unwrap(urr).score;
     }
   }
 }
@@ -87,7 +86,7 @@ static void init_scores() {
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  auto formula_str = formula_to_str(priority_formula);
+  auto formula_str = ps_formula_to_str(priority_formula);
   if (flux_respond_pack(h, msg, "{s:s}", "data", formula_str.c_str()) < 0) {
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
@@ -108,20 +107,20 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  auto from_res = formula_from_str(formula_str);
-  if (!from_res.ok) {
-    auto errmsg = fmt::format("invalid formula: {}", from_res.message);
+  auto from_res = ps_formula_from_str(formula_str);
+  if (!ps_is_ok(from_res)) {
+    auto errmsg = fmt::format("invalid formula: {}", formula_str);
+    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+    return;
+  }
+  auto formula = ps_unwrap(from_res);
+  if (!validate_formula_priority(formula)) {
+    auto errmsg = fmt::format("invalid formula: {}", formula.expr);
     flux_respond_error(h, msg, EINVAL, errmsg.c_str());
     return;
   }
 
-  if (!validate_formula(from_res.formula_obj)) {
-    auto errmsg = fmt::format("invalid formula: {}", from_res.formula_obj.expr);
-    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-    return;
-  }
-
-  priority_formula = from_res.formula_obj;
+  priority_formula = formula;
 
   flux_respond(h, msg, NULL);
 }
@@ -241,12 +240,12 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
   }
 
   auto eval_res = eval_formula_priority(priority_formula, vars_over);
-  if (!eval_res.ok) {
+  if (!ps_is_ok(eval_res)) {
     flux_log_error(h, "formula evaluation failed");
     return flux_jobtap_priority_unavail(p, args);
   }
 
-  auto result = eval_res.result;
+  auto result = ps_unwrap(eval_res);
   if (!std::isfinite(result)) {
     flux_log_error(h, "formula evaluated to NaN or infinity");
     return flux_jobtap_priority_unavail(p, args);

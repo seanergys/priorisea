@@ -4,3 +4,6 @@
 [submodule "external/croncpp"]
 	path = external/croncpp
 	url = https://github.com/mariusbancila/croncpp.git
+[submodule "external/CLI11"]
+	path = external/CLI11
+	url = https://github.com/CLIUtils/CLI11.git
