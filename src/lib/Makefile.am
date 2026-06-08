@@ -11,16 +11,18 @@ libpriorisea_la_CPPFLAGS= \
     $(SEANERBUS_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
-priorisea_LDADD = \
-    $(top_builddir)/external/libtinyexpr.la \
-    $(JANSSON_LIBS) \
-    $(SEANERBUS_LIBS) \
-    $(FLUX_CORE_LIBS)
+#libpriorisea_la_LIBADD = \
+#    $(top_builddir)/external/libtinyexpr.la \
+#    $(JANSSON_LIBS) \
+#    $(SEANERBUS_LIBS) \
+#    $(FLUX_CORE_LIBS)
 
 libpriorisea_la_SOURCES = \
     decay.cpp decay.hpp \
+    error.cpp error.hpp \
     flux.cpp flux.hpp \
     formula.cpp formula.hpp \
     score.cpp score.hpp \
     timewin.cpp timewin.hpp \
+    types.hpp \
     util.cpp util.hpp

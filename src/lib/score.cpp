@@ -4,77 +4,79 @@
 
 #include "score.hpp"
 #include "decay.hpp"
+#include "error.hpp"
 #include "flux.hpp"
 #include "tinyexpr.h"
+#include "types.hpp"
 #include "util.hpp"
 #include <chrono>
+#include <iostream>
+#include <sstream>
 
 static double min(double a, double b) { return a < b ? a : b; }
 static double max(double a, double b) { return a > b ? a : b; }
 
 ////
 
-get_jobs_res get_jobs(std::vector<std::string> &jobids) {
-  get_jobs_res res;
-  res.ok = false;
-
+ps_result_t<ps_db_get_jobs_t>
+ps_db_jobs_get(const std::vector<std::string> &jobids) {
+  ps_db_get_jobs_t res;
   std::vector<std::string> keys;
   for (const auto &jobid : jobids) {
 
     flux_jobid_t id;
     if (flux_job_id_parse(jobid.c_str(), &id) < 0) {
-      res.res.push_back(
-          {.ok = false, .message = "failed to parse job id: " + jobid});
-    } else {
-      keys.push_back("priorisea.job." + std::to_string(id));
+      res.push_back({.jobid = jobid,
+                     .result = ps_error(ps_flux_job_id_parse_err_t{
+                         .jobid = jobid, .msg = strerror(errno)})});
+      continue;
     }
+    keys.push_back("priorisea.job." + std::to_string(id));
   }
-  auto kvs_res = kvs_lookup(keys);
-  if (kvs_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "Failed to lookup KVS. Unknown error";
-    return res;
+  auto kvs_res = ps_flux_kvs_lookup(keys);
+  if (!ps_is_ok(kvs_res)) {
+    std::stringstream ss;
+    ss << "looking up jobs in flux kvs: ";
+    for (const auto &key : keys) {
+      ss << key << " ";
+    }
+    return ps_forward_error<ps_db_get_jobs_t>(kvs_res, ss.str());
   }
 
-  for (const auto &lookup_key_res : kvs_res.res) {
-    get_job_res job_res;
-    job_res.ok = false;
-
+  for (const auto &lookup_key_res : ps_unwrap(kvs_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
     std::string jobid = (pos == std::string::npos)
                             ? lookup_key_res.key
                             : lookup_key_res.key.substr(pos + 1);
-    job_res.jobid = jobid;
 
-    if (lookup_key_res.err != FLUX_KVS_ERR_SUCCESS) {
-      job_res.message = "Failed to lookup KVS. Unknown error: " +
-                        std::to_string(lookup_key_res.err);
-      res.res.push_back(job_res);
+    if (!ps_is_ok(lookup_key_res.value)) {
+      res.push_back({.jobid = jobid,
+                     .result = ps_forward_error<ps_job_t>(
+                         lookup_key_res.value,
+                         "looking up job " + jobid + " in flux kvs")});
       continue;
     }
-
+    auto lkrv = lookup_key_res.value;
+    auto lookup_key_res_value = ps_unwrap(lkrv);
     double score;
-    if (!parse_double(lookup_key_res.value, score)) {
-      job_res.message =
-          "Failed to parse score from KVS value: " + lookup_key_res.value;
-      res.res.push_back(job_res);
+    if (!parse_double(lookup_key_res_value, score)) {
+      res.push_back({.jobid = jobid,
+                     .result = ps_error(ps_parse_double_err_t{
+                         .double_str = lookup_key_res_value})});
       continue;
     }
-
-    job_res.ok = true;
-    job_res.job_obj = {.jobid = jobid, .score = score};
-    res.res.push_back(job_res);
+    res.push_back(
+        {.jobid = jobid, .result = ps_job_t{.jobid = jobid, .score = score}});
   }
-
-  res.ok = true;
   return res;
 };
 
-eval_formula_job_score_res
-eval_formula_job_score(formula formula_obj,
-                       std::map<std::string, double> &vars_over) {
+ps_result_t<double>
+ps_eval_formula_job_score(const ps_formula_t &formula,
+                          const std::map<std::string, double> &vars_over) {
 
   std::map<std::string, double> vars_merged = vars_over;
-  for (const auto &[name, value] : formula_obj.vars) {
+  for (const auto &[name, value] : formula.vars) {
     if (vars_merged.find(name) != vars_merged.end())
       continue;
     vars_merged[name] = value;
@@ -91,127 +93,88 @@ eval_formula_job_score(formula formula_obj,
   te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
 
   int err = 0;
-  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
-  if (!compiled)
-    return {false, 0};
+  te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
+  if (!compiled) {
+    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
+  }
   auto result = te_eval(compiled);
   te_free(compiled);
-  return {true, result};
+  return result;
 }
 
-bool validate_formula_job_score(formula formula_obj) {
-  auto *te_vars =
-      (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
-  int i = 0;
-  for (const auto &[name, value] : formula_obj.vars) {
-    te_vars[i++] = {name.c_str(), &value};
-  }
-  int err = 0;
-  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
-  if (!compiled)
-    return false;
-  te_free(compiled);
-  return true;
+bool ps_validate_formula_job_score(const ps_formula_t &formula) {
+  std::map<std::string, double> vars_over;
+  return ps_is_ok(ps_eval_formula_job_score(formula, vars_over));
 }
 
-store_t_inactive_res store_t_inactive(double t_inactive) {
-  store_t_inactive_res res;
-  res.ok = false;
+ps_result_t<ps_success_t> ps_db_t_inactive_set(double t_inactive) {
   auto txn = flux_kvs_txn_create();
   if (!txn) {
-    res.message = "failed to create KVS transaction";
-    return res;
+    return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
-  if (flux_kvs_txn_put(txn, 0, "priorisea.t_inactive",
-                       std::to_string(t_inactive).c_str()) < 0) {
-    res.message = "failed to store max_t_inactive in KVS";
-    return res;
+  auto key = "priorisea.t_inactive";
+  auto value = std::to_string(t_inactive);
+  if (flux_kvs_txn_put(txn, 0, key, value.c_str()) < 0) {
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = key, .value = value, .msg = strerror(errno)});
   }
-  auto commit_res = kvs_commit(txn);
-  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to commit max_t_inactive to KVS";
-    return res;
-  }
-  res.ok = true;
-  return res;
+  return ps_flux_kvs_commit(txn);
 }
 
-get_t_inactive_res get_t_inactive() {
-  get_t_inactive_res res;
-  res.ok = false;
-  auto lookup_res = kvs_lookup({"priorisea.t_inactive"});
-  if (lookup_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to lookup t_inactive in KVS";
-    return res;
+ps_result_t<double> ps_db_t_inactive_get() {
+  auto lookup_res = ps_flux_kvs_lookup("priorisea.t_inactive");
+  if (!ps_is_ok(lookup_res)) {
+    return ps_forward_error<double>(lookup_res,
+                                    "looking up t_inactive in flux kvs");
   }
-  if (lookup_res.res[0].err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to lookup t_inactive in KVS";
-    return res;
-  }
+  auto lookup_value = ps_unwrap(lookup_res);
   double t_inactive;
-  if (!parse_double(lookup_res.res[0].value, res.t_inactive)) {
-    res.message = "failed to parse t_inactive value";
-    return res;
+  if (!parse_double(lookup_value, t_inactive)) {
+    return ps_error(ps_parse_double_err_t{.double_str = lookup_value});
   }
-  res.ok = true;
-  return res;
+  return t_inactive;
 }
 
-store_job_res store_job(job job_obj) {
-  store_job_res res;
-  res.ok = false;
+ps_result_t<ps_success_t> ps_db_job_set(const ps_job_t &job) {
   auto txn = flux_kvs_txn_create();
   if (!txn) {
-    res.message = "failed to create KVS transaction";
-    return res;
+    return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
-  if (flux_kvs_txn_put(txn, 0, ("priorisea.job." + job_obj.jobid).c_str(),
-                       std::to_string(job_obj.score).c_str()) < 0) {
-    res.message = "failed to store job score in KVS";
-    return res;
+  auto key = "priorisea.job." + job.jobid;
+  auto value = std::to_string(job.score);
+  if (flux_kvs_txn_put(txn, 0, key.c_str(), value.c_str()) < 0) {
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = key, .value = value, .msg = strerror(errno)});
   }
-  auto commit_res = kvs_commit(txn);
-  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to commit job score to KVS";
-    return res;
-  }
-  res.ok = true;
-  return res;
+  return ps_flux_kvs_commit(txn);
 }
 
-init_score_res init_score() {
-  init_score_res res;
-  res.ok = false;
-  auto get_t_inactive_res = get_t_inactive();
-  if (!get_t_inactive_res.ok) {
-    auto store_t_inactive_res = store_t_inactive(0);
-    if (!store_t_inactive_res.ok) {
-      res.message = store_t_inactive_res.message;
-      return res;
-    }
+ps_result_t<ps_success_t> ps_db_score_init() {
+  auto get_t_inactive_res = ps_db_t_inactive_get();
+  if (!ps_is_ok(get_t_inactive_res)) {
+    return ps_db_t_inactive_set(0);
   }
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }
 
-get_users_res get_users(std::vector<int> &userids) {
-  get_users_res res;
-  res.ok = false;
-
+ps_result_t<ps_db_get_users_t>
+ps_db_users_get(const std::vector<int> &userids) {
   std::vector<std::string> keys;
   for (const auto &userid : userids) {
     keys.push_back("priorisea.user." + std::to_string(userid));
   }
-  auto kvs_res = kvs_lookup(keys);
-  if (kvs_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "Failed to lookup KVS. Unknown error";
-    return res;
+  auto kvs_res = ps_flux_kvs_lookup(keys);
+  if (!ps_is_ok(kvs_res)) {
+    std::stringstream ss;
+    ss << "looking up users in flux kvs: ";
+    for (const auto &key : keys) {
+      ss << key << " ";
+    }
+    return ps_forward_error<ps_db_get_users_t>(kvs_res, ss.str());
   }
 
-  for (const auto &lookup_key_res : kvs_res.res) {
-    get_user_res user_res;
-    user_res.ok = false;
-
+  ps_db_get_users_t res;
+  for (const auto &lookup_key_res : ps_unwrap(kvs_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
     std::string userid_str = (pos == std::string::npos)
                                  ? lookup_key_res.key
@@ -219,172 +182,197 @@ get_users_res get_users(std::vector<int> &userids) {
 
     int userid;
     if (!parse_int(userid_str, userid)) {
-      user_res.message = "Failed to parse userid from KVS key: " + userid_str;
-      res.res.push_back(user_res);
-      continue;
-    }
-    user_res.userid = userid;
-
-    if (lookup_key_res.err != FLUX_KVS_ERR_SUCCESS) {
-      user_res.message = "Failed to lookup KVS. Unknown error: " +
-                         std::to_string(lookup_key_res.err);
-      res.res.push_back(user_res);
+      res.push_back(
+          {.userid = userid,
+           .result = ps_error(ps_parse_int_err_t{.int_str = userid_str})});
       continue;
     }
 
+    if (!ps_is_ok(lookup_key_res.value)) {
+      res.push_back({.userid = userid,
+                     .result = ps_forward_error<ps_user_t>(
+                         lookup_key_res.value,
+                         "looking up user " + userid_str + " in flux kvs")});
+      continue;
+    }
+
+    auto lkrv = lookup_key_res.value;
+    auto lookup_key_res_value = ps_unwrap(lkrv);
     double score;
-    if (!parse_double(lookup_key_res.value, score)) {
-      user_res.message =
-          "Failed to parse score from KVS value: " + lookup_key_res.value;
-      res.res.push_back(user_res);
+    if (!parse_double(lookup_key_res_value, score)) {
+      res.push_back({.userid = userid,
+                     .result = ps_error(ps_parse_double_err_t{
+                         .double_str = lookup_key_res_value})});
       continue;
     }
-
-    user_res.ok = true;
-    user_res.user_obj = {.userid = userid, .score = score};
-    res.res.push_back(user_res);
+    res.push_back({.userid = userid,
+                   .result = ps_user_t{.userid = userid, .score = score}});
   }
 
-  res.ok = true;
   return res;
 };
 
-store_user_res store_user(user user_obj) {
-  store_user_res res;
-  res.ok = false;
+ps_result_t<ps_success_t> ps_db_user_set(const ps_user_t &user) {
   auto txn = flux_kvs_txn_create();
   if (!txn) {
-    res.message = "failed to create KVS transaction";
-    return res;
+    return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
-  if (flux_kvs_txn_put(
-          txn, 0, ("priorisea.user." + std::to_string(user_obj.userid)).c_str(),
-          std::to_string(user_obj.score).c_str()) < 0) {
-    res.message = "failed to store job score in KVS";
-    return res;
+  auto key = "priorisea.user." + std::to_string(user.userid);
+  auto value = std::to_string(user.score);
+  if (flux_kvs_txn_put(txn, 0, key.c_str(), value.c_str()) < 0) {
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = key, .value = value, .msg = strerror(errno)});
   }
-  auto commit_res = kvs_commit(txn);
-  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to commit job score to KVS";
-    return res;
-  }
-  res.ok = true;
-  return res;
+  return ps_flux_kvs_commit(txn);
 }
 
-update_job_res update_job(flux_list_job_res job_obj, formula formula_obj) {
-  update_job_res res;
-  res.ok = false;
-
+ps_result_t<ps_success_t> ps_db_job_update(ps_flux_job_info_t job_info,
+                                           const ps_formula_t &formula) {
   std::map<std::string, double> vars_over;
-  auto eval_res = eval_formula_job_score(formula_obj, vars_over);
-  if (!eval_res.ok) {
-    res.message = "failed to evaluate formula";
-    return res;
+  auto eval_res = ps_eval_formula_job_score(formula, vars_over);
+  if (!ps_is_ok(eval_res)) {
+    return ps_forward_error<ps_success_t>(
+        eval_res, "evaluating formula for job " + std::to_string(job_info.id));
   }
 
-  auto store_job_res = store_job({std::to_string(job_obj.id), eval_res.result});
-  if (!store_job_res.ok) {
-    res.message = "failed to store job score in KVS";
-    return res;
+  return ps_db_job_set({std::to_string(job_info.id), ps_unwrap(eval_res)});
+}
+
+ps_result_t<ps_db_get_users_t> ps_db_users_list() {
+  auto ls_res = ps_flux_kvs_ls_dir("priorisea.user");
+  if (!ps_is_ok(ls_res)) {
+    return ps_forward_error<ps_db_get_users_t>(ls_res,
+                                               "listing users in flux kvs");
+  }
+  ps_db_get_users_t res;
+  std::vector<int> userids;
+  for (const auto &userid_str : ps_unwrap(ls_res)) {
+    int userid;
+    if (!parse_int(userid_str, userid)) {
+      res.push_back(
+          {.userid = userid,
+           .result = ps_error(ps_parse_int_err_t{.int_str = userid_str})});
+      continue;
+    }
+    userids.push_back(userid);
   }
 
-  res.ok = true;
+  auto get_res = ps_db_users_get(userids);
+  if (!ps_is_ok(get_res)) {
+    std::stringstream ss;
+    ss << "getting users from database: ";
+    for (const auto &e : userids) {
+      ss << e << " ";
+    }
+    return ps_forward_error<ps_db_get_users_t>(get_res, ss.str());
+  }
+
+  auto get_res_value = ps_unwrap(get_res);
+  res.insert(res.end(), get_res_value.begin(), get_res_value.end());
   return res;
 }
 
-update_users_res update_users() {
+ps_result_t<ps_db_get_jobs_t> ps_db_jobs_list() {
+  auto ls_res = ps_flux_kvs_ls_dir("priorisea.job");
+  if (!ps_is_ok(ls_res)) {
+    return ps_forward_error<ps_db_get_jobs_t>(ls_res,
+                                              "listing jobs from flux kvs");
+  }
+  auto ls_res_value = ps_unwrap(ls_res);
+  return ps_db_jobs_get(ls_res_value);
+}
+
+// TODO: refactor error handling and result
+ps_result_t<ps_success_t> ps_db_users_update() {
   // TODO: if a user has not submitted any job in the entire decay period,
   // the score will not be updated. That user will thus keep its current score.
   // until the next time they run a job
-  update_users_res res;
-  res.ok = false;
 
-  auto get_decay_res = get_decay();
-  if (!get_decay_res.ok) {
-    res.message = get_decay_res.message;
-    return res;
+  auto get_decay_res = ps_db_decay_get();
+  if (!ps_is_ok(get_decay_res)) {
+    return ps_forward_error<ps_success_t>(get_decay_res,
+                                          "getting decay from database");
   }
-  auto decay_obj = get_decay_res.decay_obj;
+  auto decay = ps_unwrap(get_decay_res);
 
   // timestamp is the latest time possible where decay applies
   auto now = std::chrono::system_clock::now();
   auto timestamp =
       std::chrono::duration<double>(now.time_since_epoch()).count();
-  for (const auto &decay_one_obj : get_decay_res.decay_obj) {
+  for (const auto &decay_one_obj : decay) {
     timestamp -= decay_one_obj.duration;
   }
 
-  // structure to store sum and count of scores for each user for each time slot
-  // of decay
+  // structure to store sum and count of scores for each
+  // user for each time slot of decay
   struct sum_agg {
     double sum;
     size_t count;
   };
   std::map<int, std::vector<sum_agg>> sum_aggs;
-
-  flux_list_inactive_stream(
-      timestamp, 10, [&sum_aggs, &decay_obj, &timestamp](json_t *jobs) {
+  ps_flux_list_inactive_jobs_stream(
+      timestamp, 10, [&sum_aggs, &decay, &timestamp](json_t *jobs) {
         std::vector<std::string> jobids;
         struct job_info {
           int decay_index;
-          flux_list_job_res list_job_res;
+          ps_flux_job_info_t info;
         };
         std::map<std::string, job_info> jobid_info;
 
         size_t index;
         json_t *value;
         json_array_foreach(jobs, index, value) {
-          auto unpack_res = flux_list_job_unpack(value);
-          if (!unpack_res.ok) {
-            std::cerr << "Error: failed to unpack job: " << unpack_res.message
-                      << '\n';
+          auto unpack_res = ps_flux_job_info_unpack(value);
+          if (!ps_is_ok(unpack_res)) {
+            std::cerr << "Error: failed to unpack job" << '\n';
             continue;
           }
-
+          auto unpack_value = ps_unwrap(unpack_res);
           // find the index of the decay step that applies to this job
           auto _timestamp = timestamp;
-          int i = decay_obj.size() - 1;
+          int i = decay.size() - 1;
           for (; i >= 0; i--) {
-            _timestamp += decay_obj[i].duration;
-            if (_timestamp > unpack_res.job.t_inactive) {
+            _timestamp += decay[i].duration;
+            if (_timestamp > unpack_value.t_inactive) {
               break;
             }
           }
 
-          jobid_info[std::to_string(unpack_res.job.id)] = {
-              .decay_index = i, .list_job_res = unpack_res.job};
+          jobid_info[std::to_string(unpack_value.id)] =
+              job_info{.decay_index = i, .info = unpack_value};
         }
 
         for (const auto &[key, _] : jobid_info) {
           jobids.push_back(key);
         }
-        auto get_jobs_res = get_jobs(jobids);
-        if (!get_jobs_res.ok) {
-          std::cerr << "Error: failed to get jobs: " << get_jobs_res.message
-                    << '\n';
+        auto get_jobs_res = ps_db_jobs_get(jobids);
+        if (!ps_is_ok(get_jobs_res)) {
+          std::cerr << "Error: failed to get jobs from db" << '\n';
           return;
         }
+        auto get_jobs_value = ps_unwrap(get_jobs_res);
 
-        for (const auto &get_job_res : get_jobs_res.res) {
-          if (!get_job_res.ok) {
-            std::cerr << "Error: failed to get job: " << get_job_res.message
+        for (const auto &get_job_res : get_jobs_value) {
+          if (!ps_is_ok(get_job_res.result)) {
+            std::cerr << "Error: failed to get job: " << get_job_res.jobid
                       << '\n';
             continue;
           }
+          auto gjv = get_job_res.result;
+          auto get_job_value = ps_unwrap(gjv);
           auto job_inf = jobid_info[get_job_res.jobid];
-          auto userid = job_inf.list_job_res.userid;
+          auto userid = job_inf.info.userid;
 
           if (sum_aggs.find(userid) == sum_aggs.end()) {
-            sum_aggs[userid] = std::vector<sum_agg>(decay_obj.size());
-            for (size_t i = 0; i < decay_obj.size(); i++) {
+            sum_aggs[userid] = std::vector<sum_agg>(decay.size());
+            for (size_t i = 0; i < decay.size(); i++) {
               sum_aggs[userid][i] = {0, 0};
             }
           }
 
           auto *curr_agg = &sum_aggs[userid][job_inf.decay_index];
-          curr_agg->sum += get_job_res.job_obj.score *
-                           decay_obj[job_inf.decay_index].priority;
+          curr_agg->sum +=
+              get_job_value.score * decay[job_inf.decay_index].priority;
           curr_agg->count++;
         }
       });
@@ -398,54 +386,11 @@ update_users_res update_users() {
       }
     }
     scores[userid] = score;
-    auto store_res = store_user({.userid = userid, .score = score});
-    if (!store_res.ok) {
-      std::cerr << "Error: failed to store user score: " << store_res.message
-                << '\n';
+    auto store_res = ps_db_user_set({.userid = userid, .score = score});
+    if (!ps_is_ok(store_res)) {
+      std::cerr << "Error: failed to store user score: " << userid << '\n';
     }
   }
 
-  auto plugin_set_scores_res = flux_plugin_set_score(scores);
-  if (plugin_set_scores_res.err != FLUX_PLUGIN_ERR_OK) {
-    res.message = plugin_set_scores_res.err_msg;
-    return res;
-  }
-
-  res.ok = true;
-  return res;
-}
-
-get_users_res list_users() {
-  get_users_res res;
-  res.ok = false;
-
-  auto ls_res = flux_kvs_ls_dir("priorisea.user");
-  if (!ls_res.ok) {
-    res.message = ls_res.message;
-    return res;
-  }
-
-  std::vector<int> userids;
-  for (const auto &userid_str : ls_res.keys) {
-    int userid;
-    if (!parse_int(userid_str, userid)) {
-      std::cerr << "Error: failed to parse userid: " << userid_str << '\n';
-      continue;
-    }
-    userids.push_back(userid);
-  }
-
-  return get_users(userids);
-}
-
-get_jobs_res list_jobs() {
-  get_jobs_res res;
-  res.ok = false;
-
-  auto ls_res = flux_kvs_ls_dir("priorisea.job");
-  if (!ls_res.ok) {
-    res.message = ls_res.message;
-    return res;
-  }
-  return get_jobs(ls_res.keys);
+  return ps_flux_plugin_set_score(scores);
 }

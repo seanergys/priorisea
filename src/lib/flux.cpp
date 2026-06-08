@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "flux.hpp"
+#include "error.hpp"
+#include "formula.hpp"
+#include "types.hpp"
 #include "util.hpp"
 #include <flux/core.h>
 #include <flux/core/future.h>
@@ -11,119 +14,76 @@
 #include <flux/core/types.h>
 #include <jansson.h>
 
-flux_plugin_get_formula_res flux_plugin_get_formula() {
+ps_result_t<ps_formula_t> ps_flux_plugin_get_formula() {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_OPEN,
-            .err_msg = strerror(errno),
-        },
-    };
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
   if (!(f = flux_rpc(h, "job-manager.sea_priority.get_formula", "",
                      FLUX_NODEID_ANY, 0))) {
     flux_close(h);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_NOT_LOADED,
-            .err_msg = strerror(errno),
-        },
-    };
+    return ps_error(ps_flux_rpc_err_t{.msg = strerror(errno)});
   }
-  char *formula;
-  if (flux_rpc_get_unpack(f, "{s:s}", "data", formula) < 0) {
+  char *formula_str;
+  if (flux_rpc_get_unpack(f, "{s:s}", "data", formula_str) < 0) {
     flux_future_destroy(f);
     flux_close(h);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_BAD_RESPONSE,
-            .err_msg = strerror(errno),
-        },
-    };
+    return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)},
+                    "unpacking rpc job-manager.sea_priority.get_formula. Is "
+                    "the plugin loaded?");
   }
   flux_future_destroy(f);
   flux_close(h);
-  return {
-      flux_plugin_res{
-          .err = FLUX_PLUGIN_ERR_OK,
-      },
-      std::string(formula),
-  };
+
+  return ps_formula_from_str(formula_str);
 }
 
-flux_plugin_set_formula_res flux_plugin_set_formula(std::string formula) {
+ps_result_t<ps_success_t>
+ps_flux_plugin_set_formula(const ps_formula_t &formula) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_OPEN,
-            .err_msg = strerror(errno),
-        },
-        false,
-    };
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
+
+  std::string formula_str = ps_formula_to_str(formula);
+
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_formula",
                           FLUX_NODEID_ANY, 0, "{s:s}", "data",
-                          formula.c_str()))) {
+                          formula_str.c_str()))) {
     flux_close(h);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_NOT_LOADED,
-            .err_msg = strerror(errno),
-        },
-        false,
-    };
+    return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
   if (flux_future_get(f, NULL) < 0) {
     flux_future_destroy(f);
     flux_close(h);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_BAD_RESPONSE,
-            .err_msg = strerror(errno),
-        },
-        false,
-    };
+    return ps_error(ps_flux_future_get_err_t{.msg = strerror(errno)},
+                    "getting rpc job-manager.sea_priority.set_formula. Is the "
+                    "plugin loaded?");
   }
   flux_future_destroy(f);
   flux_close(h);
-  return {
-      flux_plugin_res{
-          .err = FLUX_PLUGIN_ERR_OK,
-      },
-      true,
-  };
+  return ps_success_t{};
 }
 
-flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
+ps_result_t<ps_score_map_t>
+ps_flux_plugin_get_score(const std::vector<int> &userids) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_OPEN,
-            .err_msg = strerror(errno),
-        },
-    };
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
 
   json_t *data = json_array();
-  for (int user_id : user_ids) {
-    json_array_append_new(data, json_integer(user_id));
+  for (int userid : userids) {
+    json_array_append_new(data, json_integer(userid));
   }
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.get_score",
                           FLUX_NODEID_ANY, 0, "{s:o}", "data", &data))) {
     flux_close(h);
     json_decref(data);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_NOT_LOADED,
-            .err_msg = strerror(errno),
-        },
-    };
+    return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
   json_decref(data);
 
@@ -132,48 +92,35 @@ flux_plugin_get_score_res flux_plugin_get_score(std::vector<int> user_ids) {
     flux_future_destroy(f);
     flux_close(h);
     json_decref(scores);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_BAD_RESPONSE,
-            .err_msg = strerror(errno),
-        },
-    };
+    return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)},
+                    "unpacking rpc job-manager.sea_priority.get_score. Is the "
+                    "plugin loaded?");
   }
 
   std::map<int, double> score_map;
-  const char *user_id_key;
+  const char *userid_key;
   json_t *score_value;
-  json_object_foreach(scores, user_id_key, score_value) {
-    int user_id;
-    if (!parse_int(std::string(user_id_key), user_id)) {
+  json_object_foreach(scores, userid_key, score_value) {
+    int userid;
+    if (!parse_int(std::string(userid_key), userid)) {
       continue;
     }
     double score = json_real_value(score_value);
-    score_map[user_id] = score;
+    score_map[userid] = score;
   }
   json_decref(scores);
 
   flux_future_destroy(f);
   flux_close(h);
-  return {
-      flux_plugin_res{
-          .err = FLUX_PLUGIN_ERR_OK,
-      },
-      score_map,
-  };
+  return score_map;
 }
 
-flux_plugin_set_score_res flux_plugin_set_score(std::map<int, double> scores) {
+ps_result_t<ps_success_t>
+ps_flux_plugin_set_score(const ps_score_map_t &scores) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_OPEN,
-            .err_msg = strerror(errno),
-        },
-        false,
-    };
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
   json_t *scores_json = json_object();
   for (const auto &[user_id, score] : scores) {
@@ -184,190 +131,189 @@ flux_plugin_set_score_res flux_plugin_set_score(std::map<int, double> scores) {
                           FLUX_NODEID_ANY, 0, "{s:o}", "data", scores_json))) {
     flux_close(h);
     json_decref(scores_json);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_NOT_LOADED,
-            .err_msg = strerror(errno),
-        },
-        false,
-    };
+    return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
   json_decref(scores_json);
   if (flux_future_get(f, NULL) < 0) {
     flux_future_destroy(f);
     flux_close(h);
-    return {
-        flux_plugin_res{
-            .err = FLUX_PLUGIN_ERR_BAD_RESPONSE,
-            .err_msg = strerror(errno),
-        },
-        false,
-    };
+    return ps_error(ps_flux_future_get_err_t{.msg = strerror(errno)},
+                    "getting rpc job-manager.sea_priority.set_score. Is the "
+                    "plugin loaded?");
   }
   flux_future_destroy(f);
   flux_close(h);
-  return {
-      flux_plugin_res{
-          .err = FLUX_PLUGIN_ERR_OK,
-      },
-      true,
-  };
+  return ps_success_t{};
 }
 
-FLUX_KVS_ERR kvs_commit(flux_kvs_txn_t *txn) {
+ps_result_t<ps_success_t> ps_flux_kvs_commit(flux_kvs_txn_t *txn) {
   flux_t *h;
   flux_future_t *f;
   if (!(h = flux_open(NULL, 0))) {
-    return FLUX_KVS_ERR_OPEN;
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
-
   if (!(f = flux_kvs_commit(h, NULL, 0, txn))) {
     flux_close(h);
-    return FLUX_KVS_ERR_COMMIT;
+    return ps_error(ps_flux_kvs_commit_err_t{.msg = strerror(errno)});
   }
 
   if (flux_future_get(f, NULL) < 0) {
     flux_future_destroy(f);
     flux_close(h);
-    return FLUX_KVS_ERR_GET;
+    return ps_error(ps_flux_future_get_err_t{.msg = strerror(errno)});
   }
   flux_future_destroy(f);
   flux_close(h);
-  return FLUX_KVS_ERR_SUCCESS;
+  return ps_success_t{};
 }
 
-FLUX_KVS_ERR kvs_remove(std::vector<std::string> keys) {
+ps_result_t<std::vector<ps_flux_kvs_remove_entry_t>>
+ps_flux_kvs_remove(const std::vector<std::string> &keys) {
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
-    return FLUX_KVS_ERR_OPEN;
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
+  std::vector<ps_flux_kvs_remove_entry_t> res;
   for (auto key : keys) {
     flux_kvs_txn_t *t;
     if (!(t = flux_kvs_txn_create())) {
-      return FLUX_KVS_ERR_TXN_CREATE;
+      res.push_back({.key = key,
+                     .result = ps_error(ps_flux_kvs_txn_create_err_t{
+                         .msg = strerror(errno)})});
+      continue;
     }
     if (flux_kvs_txn_unlink(t, 0, key.c_str()) < 0) {
-      return FLUX_KVS_ERR_TXN_UNLINK;
+      res.push_back({.key = key,
+                     .result = ps_error(ps_flux_kvs_txn_unlink_err_t{
+                         .key = key, .msg = strerror(errno)})});
+      continue;
     }
     flux_future_t *f;
     if (!(f = flux_kvs_commit(h, NULL, 0, t))) {
-      flux_close(h);
-      return FLUX_KVS_ERR_COMMIT;
+      res.push_back({.key = key,
+                     .result = ps_error(
+                         ps_flux_kvs_commit_err_t{.msg = strerror(errno)})});
+      continue;
     }
     if (flux_future_get(f, NULL) < 0) {
+      res.push_back({.key = key,
+                     .result = ps_error(
+                         ps_flux_future_get_err_t{.msg = strerror(errno)})});
       flux_future_destroy(f);
-      flux_close(h);
-      return FLUX_KVS_ERR_GET;
+      continue;
     }
+    res.push_back({.key = key, .result = ps_success_t{}});
     flux_future_destroy(f);
   }
   flux_close(h);
-  return FLUX_KVS_ERR_SUCCESS;
+  return res;
 }
 
-FLUX_KVS_ERR kvs_remove(std::string key) { return kvs_remove({key}); }
+ps_result_t<ps_success_t> ps_flux_kvs_remove(const std::string &key) {
+  auto remove_res = ps_flux_kvs_remove(std::vector<std::string>{key});
+  if (!ps_is_ok(remove_res)) {
+    return ps_forward_error<ps_success_t>(remove_res, "removing key '" + key +
+                                                          "' from flux kvs");
+  }
+  return ps_unwrap(remove_res)[0].result;
+}
 
-kvs_lookups_res kvs_lookup(std::vector<std::string> keys) {
-  kvs_lookups_res res;
+ps_result_t<std::vector<ps_flux_kvs_lookup_entry_t>>
+ps_flux_kvs_lookup(const std::vector<std::string> &keys) {
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
-    res.err = FLUX_KVS_ERR_OPEN;
-    return res;
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
 
-  for (auto key : keys) {
-    kvs_lookup_res lookup_res;
-    lookup_res.key = key;
+  std::vector<ps_flux_kvs_lookup_entry_t> res;
+  for (const auto &key : keys) {
     flux_future_t *f;
     if (!(f = flux_kvs_lookup(h, NULL, 0, key.c_str()))) {
-      lookup_res.err = FLUX_KVS_ERR_LOOKUP;
-      res.res.push_back(lookup_res);
+      res.push_back({.key = key,
+                     .value = ps_error(ps_flux_kvs_lookup_err_t{.key = key})});
       continue;
     }
 
     const char *value;
     if (flux_kvs_lookup_get(f, &value) < 0) {
-      lookup_res.err = FLUX_KVS_ERR_LOOKUP_MISSING;
-      res.res.push_back(lookup_res);
       flux_future_destroy(f);
+      res.push_back(
+          {.key = key,
+           .value = ps_error(ps_flux_kvs_lookup_get_err_t{.key = key})});
       continue;
     }
 
     auto value_str = std::string(value);
     if (value_str == "") {
-      lookup_res.err = FLUX_KVS_ERR_LOOKUP_MISSING;
-      res.res.push_back(lookup_res);
       flux_future_destroy(f);
+      res.push_back(
+          {.key = key,
+           .value = ps_error(ps_flux_kvs_lookup_get_err_t{.key = key})});
       continue;
     }
-
-    lookup_res.err = FLUX_KVS_ERR_SUCCESS;
-    lookup_res.value = value_str;
-    res.res.push_back(lookup_res);
+    res.push_back({.key = key, .value = value_str});
     flux_future_destroy(f);
   }
 
   flux_close(h);
-  res.err = FLUX_KVS_ERR_SUCCESS;
   return res;
 }
 
-flux_list_job_unpack_res flux_list_job_unpack(json_t *value) {
-  flux_list_job_unpack_res res;
-  res.ok = false;
+ps_result_t<std::string> ps_flux_kvs_lookup(const std::string &key) {
+  auto res = ps_flux_kvs_lookup(std::vector<std::string>{key});
+  if (ps_is_ok(res)) {
+    auto _res = ps_unwrap(res);
+    return _res[0].value;
+  }
+  return ps_forward_error<std::string>(res, "looking up key '" + key +
+                                                "' in flux kvs");
+}
 
+ps_result_t<ps_flux_job_info_t> ps_flux_job_info_unpack(json_t *value) {
+  ps_flux_job_info_t res;
   const char *name, *cwd, *ranks, *nodelist;
   if (json_unpack(value,
                   "{s:I s:i s:i s:i s:f s:f s:f s:f s:f s:i s:s s:s s:i s:i "
                   "s:f s:i s:s s:s s:b s:b s:i s:f}",
-                  "id", &res.job.id, "userid", &res.job.userid, "urgency",
-                  &res.job.urgency, "priority", &res.job.priority, "t_submit",
-                  &res.job.t_submit, "t_depend", &res.job.t_depend, "t_run",
-                  &res.job.t_run, "t_cleanup", &res.job.t_cleanup, "t_inactive",
-                  &res.job.t_inactive, "state", &res.job.state, "name", &name,
-                  "cwd", &cwd, "ntasks", &res.job.ntasks, "ncores",
-                  &res.job.ncores, "duration", &res.job.duration, "nnodes",
-                  &res.job.nnodes, "ranks", &ranks, "nodelist", &nodelist,
-                  "success", &res.job.success, "exception_occurred",
-                  &res.job.exception_occured, "result", &res.job.result,
-                  "expiration", &res.job.expiration) < 0) {
-    res.message = "failed to unpack flux job info";
-    return res;
+                  "id", &res.id, "userid", &res.userid, "urgency", &res.urgency,
+                  "priority", &res.priority, "t_submit", &res.t_submit,
+                  "t_depend", &res.t_depend, "t_run", &res.t_run, "t_cleanup",
+                  &res.t_cleanup, "t_inactive", &res.t_inactive, "state",
+                  &res.state, "name", &name, "cwd", &cwd, "ntasks", &res.ntasks,
+                  "ncores", &res.ncores, "duration", &res.duration, "nnodes",
+                  &res.nnodes, "ranks", &ranks, "nodelist", &nodelist,
+                  "success", &res.success, "exception_occurred",
+                  &res.exception_occured, "result", &res.result, "expiration",
+                  &res.expiration) < 0) {
+    return ps_error(ps_json_unpack_err_t{});
   }
-  res.job.name = strdup(name);
-  res.job.cwd = strdup(cwd);
-  res.job.ranks = strdup(ranks);
-  res.job.nodelist = strdup(nodelist);
-
-  res.ok = true;
+  res.name = strdup(name);
+  res.cwd = strdup(cwd);
+  res.ranks = strdup(ranks);
+  res.nodelist = strdup(nodelist);
   return res;
 }
 
-flux_list_inactive_stream_res
-flux_list_inactive_stream(double since, int max_entries,
-                          std::function<void(json_t *)> callback) {
-  flux_list_inactive_stream_res res;
-  res.ok = false;
+ps_result_t<ps_success_t>
+ps_flux_list_inactive_jobs_stream(double since, int max_entries,
+                                  std::function<void(json_t *)> callback) {
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
-    res.message = "failed to open flux handle";
-    return res;
+    return ps_error(ps_flux_open_err_t{});
   }
 
   flux_future_t *f;
   json_t *c;
   int version = 0;
   if (!(c = json_pack("{s:[i]}", "states", FLUX_JOB_STATE_INACTIVE))) {
-    res.message = "failed to construct constraint object";
-    return res;
+    return ps_error(ps_json_pack_err_t{});
   }
 
   if (!(f = flux_rpc_pack(h, "job-list.list", FLUX_NODEID_ANY,
                           FLUX_RPC_STREAMING, "{s:i s:f s:[s] s:o}",
                           "max_entries", max_entries, "since", since, "attrs",
                           "all", "constraint", c))) {
-    res.message = "failed to send job-list.list RPC";
-    return res;
+    return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
 
   double t_inactive_max = since;
@@ -378,8 +324,7 @@ flux_list_inactive_stream(double since, int max_entries,
       if (errno == ENODATA) {
         break;
       }
-      res.message = "failed to unpack job-list.list response";
-      return res;
+      return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)});
     }
 
     callback(jobs);
@@ -391,106 +336,103 @@ flux_list_inactive_stream(double since, int max_entries,
     flux_future_reset(f);
   }
   flux_future_destroy(f);
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }
 
-flux_list_inactive_res flux_list_inactive(double since, int max_entries) {
-  flux_list_inactive_res res;
-  res.ok = false;
+ps_result_t<ps_flux_kvs_list_inactive_t>
+ps_flux_list_inactive_jobs(double since, int max_entries) {
   double t_inactive_max = since;
-  auto stream_res = flux_list_inactive_stream(
+  ps_flux_kvs_list_inactive_t res;
+  auto stream_res = ps_flux_list_inactive_jobs_stream(
       since, max_entries, [&t_inactive_max, &res](json_t *jobs) {
         size_t index;
         json_t *value;
         json_array_foreach(jobs, index, value) {
-          auto unpack_res = flux_list_job_unpack(value);
-          res.jobs.push_back(unpack_res);
-          if (unpack_res.ok && unpack_res.job.t_inactive > t_inactive_max) {
-            t_inactive_max = unpack_res.job.t_inactive;
+          auto unpack_res = ps_flux_job_info_unpack(value);
+          res.result.push_back(unpack_res);
+          if (ps_is_ok(unpack_res)) {
+            t_inactive_max =
+                std::max(t_inactive_max, ps_unwrap(unpack_res).t_inactive);
           }
         }
       });
-  if (!stream_res.ok) {
-    res.message = stream_res.message;
-    return res;
+  if (!ps_is_ok(stream_res)) {
+    return ps_forward_error<ps_flux_kvs_list_inactive_t>(
+        stream_res, "listing inactive jobs");
   }
-  res.ok = true;
   res.t_inactive_max = t_inactive_max;
   return res;
 }
 
-flux_list_res flux_list(std::vector<std::string> jobids) {
-  flux_list_res res;
-  res.ok = false;
-
+ps_result_t<std::vector<ps_flux_job_entry_t>>
+ps_flux_list_jobs(const std::vector<std::string> &jobids) {
   flux_future_t *f;
   json_t *c;
   int version = 0;
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
-    res.message = "failed to open flux handle";
-    return res;
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
 
+  std::vector<ps_flux_job_entry_t> res;
   for (const auto &jobid : jobids) {
     flux_jobid_t id;
     if (flux_job_id_parse(jobid.c_str(), &id) < 0) {
-      res.jobs.push_back(
-          {.ok = false, .message = "failed to parse job id: " + jobid});
+      res.push_back({.jobid = jobid,
+                     .result = ps_error(ps_flux_job_id_parse_err_t{
+                         .jobid = jobid, .msg = strerror(errno)})});
       continue;
     }
     flux_future_t *f;
     if (!(f = flux_job_list_id(h, id, "[\"all\"]"))) {
-      res.jobs.push_back(
-          {.ok = false, .message = "failed to list job: " + jobid});
+      res.push_back({.jobid = jobid,
+                     .result = ps_error(ps_flux_job_list_id_err_t{
+                         .id = id, .msg = strerror(errno)})});
       continue;
     }
     json_t *value;
     if (flux_rpc_get_unpack(f, "{s:o}", "job", &value) < 0) {
-      res.jobs.push_back(
-          {.ok = false, .message = "failed to get job list: " + jobid});
+      res.push_back({.jobid = jobid,
+                     .result = ps_error(ps_flux_rpc_get_unpack_err_t{
+                         .msg = strerror(errno)})});
       flux_future_destroy(f);
       continue;
     }
-    res.jobs.push_back(flux_list_job_unpack(value));
+    res.push_back({.jobid = jobid, .result = ps_flux_job_info_unpack(value)});
     flux_future_destroy(f);
   }
-
-  res.ok = true;
   return res;
 }
 
-flux_kvs_ls_dir_res flux_kvs_ls_dir(std::string key) {
-  flux_kvs_ls_dir_res res;
-  res.ok = false;
-
+ps_result_t<std::vector<std::string>>
+ps_flux_kvs_ls_dir(const std::string &key) {
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
-    res.message = "failed to open flux";
-    return res;
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
   flux_future_t *f;
+  if (!(f = flux_kvs_lookup(h, NULL, FLUX_KVS_READDIR, key.c_str()))) {
+    return ps_error(
+        ps_flux_kvs_lookup_err_t{.key = key, .msg = strerror(errno)});
+  }
   const flux_kvsdir_t *dir;
-  if (!(f = flux_kvs_lookup(h, NULL, FLUX_KVS_READDIR, key.c_str())) ||
-      flux_kvs_lookup_get_dir(f, &dir) < 0) {
-    res.message = "failed to lookup dir";
-    return res;
+  if (flux_kvs_lookup_get_dir(f, &dir) < 0) {
+    return ps_error(
+        ps_flux_kvs_lookup_get_dir_err_t{.key = key, .msg = strerror(errno)});
   }
 
   flux_kvsitr_t *itr;
 
   if (!(itr = flux_kvsitr_create(dir))) {
-    res.message = "failed to create itr";
     flux_future_destroy(f);
-    return res;
+    return ps_error(
+        ps_flux_kvsitr_create_err_t{.key = key, .msg = strerror(errno)});
   }
 
+  std::vector<std::string> res;
   const char *name;
   while ((name = flux_kvsitr_next(itr))) {
-    res.keys.push_back(name);
+    res.push_back(name);
   }
-
-  res.ok = true;
   return res;
 }

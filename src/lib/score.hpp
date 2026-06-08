@@ -3,106 +3,53 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include "flux.hpp"
-#include "formula.hpp"
+#include "error.hpp"
+#include "types.hpp"
 #include <flux/core.h>
 #include <map>
 #include <string>
 #include <vector>
 
+struct ps_db_get_job_entry_t {
+  std::string jobid;
+  ps_result_t<ps_job_t> result;
+};
+using ps_db_get_jobs_t = std::vector<ps_db_get_job_entry_t>;
+
+struct ps_db_get_user_entry_t {
+  int userid;
+  ps_result_t<ps_user_t> result;
+};
+using ps_db_get_users_t = std::vector<ps_db_get_user_entry_t>;
+
 ////
 
-struct job {
-  std::string jobid;
-  double score;
-};
+ps_result_t<ps_db_get_jobs_t>
+ps_db_jobs_get(const std::vector<std::string> &jobids);
 
-struct user {
-  int userid;
-  double score;
-};
+ps_result_t<double>
+ps_eval_formula_job_score(const ps_formula_t &formula,
+                          const std::map<std::string, double> &vars_over);
 
-////
+bool ps_validate_formula_job_score(const ps_formula_t &formula);
 
-struct get_job_res {
-  bool ok;
-  std::string message;
-  std::string jobid;
-  job job_obj;
-};
-struct get_jobs_res {
-  bool ok;
-  std::string message;
-  std::vector<get_job_res> res;
-};
-get_jobs_res get_jobs(std::vector<std::string> &jobids);
+ps_result_t<ps_success_t> ps_db_t_inactive_set(double t_inactive);
 
-struct eval_formula_job_score_res {
-  bool ok;
-  double result;
-};
-eval_formula_job_score_res
-eval_formula_job_score(formula formula_obj,
-                       std::map<std::string, double> &vars_over);
+ps_result_t<double> ps_db_t_inactive_get();
 
-bool validate_formula_job_score(formula formula_obj);
+ps_result_t<ps_success_t> ps_db_job_set(const ps_job_t &job);
 
-struct store_t_inactive_res {
-  bool ok;
-  std::string message;
-};
-store_t_inactive_res store_t_inactive(double t_inactive);
+ps_result_t<ps_success_t> ps_db_score_init();
 
-struct get_t_inactive_res {
-  bool ok;
-  std::string message;
-  double t_inactive;
-};
-get_t_inactive_res get_t_inactive();
+ps_result_t<ps_db_get_users_t> ps_db_users_get(const std::vector<int> &userids);
 
-struct store_job_res {
-  bool ok;
-  std::string message;
-};
-store_job_res store_job(job job_obj);
+ps_result_t<ps_success_t> ps_db_user_set(const ps_user_t &user);
 
-struct init_score_res {
-  bool ok;
-  std::string message;
-};
-init_score_res init_score();
+ps_result_t<ps_success_t> ps_db_job_update(ps_flux_job_info_t job_info,
+                                           const ps_formula_t &formula);
 
-struct get_user_res {
-  bool ok;
-  std::string message;
-  int userid;
-  user user_obj;
-};
-struct get_users_res {
-  bool ok;
-  std::string message;
-  std::vector<get_user_res> res;
-};
-get_users_res get_users(std::vector<int> &userids);
+ps_result_t<ps_db_get_users_t> ps_db_users_list();
 
-struct store_user_res {
-  bool ok;
-  std::string message;
-};
-store_user_res store_user(user user_obj);
+ps_result_t<ps_db_get_jobs_t> ps_db_jobs_list();
 
-struct update_job_res {
-  bool ok;
-  std::string message;
-};
-update_job_res update_job(flux_list_job_res job_obj, formula formula_obj);
-
-struct update_users_res {
-  bool ok;
-  std::string message;
-};
-update_users_res update_users();
-
-get_users_res list_users();
-
-get_jobs_res list_jobs();
+ps_result_t<ps_success_t> ps_db_users_update();

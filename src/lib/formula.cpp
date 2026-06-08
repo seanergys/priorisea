@@ -3,229 +3,228 @@
 // SPDX-License-Identifier: MIT
 
 #include "formula.hpp"
+#include "error.hpp"
 #include "flux.hpp"
 #include "score.hpp"
 #include "tinyexpr.h"
+#include "types.hpp"
 #include "util.hpp"
 #include <sstream>
 
-bool validate_formula_nofun(formula formula_obj) {
+static const ps_formula_t DEFAULT_JOB_PRIORITY = {
+    .name = "job_priority",
+    .expr = "prev_priority * 0.5 + user_score * 0.5",
+    .vars = {{"prev_priority", 16}, {"user_score", 16}}};
+
+static const ps_formula_t DEFAULT_JOB_SCORE = {.name = "job_score",
+                                               .expr = "16"};
+
+static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
+                                                           DEFAULT_JOB_SCORE};
+
+////
+
+bool ps_validate_formula(const ps_formula_t &formula) {
   auto *te_vars =
-      (te_variable *)malloc(formula_obj.vars.size() * sizeof(te_variable));
+      (te_variable *)malloc(formula.vars.size() * sizeof(te_variable));
   int i = 0;
-  for (const auto &[name, value] : formula_obj.vars) {
+  for (const auto &[name, value] : formula.vars) {
     te_vars[i++] = {name.c_str(), &value};
   }
   int err = 0;
-  te_expr *compiled = te_compile(formula_obj.expr.c_str(), te_vars, i, &err);
+  te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
   if (!compiled)
     return false;
   te_free(compiled);
   return true;
 }
 
-get_formulas_res get_formulas(std::vector<std::string> &names) {
-  get_formulas_res res;
-  res.ok = false;
-
+ps_result_t<ps_db_get_formulas_t>
+ps_db_formulas_get(const std::vector<std::string> &names) {
   std::vector<std::string> keys;
   for (auto formula_name : names) {
     keys.push_back("priorisea.formula." + formula_name);
   }
 
-  auto lookup_res = kvs_lookup(keys);
-  if (lookup_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to lookup decay string in KVS. Unknown error";
-    return res;
+  auto lookup_res = ps_flux_kvs_lookup(keys);
+  if (!ps_is_ok(lookup_res)) {
+    std::stringstream ss;
+    ss << "looking up formulas in flux kvs: ";
+    for (const auto &key : keys) {
+      ss << key << " ";
+    }
+    return ps_forward_error<ps_db_get_formulas_t>(lookup_res, ss.str());
   }
-
-  for (const auto &lookup_key_res : lookup_res.res) {
-    get_formula_res formula_res;
-    formula_res.ok = false;
-
+  std::vector<ps_db_get_formula_entry_t> res;
+  for (const auto &lookup_key_res : ps_unwrap(lookup_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
     std::string formula_name = (pos == std::string::npos)
                                    ? lookup_key_res.key
                                    : lookup_key_res.key.substr(pos + 1);
-    formula_res.name = formula_name;
 
-    if (lookup_key_res.err != FLUX_KVS_ERR_SUCCESS) {
-      formula_res.message = "Failed to lookup formula '" + formula_name + "'";
-      res.res.push_back(formula_res);
+    if (!ps_is_ok(lookup_key_res.value)) {
+      res.push_back(
+          {.name = formula_name,
+           .result = ps_forward_error<ps_formula_t>(
+               lookup_key_res.value,
+               "looking up formula '" + formula_name + "' in flux kvs")});
       continue;
     }
 
-    auto from_res = formula_from_str(lookup_key_res.value);
-    if (!from_res.ok) {
-      formula_res.message = from_res.message;
-      res.res.push_back(formula_res);
+    auto lkrv = lookup_key_res.value;
+    auto lookup_key_unwrap = ps_unwrap(lkrv);
+
+    auto from_res = ps_formula_from_str(lookup_key_unwrap);
+    if (!ps_is_ok(from_res)) {
+      res.push_back({.name = formula_name,
+                     .result = ps_forward_error<ps_formula_t>(
+                         from_res, "parsing stored formula '" + formula_name +
+                                       "' from flux kvs")});
       continue;
     }
 
-    formula_res.ok = true;
-    formula_res.formula_obj = from_res.formula_obj;
-    res.res.push_back(formula_res);
+    res.push_back({.name = formula_name, .result = ps_unwrap(from_res)});
   }
 
-  res.ok = true;
   return res;
 };
 
-get_formula_res get_formula(std::string name) {
-  get_formula_res res;
-  std::vector<std::string> names = {name};
-  auto get_res = get_formulas(names);
-  if (!get_res.ok) {
-    res.ok = false;
-    res.message = get_res.message;
-    return res;
+ps_result_t<ps_formula_t> ps_db_formula_get(const std::string &name) {
+  auto get_res = ps_db_formulas_get({name});
+  if (!ps_is_ok(get_res)) {
+    return ps_forward_error<ps_formula_t>(get_res, "getting formula '" + name +
+                                                       "' from flux kvs");
   }
-  return get_res.res[0];
+  auto get_unwrap = ps_unwrap(get_res);
+  return get_unwrap[0].result;
 };
 
-update_formula_res update_formula(formula &formula_obj) {
-  update_formula_res res;
-  auto formula_str = formula_to_str(formula_obj);
-  res.ok = false;
+ps_result_t<ps_success_t> ps_db_formula_set(const ps_formula_t &formula) {
+  auto formula_str = ps_formula_to_str(formula);
 
-  if (formula_obj.name == "job_score" &&
-      !validate_formula_job_score(formula_obj)) {
-    res.message = "Invalid formula.";
-    return res;
+  if (formula.name == "job_score" && !ps_validate_formula_job_score(formula)) {
+    return ps_error(ps_formula_job_score_invalid_t{.formula = formula});
   }
 
-  if (formula_obj.name == "job_priority") {
-    auto plugin_set_res = flux_plugin_set_formula(formula_str);
-    if (plugin_set_res.err != FLUX_PLUGIN_ERR_OK) {
-      res.message = plugin_set_res.err_msg;
-      return res;
+  if (formula.name == "job_priority") {
+    auto plugin_set_res = ps_flux_plugin_set_formula(formula);
+    if (!ps_is_ok(plugin_set_res)) {
+      return ps_add_context(plugin_set_res, "sending formula to flux plugin");
     }
   }
 
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
-  auto kvs_key = "priorisea.formula." + formula_obj.name;
+  auto kvs_key = "priorisea.formula." + formula.name;
   auto txn = flux_kvs_txn_create();
   if (!txn) {
-    res.message = "Failed to create KVS transaction.";
-    return res;
+    return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
   if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), formula_str.c_str()) < 0) {
-    res.message = "Failed to store formula in KVS.";
-    return res;
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = kvs_key, .value = formula_str, .msg = strerror(errno)});
   }
-  auto commit_res = kvs_commit(txn);
-  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "Failed to commit formula to KVS.";
-    return res;
+  auto commit_res = ps_flux_kvs_commit(txn);
+  if (!ps_is_ok(commit_res)) {
+    return ps_forward_error<ps_success_t>(
+        commit_res, "committing formula '" + formula.name + "' to flux kvs");
   }
-
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }
 
-reset_formulas_res reset_formulas(std::vector<std::string> &names) {
-  reset_formulas_res res;
-  res.ok = false;
+ps_result_t<ps_success_t>
+ps_db_formulas_reset(const std::vector<std::string> &names) {
   for (const auto &name : names) {
     bool found = false;
-    formula formula_obj;
+    ps_formula_t formula;
 
     for (const auto &default_formula : DEFAULT_FORMULAS) {
       if (name == default_formula.name) {
-        formula_obj = default_formula;
+        formula = default_formula;
         found = true;
         break;
       }
     }
 
     if (!found) {
-      res.message = name + " is not a valid formula";
-      return res;
+      return ps_error(ps_formula_invalid_name_t{.name = name});
     }
 
-    auto update_res = update_formula(formula_obj);
-    if (!update_res.ok) {
-      res.message = update_res.message;
-      return res;
+    auto update_res = ps_db_formula_set(formula);
+    if (!ps_is_ok(update_res)) {
+      return ps_forward_error<ps_success_t>(
+          update_res, "setting formula '" + name + "' in database");
     }
   }
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }
 
-init_formulas_res init_formulas() {
-  init_formulas_res res;
-  res.ok = false;
-
+ps_result_t<ps_success_t> ps_db_formulas_init() {
   std::vector<std::string> default_formulas_name;
   for (const auto &default_formula : DEFAULT_FORMULAS) {
     default_formulas_name.push_back(default_formula.name);
   }
-  auto get_res = get_formulas(default_formulas_name);
-  if (!get_res.ok) {
-    res.message = get_res.message;
-    return res;
+
+  auto get_res = ps_db_formulas_get(default_formulas_name);
+  if (!ps_is_ok(get_res)) {
+    return ps_forward_error<ps_success_t>(
+        get_res, "getting default formulas from database");
   }
+  auto get_unwrap = ps_unwrap(get_res);
 
   std::vector<std::string> missing_formulas;
-  for (const auto &get_formula_res : get_res.res) {
-    if (!get_formula_res.ok) {
+  for (const auto &get_formula_res : get_unwrap) {
+    if (!(ps_is_ok(get_formula_res.result))) {
       missing_formulas.push_back(get_formula_res.name);
     }
   }
 
-  auto reset_res = reset_formulas(missing_formulas);
-  if (!reset_res.ok) {
-    res.message = reset_res.message;
-    return res;
+  auto reset_res = ps_db_formulas_reset(missing_formulas);
+  if (!ps_is_ok(reset_res)) {
+    std::stringstream ss;
+    ss << "resetting missing formulas in database: ";
+    for (const auto &formula : missing_formulas) {
+      ss << formula << " ";
+    }
+    return ps_forward_error<ps_success_t>(reset_res, ss.str());
   }
 
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }
 
-std::string formula_to_str(formula formula_obj) {
+std::string ps_formula_to_str(const ps_formula_t &formula) {
   std::stringstream ss;
-  ss << formula_obj.name << "$" << formula_obj.expr;
-  for (auto &[name, value] : formula_obj.vars) {
+  ss << formula.name << "$" << formula.expr;
+  for (auto &[name, value] : formula.vars) {
     ss << "$";
     ss << name << ":" << value;
   }
   return ss.str();
 }
 
-formula_from_str_res formula_from_str(std::string formula_str) {
-  formula_from_str_res res;
-  res.ok = false;
-
+ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str) {
+  ps_formula_t res;
   if (formula_str.empty()) {
-    res.message = "formula string is empty";
-    return res;
+    return ps_error(ps_str_empty_t{});
   }
 
   std::stringstream ss(formula_str);
   std::string t;
 
   if (!getline(ss, t, '$')) {
-    res.ok = false;
-    res.message = "name is missing";
-    return res;
+    return ps_error(ps_formula_name_missing_t{});
   }
-  res.formula_obj.name = t;
+  res.name = t;
 
   if (!getline(ss, t, '$')) {
-    res.ok = false;
-    res.message = "expr is missing";
-    return res;
+    return ps_error(ps_formula_expr_missing_t{.name = res.name});
   }
-  res.formula_obj.expr = t;
+  res.expr = t;
 
   while (getline(ss, t, '$')) {
     auto pos = t.find(':');
     if (pos == std::string::npos) {
-      res.message = "value is missing";
-      return res;
+      return ps_error(ps_formula_var_value_missing_t{.name = res.name});
     }
 
     auto name_str = t.substr(0, pos);
@@ -233,26 +232,19 @@ formula_from_str_res formula_from_str(std::string formula_str) {
 
     double value = 0;
     if (!parse_double(value_str, value)) {
-      res.message = "value `" + value_str + "` is not a valid double";
-      return res;
+      return ps_error(ps_parse_double_err_t{.double_str = value_str});
     }
 
-    res.formula_obj.vars[name_str] = value;
+    res.vars[name_str] = value;
   }
-
-  res.ok = true;
   return res;
 }
 
-get_formulas_res list_formulas() {
-  get_formulas_res res;
-  res.ok = false;
-
-  auto ls_res = flux_kvs_ls_dir("priorisea.formula");
-  if (!ls_res.ok) {
-    res.message = ls_res.message;
-    return res;
+ps_result_t<std::vector<ps_db_get_formula_entry_t>> ps_db_formulas_list() {
+  auto ls_res = ps_flux_kvs_ls_dir("priorisea.formula");
+  if (!ps_is_ok(ls_res)) {
+    return ps_forward_error<ps_db_get_formulas_t>(
+        ls_res, "listing formulas in flux kvs");
   }
-
-  return get_formulas(ls_res.keys);
+  return ps_db_formulas_get(ps_unwrap(ls_res));
 }

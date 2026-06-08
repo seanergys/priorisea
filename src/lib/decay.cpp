@@ -3,12 +3,21 @@
 // SPDX-License-Identifier: MIT
 
 #include "decay.hpp"
+#include "error.hpp"
 #include "flux.hpp"
 #include "util.hpp"
 #include <flux/core.h>
 #include <sstream>
 
-std::string decay_to_str(decay &decay) {
+static const ps_decay_t DEFAULT_DECAY = {
+    {.duration = 86400, .priority = 1},
+    {.duration = 604800, .priority = 0.5},
+    {.duration = 1209600, .priority = 0.25},
+};
+
+////
+
+std::string ps_decay_to_str(const ps_decay_t &decay) {
   std::stringstream ss;
   bool first = true;
   for (auto &d : decay) {
@@ -22,22 +31,18 @@ std::string decay_to_str(decay &decay) {
   return ss.str();
 }
 
-decay_from_str_res decay_from_str(std::string decay_str) {
-  decay_from_str_res res;
-  res.ok = false;
-
+ps_result_t<ps_decay_t> ps_decay_from_str(const std::string &decay_str) {
   if (decay_str.empty()) {
-    res.message = "decay string is empty";
-    return res;
+    return ps_error(ps_str_empty_t{});
   }
 
+  ps_decay_t res;
   std::stringstream ss(decay_str);
   std::string t;
   while (getline(ss, t, ',')) {
     auto pos = t.find(':');
     if (pos == std::string::npos) {
-      res.message = "priority is missing";
-      return res;
+      return ps_error(ps_decay_priority_missing_t{});
     }
 
     auto duration_str = t.substr(0, pos);
@@ -45,104 +50,63 @@ decay_from_str_res decay_from_str(std::string decay_str) {
 
     int duration = 0;
     if (!parse_int(duration_str, duration)) {
-      res.message = "duration `" + duration_str + "` is not a valid integer";
-      return res;
+      return ps_error(ps_parse_int_err_t{.int_str = duration_str});
     }
 
     if (duration < 0) {
-      res.message = "duration `" + duration_str + "` is not a positive integer";
-      return res;
+      return ps_error(ps_decay_duration_invalid_t{.value = duration});
     }
 
     double priority = 0;
     if (!parse_double(priority_str, priority)) {
-      res.message = "priority `" + priority_str + "` is not a valid double";
-      return res;
+      return ps_error(ps_parse_double_err_t{.double_str = priority_str});
     }
 
-    res.decay_obj.push_back({.duration = duration, .priority = priority});
+    res.push_back({.duration = duration, .priority = priority});
   }
-  res.ok = true;
   return res;
 }
 
-store_decay_res store_decay(decay decay) {
-  store_decay_res res;
-  res.ok = false;
-
-  std::string decay_str = decay_to_str(decay);
-
+ps_result_t<ps_success_t> ps_db_decay_set(const ps_decay_t &decay) {
+  std::string decay_str = ps_decay_to_str(decay);
   auto txn = flux_kvs_txn_create();
   if (!txn) {
-    res.message = "Failed to create KVS transaction.";
-    return res;
+    return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
-  if (flux_kvs_txn_put(txn, 0, "priorisea.decay", decay_str.c_str()) < 0) {
-    res.message = "Failed to store decay parameters in KVS.";
-    return res;
+  auto key = "priorisea.decay";
+  auto value = decay_str.c_str();
+  if (flux_kvs_txn_put(txn, 0, key, value) < 0) {
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = key, .value = value, .msg = strerror(errno)});
   }
-  auto commit_res = kvs_commit(txn);
-  if (commit_res != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "Failed to commit decay parameters to KVS.";
-    return res;
-  }
-  res.ok = true;
-  return res;
+  return ps_flux_kvs_commit(txn);
 }
 
-get_decay_res get_decay() {
-  get_decay_res res;
-  res.ok = false;
+ps_result_t<ps_decay_t> ps_db_decay_get() {
+  auto lookup_res = ps_flux_kvs_lookup("priorisea.decay");
+  if (!ps_is_ok(lookup_res)) {
+    return ps_forward_error<ps_decay_t>(lookup_res,
+                                        "getting stored decay value");
+  }
+  auto decay_str = ps_unwrap(lookup_res);
 
-  auto lookup_res = kvs_lookup({"priorisea.decay"});
-  if (lookup_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to lookup decay string in KVS. Unknown error";
-    return res;
+  auto parse_res = ps_decay_from_str(decay_str);
+  if (!ps_is_ok(parse_res)) {
+    return ps_forward_error<ps_decay_t>(parse_res,
+                                        "parsing stored decay value");
   }
-  auto lookup_key_res = lookup_res.res[0];
-  if (lookup_key_res.err != FLUX_KVS_ERR_SUCCESS) {
-    res.message = "failed to lookup decay string in KVS. Unknown error";
-    return res;
-  }
-  auto decay_str = lookup_key_res.value;
-
-  auto parse_res = decay_from_str(decay_str);
-  if (!parse_res.ok) {
-    res.message = parse_res.message;
-    return res;
-  }
-  res.ok = true;
-  res.decay_obj = parse_res.decay_obj;
-  return res;
+  return ps_unwrap(parse_res);
 }
 
-bool is_decay_stored() { return get_decay().ok; }
+bool ps_db_is_decay() { return ps_is_ok(ps_db_decay_get()); }
 
-reset_decay_res reset_decay() {
-  reset_decay_res res;
-  res.ok = false;
-  auto store_res = store_decay(DEFAULT_DECAY);
-  if (!store_res.ok) {
-    res.message = store_res.message;
-    return res;
-  }
-  res.ok = true;
-  return res;
+ps_result_t<ps_success_t> ps_db_decay_reset() {
+  return ps_db_decay_set(DEFAULT_DECAY);
 }
 
-init_decay_res init_decay() {
-  init_decay_res res;
-  res.ok = false;
-  if (is_decay_stored()) {
-    res.ok = true;
-    return res;
+ps_result_t<ps_success_t> ps_db_decay_init() {
+  if (!ps_db_is_decay()) {
+    return ps_db_decay_reset();
   }
-
-  auto reset_res = reset_decay();
-  if (!reset_res.ok) {
-    res.message = reset_res.message;
-    return res;
-  }
-  res.ok = true;
-  return res;
+  return ps_success_t{};
 }

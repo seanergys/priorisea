@@ -3,4 +3,5 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-int run_score(int argc, char *argv[]);
+#include <CLI/CLI.hpp>
+void register_timewin_commands(CLI::App *app);

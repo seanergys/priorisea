@@ -3,77 +3,35 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include <map>
+#include "error.hpp"
+#include "types.hpp"
 #include <string>
 #include <vector>
 
-////
-
-struct formula {
+struct ps_db_get_formula_entry_t {
   std::string name;
-  std::string expr;
-  std::map<std::string, double> vars;
+  ps_result_t<ps_formula_t> result;
 };
-
-static const formula DEFAULT_JOB_PRIORITY = {
-    .name = "job_priority",
-    .expr = "prev_priority * 0.5 + user_score * 0.5",
-    .vars = {{"prev_priority", 16}, {"user_score", 16}}};
-
-static const formula DEFAULT_JOB_SCORE = {.name = "job_score", .expr = "16"};
-
-static const std::vector<formula> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
-                                                      DEFAULT_JOB_SCORE};
+using ps_db_get_formulas_t = std::vector<ps_db_get_formula_entry_t>;
 
 ////
 
-bool validate_formula_nofun(formula formula_obj);
+bool ps_validate_formula(const ps_formula_t &formula);
 
-struct get_formula_res {
-  bool ok;
-  std::string message;
-  std::string name;
-  formula formula_obj;
-};
-get_formula_res get_formula(std::string name);
+ps_result_t<ps_db_get_formulas_t>
+ps_db_formulas_get(const std::vector<std::string> &names);
 
-struct get_formulas_res {
-  bool ok;
-  std::string message;
-  std::vector<get_formula_res> res;
-};
-get_formulas_res get_formulas(std::vector<std::string> &names);
+ps_result_t<ps_formula_t> ps_db_formula_get(const std::string &name);
 
-struct update_formula_res {
-  bool ok;
-  std::string message;
-};
-update_formula_res update_formula(formula &formula_obj);
+ps_result_t<ps_success_t> ps_db_formula_set(const ps_formula_t &formula);
 
-struct reset_formulas_res {
-  bool ok;
-  std::string message;
-};
+ps_result_t<ps_success_t>
+ps_db_formulas_reset(const std::vector<std::string> &names);
 
-reset_formulas_res reset_formulas(std::vector<std::string> &names);
+ps_result_t<ps_success_t> ps_db_formulas_init();
 
-struct init_formulas_res {
-  bool ok;
-  std::string message;
-};
-init_formulas_res init_formulas();
+std::string ps_formula_to_str(const ps_formula_t &formula);
 
-get_formulas_res get_formulas(std::vector<std::string> &names);
+ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str);
 
-get_formula_res get_formula(std::string name);
-
-std::string formula_to_str(formula formula_obj);
-
-struct formula_from_str_res {
-  bool ok;
-  std::string message;
-  formula formula_obj;
-};
-formula_from_str_res formula_from_str(std::string formula_str);
-
-get_formulas_res list_formulas();
+ps_result_t<ps_db_get_formulas_t> ps_db_formulas_list();

@@ -8,13 +8,15 @@ priorisea_SOURCES = main.cpp \
     timewin.cpp timewin.hpp \
     score.cpp score.hpp \
     decay.cpp  decay.hpp \
-    init.cpp init.hpp
+    init.cpp init.hpp \
+    util.hpp
 
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
     -I$(top_srcdir)/external/croncpp/include \
+    -I$(top_srcdir)/external/CLI11/include \
     -I$(top_srcdir)/src \
-    -I$(top_srcdir)/src/cmd/ \
+    -I$(top_srcdir)/src/cli/ \
     $(JANSSON_CFLAGS) \
     $(SEANERBUS_CFLAGS) \
     $(FLUX_CORE_CFLAGS)

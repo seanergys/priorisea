@@ -3,56 +3,20 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "error.hpp"
+#include "types.hpp"
 #include <string>
-#include <vector>
 
-struct decay_one {
-  int duration;
-  double priority;
-};
+std::string ps_decay_to_str(const ps_decay_t &decay);
 
-typedef std::vector<decay_one> decay;
+ps_result_t<ps_decay_t> ps_decay_from_str(const std::string &decay_str);
 
-const decay DEFAULT_DECAY = {
-    {.duration = 86400, .priority = 1},
-    {.duration = 604800, .priority = 0.5},
-    {.duration = 1209600, .priority = 0.25},
-};
+ps_result_t<ps_success_t> ps_db_decay_set(const ps_decay_t &decay);
 
-////
+ps_result_t<ps_decay_t> ps_db_decay_get();
 
-std::string decay_to_str(decay &decay);
+bool ps_db_is_decay();
 
-struct decay_from_str_res {
-  bool ok;
-  std::string message;
-  decay decay_obj;
-};
-decay_from_str_res decay_from_str(std::string decay_str);
+ps_result_t<ps_success_t> ps_db_decay_reset();
 
-struct store_decay_res {
-  bool ok;
-  std::string message;
-};
-store_decay_res store_decay(decay decay);
-
-struct get_decay_res {
-  bool ok;
-  std::string message;
-  decay decay_obj;
-};
-get_decay_res get_decay();
-
-bool is_decay_stored();
-
-struct reset_decay_res {
-  bool ok;
-  std::string message;
-};
-reset_decay_res reset_decay();
-
-struct init_decay_res {
-  bool ok;
-  std::string message;
-};
-init_decay_res init_decay();
+ps_result_t<ps_success_t> ps_db_decay_init();

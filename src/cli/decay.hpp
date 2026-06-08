@@ -3,4 +3,5 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-int run_formula(int argc, char *argv[]);
+#include <CLI/CLI.hpp>
+void register_decay_commands(CLI::App *app);
