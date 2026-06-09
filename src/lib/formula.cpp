@@ -5,7 +5,6 @@
 #include "formula.hpp"
 #include "error.hpp"
 #include "flux.hpp"
-#include "score.hpp"
 #include "tinyexpr.h"
 #include "types.hpp"
 #include "util.hpp"
@@ -16,27 +15,51 @@ static const ps_formula_t DEFAULT_JOB_PRIORITY = {
     .expr = "prev_priority * 0.5 + user_score * 0.5",
     .vars = {{"prev_priority", 16}, {"user_score", 16}}};
 
-static const ps_formula_t DEFAULT_JOB_SCORE = {.name = "job_score",
-                                               .expr = "16"};
+static const ps_formula_t DEFAULT_JOB_SCORE = {
+    .name = "job_score",
+    .expr = "duration_ratio + timewin_score",
+    .vars = {{"timewin_score", 0}, {"duration_ratio", 0}}};
 
 static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
                                                            DEFAULT_JOB_SCORE};
 
 ////
 
-bool ps_validate_formula(const ps_formula_t &formula) {
-  auto *te_vars =
-      (te_variable *)malloc(formula.vars.size() * sizeof(te_variable));
-  int i = 0;
+static double min(double a, double b) { return a < b ? a : b; }
+static double max(double a, double b) { return a > b ? a : b; }
+ps_result_t<double>
+ps_eval_formula(const ps_formula_t &formula,
+                const std::map<std::string, double> &vars_over) {
+  std::map<std::string, double> vars_merged = vars_over;
   for (const auto &[name, value] : formula.vars) {
+    if (vars_merged.find(name) != vars_merged.end())
+      continue;
+    vars_merged[name] = value;
+  }
+
+  auto *te_vars =
+      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
+  int i = 0;
+
+  for (const auto &[name, value] : vars_merged) {
     te_vars[i++] = {name.c_str(), &value};
   }
+  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
+  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
+
   int err = 0;
   te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
-  if (!compiled)
-    return false;
+  if (!compiled) {
+    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
+  }
+  auto result = te_eval(compiled);
   te_free(compiled);
-  return true;
+  return result;
+}
+
+bool ps_validate_formula(const ps_formula_t &formula) {
+  std::map<std::string, double> vars;
+  return (ps_is_ok(ps_eval_formula(formula, vars)));
 }
 
 ps_result_t<ps_db_get_formulas_t>
@@ -100,10 +123,8 @@ ps_result_t<ps_formula_t> ps_db_formula_get(const std::string &name) {
 };
 
 ps_result_t<ps_success_t> ps_db_formula_set(const ps_formula_t &formula) {
-  auto formula_str = ps_formula_to_str(formula);
-
-  if (formula.name == "job_score" && !ps_validate_formula_job_score(formula)) {
-    return ps_error(ps_formula_job_score_invalid_t{.formula = formula});
+  if (!ps_validate_formula(formula)) {
+    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
   }
 
   if (formula.name == "job_priority") {
@@ -116,6 +137,7 @@ ps_result_t<ps_success_t> ps_db_formula_set(const ps_formula_t &formula) {
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
   auto kvs_key = "priorisea.formula." + formula.name;
+  auto formula_str = ps_formula_to_str(formula);
   auto txn = flux_kvs_txn_create();
   if (!txn) {
     return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});

@@ -7,7 +7,6 @@
 #include "lib/score.hpp"
 #include "lib/types.hpp"
 #include "lib/util.hpp"
-#include "tinyexpr.h"
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -22,46 +21,6 @@
 
 static ps_formula_t priority_formula;
 static ps_score_map_t scores;
-
-static double min(double a, double b) { return a < b ? a : b; }
-static double max(double a, double b) { return a > b ? a : b; }
-
-////
-
-static ps_result_t<double>
-eval_formula_priority(const ps_formula_t &formula,
-                      const std::map<std::string, double> &vars_over) {
-  std::map<std::string, double> vars_merged = vars_over;
-  for (const auto &[name, value] : formula.vars) {
-    if (vars_merged.find(name) != vars_merged.end())
-      continue;
-    vars_merged[name] = value;
-  }
-
-  auto *te_vars =
-      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
-  int i = 0;
-
-  for (const auto &[name, value] : vars_merged) {
-    te_vars[i++] = {name.c_str(), &value};
-  }
-  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
-  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
-
-  int err = 0;
-  te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
-  if (!compiled) {
-    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
-  }
-  auto result = te_eval(compiled);
-  te_free(compiled);
-  return result;
-}
-
-static bool validate_formula_priority(const ps_formula_t &formula) {
-  std::map<std::string, double> vars;
-  return (ps_is_ok(eval_formula_priority(formula, vars)));
-}
 
 static void init_formula() {
   auto get_res = ps_db_formula_get("job_priority");
@@ -114,7 +73,7 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
   auto formula = ps_unwrap(from_res);
-  if (!validate_formula_priority(formula)) {
+  if (!ps_validate_formula(formula)) {
     auto errmsg = fmt::format("invalid formula: {}", formula.expr);
     flux_respond_error(h, msg, EINVAL, errmsg.c_str());
     return;
@@ -239,7 +198,7 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
     vars_over["user_score"] = static_cast<double>(scores_it->second);
   }
 
-  auto eval_res = eval_formula_priority(priority_formula, vars_over);
+  auto eval_res = ps_eval_formula(priority_formula, vars_over);
   if (!ps_is_ok(eval_res)) {
     flux_log_error(h, "formula evaluation failed");
     return flux_jobtap_priority_unavail(p, args);

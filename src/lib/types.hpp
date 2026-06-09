@@ -14,7 +14,7 @@ struct ps_timewin_t {
   std::string name;
   std::string cron;
   int duration;
-  double priority;
+  double score;
 };
 
 //// formula

@@ -59,9 +59,9 @@ ps_result_t<std::string> ps_flux_kvs_lookup(const std::string &key);
 
 ps_result_t<ps_flux_job_info_t> ps_flux_job_info_unpack(json_t *value);
 
-ps_result_t<ps_success_t>
-ps_flux_list_inactive_jobs_stream(double since, int max_entries,
-                                  std::function<void(json_t *)> callback);
+ps_result_t<ps_success_t> ps_flux_list_inactive_jobs_stream(
+    double since, int max_entries,
+    std::function<ps_result_t<ps_success_t>(json_t *)> callback);
 
 ps_result_t<ps_flux_kvs_list_inactive_t>
 ps_flux_list_inactive_jobs(double since, int max_entries);

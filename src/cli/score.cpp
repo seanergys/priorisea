@@ -7,6 +7,7 @@
 #include "lib/flux.hpp"
 #include "lib/formula.hpp"
 #include "lib/score.hpp"
+#include "lib/timewin.hpp"
 #include "lib/types.hpp"
 #include "util.hpp"
 #include <flux/core.h>
@@ -50,12 +51,16 @@ static void register_update_command(CLI::App *app) {
     }
 
     std::vector<ps_flux_job_info_t> jobs_to_update;
+
+    // retrieve new jobs
     if (opts->new_f) {
+      // retrieve the last inactive time threshold
       auto get_t_inactive_res = ps_db_t_inactive_get();
       if (!ps_is_ok(get_t_inactive_res)) {
         return cli_error(get_t_inactive_res);
       }
 
+      // retrieve new inactive jobs since the last threshold
       auto list_inactive_res =
           ps_flux_list_inactive_jobs(ps_unwrap(get_t_inactive_res), 10);
       if (!ps_is_ok(list_inactive_res)) {
@@ -68,6 +73,9 @@ static void register_update_command(CLI::App *app) {
         }
       }
 
+      // store the new inactive time threshold
+      // TODO: if there is an error afterward, the jobs will not be considered
+      // "new" but will not be updated
       if (!jobs_to_update.empty()) {
         auto store_t_inactive_res =
             ps_db_t_inactive_set(ps_unwrap(list_inactive_res).t_inactive_max);
@@ -77,6 +85,7 @@ static void register_update_command(CLI::App *app) {
       }
     }
 
+    // retrieve the specified jobs to update
     if (!opts->jobids.empty()) {
       auto list_res = ps_flux_list_jobs(opts->jobids);
       if (!ps_is_ok(list_res)) {
@@ -91,10 +100,26 @@ static void register_update_command(CLI::App *app) {
       }
     }
 
+    // retrieve all timewins
+    std::vector<ps_timewin_t> timewins;
+    auto get_timewins_res = ps_db_timewins_list();
+    // if no timewin is set, this will return an error
+    // TODO: differentiate no data and error
+    if (ps_is_ok(get_timewins_res)) {
+      auto get_timewins = ps_unwrap(get_timewins_res);
+      for (const auto &get_timewin : get_timewins) {
+        if (!ps_is_ok(get_timewin.result)) {
+          return cli_error(get_timewin.result);
+        }
+        timewins.push_back(ps_unwrap(get_timewin.result));
+      }
+    }
+
     // TODO: --new and specifying jobid can both find the
     // same job twice, thus updating it twice
     for (const auto &list_job : jobs_to_update) {
-      auto update_res = ps_db_job_update(list_job, ps_unwrap(get_formula_res));
+      auto update_res =
+          ps_db_job_update(list_job, ps_unwrap(get_formula_res), timewins);
       if (!ps_is_ok(update_res)) {
         return cli_error(update_res);
       }

@@ -52,7 +52,9 @@ Example: `formula set job_priority "prev_priority * 2" --var prev_priority 5`
 
 __Time ranges__
 
-Cron expressions are used to define time ranges. The recurring windows last for `duration` seconds each time the cron expression is evaluated. Cron expressions must be __6 fields expressions__.
+A cron expression is a [croncpp](https://github.com/mariusbancila/croncpp) expression.
+
+Cron expressions are used to define time ranges. The recurring windows last for `duration` seconds each time the cron expression is evaluated.
 
 - `timewin list` _list time windows_
 - `timewin get <range_name1> <range_name2> ...` _get time windows_

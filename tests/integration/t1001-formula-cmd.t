@@ -5,7 +5,9 @@ test_description="test seanergys formula subcommand"
 . `dirname $0`/sharness.sh
 
 PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
-DEFAULT_JOB_SCORE_FORMULA="16"
+DEFAULT_JOB_SCORE_FORMULA="duration_ratio + timewin_score"
+DEFAULT_JOB_SCORE_VARS_DURATION_RATIO=0.0
+DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE=0.0
 DEFAULT_JOB_PRIORITY_FORMULA="prev_priority * 0.5 + user_score * 0.5"
 DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY=16.0
 DEFAULT_JOB_PRIORITY_VARS_USER_SCORE=16.0
@@ -26,7 +28,9 @@ test_expect_success 'check default formulas' '
 priorisea formula get job_score job_priority --json >out &&
 
 jq -e "
-  .job_score.expr == \"${DEFAULT_JOB_SCORE_FORMULA}\"
+  .job_score.expr == \"${DEFAULT_JOB_SCORE_FORMULA}\" and
+  .job_score.vars.duration_ratio == ${DEFAULT_JOB_SCORE_VARS_DURATION_RATIO} and
+  .job_score.vars.timewin_score == ${DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE}
 " out &&
 
 jq -e "

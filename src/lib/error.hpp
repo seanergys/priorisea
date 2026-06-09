@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include "types.hpp"
 #include "util.hpp"
 #include <flux/core.h>
 #include <iostream>
 #include <string>
 #include <variant>
+#include <vector>
 
 //// generic
 
@@ -20,7 +20,9 @@ struct ps_parse_int_err_t {
 struct ps_parse_double_err_t {
   std::string double_str;
 };
-struct ps_json_unpack_err_t {};
+struct ps_json_unpack_err_t {
+  std::string dumps;
+};
 struct ps_json_pack_err_t {};
 
 //// flux
@@ -108,19 +110,13 @@ struct ps_formula_var_value_missing_t {
   std::string name;
 };
 
-//// score
-
-struct ps_formula_job_score_invalid_t {
-  ps_formula_t formula;
-};
-
 //// timewin
 
 struct ps_timewin_name_missing_t {};
 struct ps_timewin_duration_missing_t {};
 struct ps_timewin_cron_missing_t {};
-struct ps_timewin_priority_missing_t {};
-struct ps_timewin_priority_parse_err_t {};
+struct ps_timewin_score_missing_t {};
+struct ps_timewin_score_parse_err_t {};
 struct ps_timewin_duration_parse_err_t {};
 struct ps_cron_parse_err_t {
   std::string cron;
@@ -131,31 +127,30 @@ struct ps_timewin_neg_duration_t {
 
 ////
 
-using ps_error_kind_t = std::variant<
-    ps_str_empty_t, ps_parse_int_err_t, ps_parse_double_err_t,
-    ps_json_unpack_err_t, ps_json_pack_err_t,
+using ps_error_kind_t =
+    std::variant<ps_str_empty_t, ps_parse_int_err_t, ps_parse_double_err_t,
+                 ps_json_unpack_err_t, ps_json_pack_err_t,
 
-    ps_flux_open_err_t, ps_flux_future_get_err_t, ps_flux_txn_create_err_t,
-    ps_flux_kvs_commit_err_t, ps_flux_kvs_txn_create_err_t,
-    ps_flux_kvs_txn_unlink_err_t, ps_flux_kvs_get_err_t,
-    ps_flux_kvs_lookup_err_t, ps_flux_kvs_lookup_get_err_t,
-    ps_flux_rpc_get_unpack_err_t, ps_flux_rpc_pack_err_t, ps_flux_rpc_err_t,
-    ps_flux_job_id_parse_err_t, ps_flux_job_list_id_err_t,
-    ps_flux_kvs_lookup_get_dir_err_t, ps_flux_kvsitr_create_err_t,
-    ps_flux_kvs_txn_put_err_t,
+                 ps_flux_open_err_t, ps_flux_future_get_err_t,
+                 ps_flux_txn_create_err_t, ps_flux_kvs_commit_err_t,
+                 ps_flux_kvs_txn_create_err_t, ps_flux_kvs_txn_unlink_err_t,
+                 ps_flux_kvs_get_err_t, ps_flux_kvs_lookup_err_t,
+                 ps_flux_kvs_lookup_get_err_t, ps_flux_rpc_get_unpack_err_t,
+                 ps_flux_rpc_pack_err_t, ps_flux_rpc_err_t,
+                 ps_flux_job_id_parse_err_t, ps_flux_job_list_id_err_t,
+                 ps_flux_kvs_lookup_get_dir_err_t, ps_flux_kvsitr_create_err_t,
+                 ps_flux_kvs_txn_put_err_t,
 
-    ps_decay_priority_missing_t, ps_decay_duration_invalid_t,
+                 ps_decay_priority_missing_t, ps_decay_duration_invalid_t,
 
-    ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
-    ps_formula_name_missing_t, ps_formula_expr_missing_t,
-    ps_formula_var_value_missing_t,
+                 ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
+                 ps_formula_name_missing_t, ps_formula_expr_missing_t,
+                 ps_formula_var_value_missing_t,
 
-    ps_formula_job_score_invalid_t,
-
-    ps_timewin_name_missing_t, ps_timewin_duration_missing_t,
-    ps_timewin_cron_missing_t, ps_timewin_priority_missing_t,
-    ps_timewin_priority_parse_err_t, ps_timewin_duration_parse_err_t,
-    ps_cron_parse_err_t, ps_timewin_neg_duration_t>;
+                 ps_timewin_name_missing_t, ps_timewin_duration_missing_t,
+                 ps_timewin_cron_missing_t, ps_timewin_score_missing_t,
+                 ps_timewin_score_parse_err_t, ps_timewin_duration_parse_err_t,
+                 ps_cron_parse_err_t, ps_timewin_neg_duration_t>;
 
 struct ps_error_t {
   std::vector<std::string> context;
@@ -199,7 +194,7 @@ ps_result_t<To> ps_forward_error(const ps_result_t<From> &r,
 }
 
 template <typename E>
-ps_result_t<E> ps_add_context(const ps_result_t<E> &r, std::string ctx = "") {
+ps_result_t<E> ps_add_context(const ps_result_t<E> &r, std::string ctx) {
   return ps_forward_error<E>(r, ctx);
 }
 

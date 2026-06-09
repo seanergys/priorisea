@@ -18,6 +18,10 @@ using ps_db_get_formulas_t = std::vector<ps_db_get_formula_entry_t>;
 
 bool ps_validate_formula(const ps_formula_t &formula);
 
+ps_result_t<double>
+ps_eval_formula(const ps_formula_t &formula,
+                const std::map<std::string, double> &vars_over);
+
 ps_result_t<ps_db_get_formulas_t>
 ps_db_formulas_get(const std::vector<std::string> &names);
 

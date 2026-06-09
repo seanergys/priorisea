@@ -3,20 +3,18 @@
 // SPDX-License-Identifier: MIT
 
 #include "score.hpp"
+#include "croncpp.h"
 #include "decay.hpp"
 #include "error.hpp"
 #include "flux.hpp"
-#include "tinyexpr.h"
+#include "formula.hpp"
+#include "timewin.hpp"
 #include "types.hpp"
 #include "util.hpp"
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <sstream>
-
-static double min(double a, double b) { return a < b ? a : b; }
-static double max(double a, double b) { return a > b ? a : b; }
-
-////
 
 ps_result_t<ps_db_get_jobs_t>
 ps_db_jobs_get(const std::vector<std::string> &jobids) {
@@ -70,42 +68,6 @@ ps_db_jobs_get(const std::vector<std::string> &jobids) {
   }
   return res;
 };
-
-ps_result_t<double>
-ps_eval_formula_job_score(const ps_formula_t &formula,
-                          const std::map<std::string, double> &vars_over) {
-
-  std::map<std::string, double> vars_merged = vars_over;
-  for (const auto &[name, value] : formula.vars) {
-    if (vars_merged.find(name) != vars_merged.end())
-      continue;
-    vars_merged[name] = value;
-  }
-
-  auto *te_vars =
-      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
-  int i = 0;
-
-  for (const auto &[name, value] : vars_merged) {
-    te_vars[i++] = {name.c_str(), &value};
-  }
-  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
-  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
-
-  int err = 0;
-  te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
-  if (!compiled) {
-    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
-  }
-  auto result = te_eval(compiled);
-  te_free(compiled);
-  return result;
-}
-
-bool ps_validate_formula_job_score(const ps_formula_t &formula) {
-  std::map<std::string, double> vars_over;
-  return ps_is_ok(ps_eval_formula_job_score(formula, vars_over));
-}
 
 ps_result_t<ps_success_t> ps_db_t_inactive_set(double t_inactive) {
   auto txn = flux_kvs_txn_create();
@@ -226,10 +188,29 @@ ps_result_t<ps_success_t> ps_db_user_set(const ps_user_t &user) {
   return ps_flux_kvs_commit(txn);
 }
 
-ps_result_t<ps_success_t> ps_db_job_update(ps_flux_job_info_t job_info,
-                                           const ps_formula_t &formula) {
+ps_result_t<ps_success_t>
+ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
+                 const std::vector<ps_timewin_t> &timewins) {
+
   std::map<std::string, double> vars_over;
-  auto eval_res = ps_eval_formula_job_score(formula, vars_over);
+
+  auto timewin_score = 0;
+  for (const auto &timewin : timewins) {
+    auto cron = cron::make_cron(timewin.cron);
+    auto prev_timestamp = ps_cron_prev(cron, job_info.t_submit);
+    if (prev_timestamp + timewin.duration > job_info.t_submit) {
+      timewin_score += timewin.score;
+    }
+  }
+  vars_over["timewin_score"] = timewin_score;
+
+  auto real_duration = job_info.t_cleanup - job_info.t_run;
+  auto duration_ratio = real_duration / job_info.duration;
+  if (!std::isinf(duration_ratio)) {
+    vars_over["duration_ratio"] = duration_ratio;
+  }
+
+  auto eval_res = ps_eval_formula(formula, vars_over);
   if (!ps_is_ok(eval_res)) {
     return ps_forward_error<ps_success_t>(
         eval_res, "evaluating formula for job " + std::to_string(job_info.id));
@@ -324,8 +305,8 @@ ps_result_t<ps_success_t> ps_db_users_update() {
         json_array_foreach(jobs, index, value) {
           auto unpack_res = ps_flux_job_info_unpack(value);
           if (!ps_is_ok(unpack_res)) {
-            std::cerr << "Error: failed to unpack job" << '\n';
-            continue;
+            return ps_forward_error<ps_success_t>(unpack_res,
+                                                  "unpacking job info");
           }
           auto unpack_value = ps_unwrap(unpack_res);
           // find the index of the decay step that applies to this job
@@ -347,16 +328,20 @@ ps_result_t<ps_success_t> ps_db_users_update() {
         }
         auto get_jobs_res = ps_db_jobs_get(jobids);
         if (!ps_is_ok(get_jobs_res)) {
-          std::cerr << "Error: failed to get jobs from db" << '\n';
-          return;
+          std::stringstream ss;
+          ss << "getting jobs from database: ";
+          for (const auto jobid : jobids) {
+            ss << jobid << " ";
+          }
+          return ps_forward_error<ps_success_t>(get_jobs_res, ss.str());
         }
         auto get_jobs_value = ps_unwrap(get_jobs_res);
 
         for (const auto &get_job_res : get_jobs_value) {
           if (!ps_is_ok(get_job_res.result)) {
-            std::cerr << "Error: failed to get job: " << get_job_res.jobid
-                      << '\n';
-            continue;
+            return ps_forward_error<ps_success_t>(
+                get_job_res.result,
+                "getting jobid: '" + get_job_res.jobid + "' from database");
           }
           auto gjv = get_job_res.result;
           auto get_job_value = ps_unwrap(gjv);
@@ -375,6 +360,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
               get_job_value.score * decay[job_inf.decay_index].priority;
           curr_agg->count++;
         }
+        return (ps_result_t<ps_success_t>)ps_success_t{};
       });
 
   std::map<int, double> scores;
@@ -388,9 +374,10 @@ ps_result_t<ps_success_t> ps_db_users_update() {
     scores[userid] = score;
     auto store_res = ps_db_user_set({.userid = userid, .score = score});
     if (!ps_is_ok(store_res)) {
-      std::cerr << "Error: failed to store user score: " << userid << '\n';
+      return ps_add_context(store_res, "storing user '" +
+                                           std::to_string(userid) +
+                                           "' in database");
     }
   }
-
   return ps_flux_plugin_set_score(scores);
 }
