@@ -40,4 +40,4 @@ test:
     image: $IMAGE_TAG
     script:
         - cd /app
-        - make check
+        - make check -j$(nproc)
