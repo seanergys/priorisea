@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "timewin.hpp"
-#include "croncpp.h"
 #include "error.hpp"
 #include "flux.hpp"
 #include "util.hpp"
@@ -20,7 +19,7 @@
 std::string ps_timewin_to_str(const ps_timewin_t &timewin) {
   std::stringstream ss;
   ss << timewin.name << "," << timewin.cron << "," << timewin.duration << ","
-     << timewin.priority;
+     << timewin.score;
   return ss.str();
 }
 
@@ -71,13 +70,13 @@ ps_result_t<ps_timewin_t> ps_timewin_from_str(const std::string &str) {
   timewin.duration = duration;
 
   if (!getline(ss, t, ',')) {
-    return ps_error(ps_timewin_priority_missing_t{});
+    return ps_error(ps_timewin_score_missing_t{});
   }
-  double priority = 0;
-  if (!parse_double(t, priority)) {
-    return ps_error(ps_timewin_priority_parse_err_t{});
+  double score = 0;
+  if (!parse_double(t, score)) {
+    return ps_error(ps_timewin_score_parse_err_t{});
   }
-  timewin.priority = priority;
+  timewin.score = score;
 
   auto validate_res = ps_validate_timewin(timewin);
   if (!ps_is_ok(validate_res)) {
@@ -195,4 +194,26 @@ ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list() {
         ls_res, "listing timewins from flux kvs");
   }
   return ps_db_timewins_get(ps_unwrap(ls_res));
+}
+
+double ps_cron_prev(const cron::cronexpr &cron, double timestamp) {
+  int step = 1;
+  double low = timestamp - step;
+  while (cron::cron_next(cron, low) >= timestamp) {
+    step = step * 2;
+    low = timestamp - step;
+    if (low < 0) {
+      return -1;
+    }
+  }
+  double high = timestamp;
+  while (low + 1 < high) {
+    double mid = (low + high) / 2;
+    if (cron::cron_next(cron, mid) < timestamp) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return cron::cron_next(cron, low);
 }

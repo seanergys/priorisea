@@ -21,7 +21,7 @@ static void print_timewins_json(const std::vector<ps_timewin_t> &timewins) {
     auto expr = json_object();
     json_object_set_new(expr, "cron", json_string(timewin.cron.c_str()));
     json_object_set_new(expr, "duration", json_integer(timewin.duration));
-    json_object_set_new(expr, "priority", json_real(timewin.priority));
+    json_object_set_new(expr, "score", json_real(timewin.score));
     json_object_set_new(obj, timewin.name.c_str(), expr);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
@@ -41,8 +41,8 @@ static void print_timewins_table(const std::vector<ps_timewin_t> &timewins) {
         [](auto &value, auto index) -> auto {
           return std::to_string(value.duration);
         }},
-       {"Priority", [](auto &value, auto index) -> auto {
-          return std::to_string(value.priority);
+       {"Score", [](auto &value, auto index) -> auto {
+          return std::to_string(value.score);
         }}});
 }
 
@@ -83,15 +83,13 @@ static void register_get_command(CLI::App *app) {
 
 static void register_add_command(CLI::App *app) {
   auto *add_cmd = app->add_subcommand("add", "Add a time window");
-  add_cmd->footer("Example:\n  priorisea timewin add monday -p 10 -c \"0 0 0 * "
+  add_cmd->footer("Example:\n  priorisea timewin add monday -s 10 -c \"0 0 0 * "
                   "* 1\" -d 86400 # on monday get 10 points");
   add_cmd->set_help_flag("-h,--help", "Show help for add command");
   auto opts = std::make_shared<ps_timewin_t>();
   add_cmd->add_option("name", opts->name, "Name of the time window")
       ->required();
-  add_cmd
-      ->add_option("-p,--priority", opts->priority,
-                   "Priority of the time window")
+  add_cmd->add_option("-s,--score", opts->score, "Score of the time window")
       ->required();
   add_cmd
       ->add_option("-c,--cron", opts->cron,
@@ -121,14 +119,13 @@ static void register_edit_command(CLI::App *app) {
   struct options {
     std::string name;
     std::optional<std::string> cron;
-    std::optional<int> priority;
+    std::optional<int> score;
     std::optional<int> duration;
   };
   auto opts = std::make_shared<options>();
   edit_cmd->add_option("name", opts->name, "Name of the time window")
       ->required();
-  edit_cmd->add_option("-p,--priority", opts->priority,
-                       "Priority of the time window");
+  edit_cmd->add_option("-s,--score", opts->score, "Score of the time window");
   edit_cmd->add_option("-c,--cron", opts->cron,
                        "Cron expression for the time window");
   edit_cmd->add_option("-d,--duration", opts->duration,
@@ -145,8 +142,8 @@ static void register_edit_command(CLI::App *app) {
     if (opts->duration.has_value()) {
       timewin.duration = opts->duration.value();
     }
-    if (opts->priority.has_value()) {
-      timewin.priority = opts->priority.value();
+    if (opts->score.has_value()) {
+      timewin.score = opts->score.value();
     }
 
     auto validate_res = ps_validate_timewin(timewin);
@@ -213,7 +210,7 @@ static void register_list_command(CLI::App *app) {
 
 void register_timewin_commands(CLI::App *app) {
   auto *timewin_cmd =
-      app->add_subcommand("timewin", "Manage priority time windows");
+      app->add_subcommand("timewin", "Manage scoring time windows");
   timewin_cmd->require_subcommand(true);
   timewin_cmd->set_help_flag("-h,--help", "Show help for timewin commands");
   register_list_command(timewin_cmd);

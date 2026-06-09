@@ -285,7 +285,7 @@ ps_result_t<ps_flux_job_info_t> ps_flux_job_info_unpack(json_t *value) {
                   "success", &res.success, "exception_occurred",
                   &res.exception_occured, "result", &res.result, "expiration",
                   &res.expiration) < 0) {
-    return ps_error(ps_json_unpack_err_t{});
+    return ps_error(ps_json_unpack_err_t{.dumps = json_dumps(value, 0)});
   }
   res.name = strdup(name);
   res.cwd = strdup(cwd);
@@ -294,9 +294,9 @@ ps_result_t<ps_flux_job_info_t> ps_flux_job_info_unpack(json_t *value) {
   return res;
 }
 
-ps_result_t<ps_success_t>
-ps_flux_list_inactive_jobs_stream(double since, int max_entries,
-                                  std::function<void(json_t *)> callback) {
+ps_result_t<ps_success_t> ps_flux_list_inactive_jobs_stream(
+    double since, int max_entries,
+    std::function<ps_result_t<ps_success_t>(json_t *)> callback) {
   flux_t *h;
   if (!(h = flux_open(NULL, 0))) {
     return ps_error(ps_flux_open_err_t{});
@@ -327,7 +327,11 @@ ps_flux_list_inactive_jobs_stream(double since, int max_entries,
       return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)});
     }
 
-    callback(jobs);
+    auto callback_res = callback(jobs);
+    if (!ps_is_ok(callback_res)) {
+      flux_future_destroy(f);
+      return callback_res;
+    }
 
     /* version 0 protocol does not stream, all results in one response */
     if (version == 0) {
@@ -349,12 +353,16 @@ ps_flux_list_inactive_jobs(double since, int max_entries) {
         json_t *value;
         json_array_foreach(jobs, index, value) {
           auto unpack_res = ps_flux_job_info_unpack(value);
-          res.result.push_back(unpack_res);
-          if (ps_is_ok(unpack_res)) {
-            t_inactive_max =
-                std::max(t_inactive_max, ps_unwrap(unpack_res).t_inactive);
+          if (!ps_is_ok(unpack_res)) {
+            return ps_forward_error<ps_success_t>(unpack_res,
+                                                  "unpacking job info");
           }
+          res.result.push_back(unpack_res);
+
+          t_inactive_max =
+              std::max(t_inactive_max, ps_unwrap(unpack_res).t_inactive);
         }
+        return (ps_result_t<ps_success_t>)ps_success_t{};
       });
   if (!ps_is_ok(stream_res)) {
     return ps_forward_error<ps_flux_kvs_list_inactive_t>(

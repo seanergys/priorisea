@@ -30,8 +30,8 @@ std::string ps_error_message_kind(const ps_parse_double_err_t &err) {
   return "could not parse double: " + err.double_str;
 }
 
-std::string ps_error_message_kind(const ps_json_unpack_err_t &) {
-  return "json unpack error";
+std::string ps_error_message_kind(const ps_json_unpack_err_t &err) {
+  return "could not unpack json: " + err.dumps;
 }
 
 std::string ps_error_message_kind(const ps_json_pack_err_t &) {
@@ -139,12 +139,6 @@ std::string ps_error_message_kind(const ps_formula_var_value_missing_t &err) {
   return "formula variable value missing for: " + err.name;
 }
 
-//// score
-
-std::string ps_error_message_kind(const ps_formula_job_score_invalid_t &) {
-  return "formula job score invalid";
-}
-
 //// timewin
 
 std::string ps_error_message_kind(const ps_timewin_name_missing_t &) {
@@ -159,12 +153,12 @@ std::string ps_error_message_kind(const ps_timewin_cron_missing_t &) {
   return "time window cron missing";
 }
 
-std::string ps_error_message_kind(const ps_timewin_priority_missing_t &) {
-  return "time window priority missing";
+std::string ps_error_message_kind(const ps_timewin_score_missing_t &) {
+  return "time window score missing";
 }
 
-std::string ps_error_message_kind(const ps_timewin_priority_parse_err_t &) {
-  return "time window priority parse error";
+std::string ps_error_message_kind(const ps_timewin_score_parse_err_t &) {
+  return "time window score parse error";
 }
 
 std::string ps_error_message_kind(const ps_timewin_duration_parse_err_t &) {
