@@ -50,7 +50,7 @@ Example: `formula set job_priority "prev_priority * 2" --var prev_priority 5`
 - `formula set <formula_name> "<formula>" --var var_name var_value` _edit formula_
 - `formula reset <formula_name1> <formula_name2> ...` _reset formulas_
 
-__Time ranges__
+__Time windows__
 
 A cron expression is a [croncpp](https://github.com/mariusbancila/croncpp) expression.
 
@@ -58,8 +58,8 @@ Cron expressions are used to define time ranges. The recurring windows last for 
 
 - `timewin list` _list time windows_
 - `timewin get <range_name1> <range_name2> ...` _get time windows_
-- `timewin add <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _add time window_
-- `timewin edit <range_name> --cron "<cron_expression>" --duration <duration> --priority <bonus_or_malus_priority>` _edit time window_
+- `timewin add <range_name> --cron "<cron_expression>" --duration <duration> --score <bonus_or_malus_score>` _add time window_
+- `timewin edit <range_name> --cron "<cron_expression>" --duration <duration> --score <bonus_or_malus_score>` _edit time window_
 - `timewin delete <range_name1> <range_name2> ...` _delete time window_
 
 __Scores__
