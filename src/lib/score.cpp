@@ -195,15 +195,22 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
 
   std::map<std::string, double> vars_over;
 
-  auto timewin_score = 0;
-  for (const auto &timewin : timewins) {
-    auto cron = cron::make_cron(timewin.cron);
-    auto prev_timestamp = ps_cron_prev(cron, job_info.t_submit);
-    if (prev_timestamp + timewin.duration > job_info.t_submit) {
-      timewin_score += timewin.score;
+  auto timewin_str = "timewin_score";
+  if (formula.expr.find(timewin_str) != std::string::npos) {
+    auto timewin_score = 0;
+    bool found = false;
+    for (const auto &timewin : timewins) {
+      auto cron = cron::make_cron(timewin.cron);
+      auto prev_timestamp = ps_cron_prev(cron, job_info.t_submit);
+      if (prev_timestamp + timewin.duration > job_info.t_submit) {
+        timewin_score += timewin.score;
+        found = true;
+      }
+    }
+    if (found) {
+      vars_over[timewin_str] = timewin_score;
     }
   }
-  vars_over["timewin_score"] = timewin_score;
 
   auto real_duration = job_info.t_cleanup - job_info.t_run;
   auto duration_ratio = real_duration / job_info.duration;
