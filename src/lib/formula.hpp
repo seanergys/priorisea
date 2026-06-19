@@ -8,11 +8,11 @@
 #include <string>
 #include <vector>
 
-struct ps_db_get_formula_entry_t {
+struct ps_db_formula_get_entry_t {
   std::string name;
   ps_result_t<ps_formula_t> result;
 };
-using ps_db_get_formulas_t = std::vector<ps_db_get_formula_entry_t>;
+using ps_db_formulas_get_t = std::vector<ps_db_formula_get_entry_t>;
 
 ////
 
@@ -22,7 +22,7 @@ ps_result_t<double>
 ps_eval_formula(const ps_formula_t &formula,
                 const std::map<std::string, double> &vars_over);
 
-ps_result_t<ps_db_get_formulas_t>
+ps_result_t<ps_db_formulas_get_t>
 ps_db_formulas_get(const std::vector<std::string> &names);
 
 ps_result_t<ps_formula_t> ps_db_formula_get(const std::string &name);
@@ -38,4 +38,4 @@ std::string ps_formula_to_str(const ps_formula_t &formula);
 
 ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str);
 
-ps_result_t<ps_db_get_formulas_t> ps_db_formulas_list();
+ps_result_t<ps_db_formulas_get_t> ps_db_formulas_list();

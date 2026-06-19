@@ -62,7 +62,7 @@ bool ps_validate_formula(const ps_formula_t &formula) {
   return (ps_is_ok(ps_eval_formula(formula, vars)));
 }
 
-ps_result_t<ps_db_get_formulas_t>
+ps_result_t<ps_db_formulas_get_t>
 ps_db_formulas_get(const std::vector<std::string> &names) {
   std::vector<std::string> keys;
   for (auto formula_name : names) {
@@ -76,9 +76,9 @@ ps_db_formulas_get(const std::vector<std::string> &names) {
     for (const auto &key : keys) {
       ss << key << " ";
     }
-    return ps_forward_error<ps_db_get_formulas_t>(lookup_res, ss.str());
+    return ps_forward_error<ps_db_formulas_get_t>(lookup_res, ss.str());
   }
-  std::vector<ps_db_get_formula_entry_t> res;
+  std::vector<ps_db_formula_get_entry_t> res;
   for (const auto &lookup_key_res : ps_unwrap(lookup_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
     std::string formula_name = (pos == std::string::npos)
@@ -262,10 +262,10 @@ ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str) {
   return res;
 }
 
-ps_result_t<std::vector<ps_db_get_formula_entry_t>> ps_db_formulas_list() {
+ps_result_t<std::vector<ps_db_formula_get_entry_t>> ps_db_formulas_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.formula");
   if (!ps_is_ok(ls_res)) {
-    return ps_forward_error<ps_db_get_formulas_t>(
+    return ps_forward_error<ps_db_formulas_get_t>(
         ls_res, "listing formulas in flux kvs");
   }
   return ps_db_formulas_get(ps_unwrap(ls_res));

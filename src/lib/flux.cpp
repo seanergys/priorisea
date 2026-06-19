@@ -13,6 +13,7 @@
 #include <flux/core/rpc.h>
 #include <flux/core/types.h>
 #include <jansson.h>
+#include <sys/types.h>
 
 ps_result_t<ps_formula_t> ps_flux_plugin_get_formula() {
   flux_t *h;
@@ -97,12 +98,12 @@ ps_flux_plugin_get_score(const std::vector<int> &userids) {
                     "plugin loaded?");
   }
 
-  std::map<int, double> score_map;
+  std::map<uid_t, double> score_map;
   const char *userid_key;
   json_t *score_value;
   json_object_foreach(scores, userid_key, score_value) {
-    int userid;
-    if (!parse_int(std::string(userid_key), userid)) {
+    uid_t userid;
+    if (!parse_uid(std::string(userid_key), userid)) {
       continue;
     }
     double score = json_real_value(score_value);
@@ -373,7 +374,7 @@ ps_flux_list_inactive_jobs(double since, int max_entries) {
 }
 
 ps_result_t<std::vector<ps_flux_job_entry_t>>
-ps_flux_list_jobs(const std::vector<std::string> &jobids) {
+ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids) {
   flux_future_t *f;
   json_t *c;
   int version = 0;
@@ -384,18 +385,11 @@ ps_flux_list_jobs(const std::vector<std::string> &jobids) {
 
   std::vector<ps_flux_job_entry_t> res;
   for (const auto &jobid : jobids) {
-    flux_jobid_t id;
-    if (flux_job_id_parse(jobid.c_str(), &id) < 0) {
-      res.push_back({.jobid = jobid,
-                     .result = ps_error(ps_flux_job_id_parse_err_t{
-                         .jobid = jobid, .msg = strerror(errno)})});
-      continue;
-    }
     flux_future_t *f;
-    if (!(f = flux_job_list_id(h, id, "[\"all\"]"))) {
+    if (!(f = flux_job_list_id(h, jobid, "[\"all\"]"))) {
       res.push_back({.jobid = jobid,
                      .result = ps_error(ps_flux_job_list_id_err_t{
-                         .id = id, .msg = strerror(errno)})});
+                         .jobid = jobid, .msg = strerror(errno)})});
       continue;
     }
     json_t *value;

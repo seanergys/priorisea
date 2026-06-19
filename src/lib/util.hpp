@@ -28,5 +28,5 @@ template <typename T> std::string ps_type_name(const T &value) {
 ////
 
 bool parse_int(const std::string &s, int &out);
-
+bool parse_uid(const std::string &s, uid_t &out);
 bool parse_double(const std::string &s, double &out);

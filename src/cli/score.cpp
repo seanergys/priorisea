@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "score.hpp"
+#include "CLI/CLI.hpp"
 #include "lib/error.hpp"
 #include "lib/flux.hpp"
 #include "lib/formula.hpp"
@@ -10,10 +11,13 @@
 #include "lib/timewin.hpp"
 #include "lib/types.hpp"
 #include "util.hpp"
+#include <errno.h>
 #include <flux/core.h>
+#include <flux/core/job.h>
 #include <iostream>
 #include <jansson.h>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 static void register_init_command(CLI::App *app) {
@@ -39,11 +43,11 @@ static void register_update_command(CLI::App *app) {
   update_cmd->set_help_flag("-h,--help", "Show help for update command");
   struct options {
     bool new_f;
-    std::vector<std::string> jobids;
+    std::vector<std::string> jobids_str;
   };
   auto opts = std::make_shared<options>();
   update_cmd->add_flag("--new", opts->new_f, "Update scores for all new jobs");
-  update_cmd->add_option("jobids", opts->jobids, "Job IDs to retrieve");
+  update_cmd->add_option("jobids", opts->jobids_str, "Job IDs to retrieve");
   update_cmd->callback([opts] {
     auto get_formula_res = ps_db_formula_get("job_score");
     if (!ps_is_ok(get_formula_res)) {
@@ -86,8 +90,18 @@ static void register_update_command(CLI::App *app) {
     }
 
     // retrieve the specified jobs to update
-    if (!opts->jobids.empty()) {
-      auto list_res = ps_flux_list_jobs(opts->jobids);
+    if (!opts->jobids_str.empty()) {
+      std::vector<flux_jobid_t> jobids;
+      for (const auto &jobid_str : opts->jobids_str) {
+        flux_jobid_t jobid;
+        if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
+          auto err = ps_error(ps_flux_jobid_parse_err_t{
+              .jobid = jobid_str, .msg = strerror(errno)});
+          return cli_error(err);
+        }
+        jobids.push_back(jobid);
+      }
+      auto list_res = ps_flux_list_jobs(jobids);
       if (!ps_is_ok(list_res)) {
         return cli_error(list_res);
       }
@@ -141,12 +155,17 @@ static void register_job_command(CLI::App *app) {
   struct options {
     bool json;
     bool all;
-    std::vector<std::string> jobids;
+    std::vector<std::string> jobids_str;
+    std::string id_format;
   };
   auto opts = std::make_shared<options>();
   job_cmd->add_flag("--json", opts->json, "Output in JSON format");
   job_cmd->add_flag("--all", opts->all, "Output all users");
-  job_cmd->add_option("jobids", opts->jobids, "Job IDs to retrieve");
+  job_cmd->add_option("jobids", opts->jobids_str, "Job IDs to retrieve");
+  job_cmd->add_option("--id-format", opts->id_format, "Job IDs output format")
+      ->check(CLI::IsMember(
+          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}))
+      ->default_val("dec");
   job_cmd->callback([opts] {
     std::vector<ps_job_t> jobs;
     if (opts->all) {
@@ -162,7 +181,17 @@ static void register_job_command(CLI::App *app) {
         jobs.push_back(ps_unwrap(job.result));
       }
     } else {
-      auto get_res = ps_db_jobs_get(opts->jobids);
+      std::vector<flux_jobid_t> jobids;
+      for (const auto &jobid_str : opts->jobids_str) {
+        flux_jobid_t jobid;
+        if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
+          ps_error_t err = ps_error(ps_flux_jobid_parse_err_t{
+              .jobid = jobid_str, .msg = strerror(errno)});
+          return cli_error(err);
+        }
+        jobids.push_back(jobid);
+      }
+      auto get_res = ps_db_jobs_get(jobids);
       if (!ps_is_ok(get_res)) {
         return cli_error(get_res);
       }
@@ -178,17 +207,33 @@ static void register_job_command(CLI::App *app) {
     if (opts->json) {
       auto obj = json_object();
       for (const auto &f : jobs) {
-        json_object_set_new(obj, f.jobid.c_str(), json_integer(f.score));
+
+        if (opts->id_format == "dec") {
+          json_object_set_new(obj, std::to_string(f.jobid).c_str(),
+                              json_integer(f.score));
+          continue;
+        }
+        char buf[256];
+        flux_job_id_encode(f.jobid, opts->id_format.c_str(), buf, sizeof(buf));
+        json_object_set_new(obj, buf, json_integer(f.score));
       }
       std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
       json_decref(obj);
     } else {
-      ps_print_table(
-          jobs, {{"Job Id",
-                  [](auto &value, auto index) -> auto { return value.jobid; }},
-                 {"Score", [](auto &value, auto index) -> auto {
-                    return std::to_string(value.score);
-                  }}});
+      ps_print_table(jobs, {{"Job Id",
+                             [&opts](auto &value, auto index) -> auto {
+                               if (opts->id_format == "dec") {
+                                 return std::to_string(value.jobid);
+                               }
+                               char buf[256];
+                               flux_job_id_encode(value.jobid,
+                                                  opts->id_format.c_str(), buf,
+                                                  sizeof(buf));
+                               return std::string(buf);
+                             }},
+                            {"Score", [](auto &value, auto index) -> auto {
+                               return std::to_string(value.score);
+                             }}});
     }
   });
 }
@@ -201,7 +246,7 @@ static void register_user_command(CLI::App *app) {
   struct options {
     bool json;
     bool all;
-    std::vector<int> userids;
+    std::vector<uid_t> userids;
   };
   auto opts = std::make_shared<options>();
   user_cmd->add_flag("--json", opts->json, "Output in JSON format");

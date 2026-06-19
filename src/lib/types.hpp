@@ -4,8 +4,11 @@
 
 #pragma once
 
+#include <flux/core/job.h>
 #include <map>
 #include <string>
+#include <sys/types.h>
+#include <unistd.h>
 #include <vector>
 
 //// timewin
@@ -28,16 +31,16 @@ struct ps_formula_t {
 //// score
 
 struct ps_job_t {
-  std::string jobid;
+  flux_jobid_t jobid;
   double score;
 };
 
 struct ps_user_t {
-  int userid;
+  uid_t userid;
   double score;
 };
 
-typedef std::map<int, double> ps_score_map_t;
+typedef std::map<uid_t, double> ps_score_map_t;
 
 //// decay
 
@@ -51,7 +54,7 @@ typedef std::vector<ps_decay_one_t> ps_decay_t;
 //// flux
 
 struct ps_flux_job_info_t {
-  long long id;
+  flux_jobid_t id;
   int userid;
   int urgency;
   int priority;

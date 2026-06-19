@@ -71,8 +71,9 @@ void ps_print_table(const std::vector<T> &rows,
 
 ////
 
+void cli_error(ps_error_t &err);
+
 template <typename T> void cli_error(const ps_result_t<T> &res) {
   auto err = ps_unwrap_error(res);
-  std::cerr << ps_error_message(err) << std::endl;
-  std::exit(EXIT_FAILURE);
+  cli_error(err);
 }
