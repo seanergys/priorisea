@@ -17,6 +17,9 @@ struct ps_str_empty_t {};
 struct ps_parse_int_err_t {
   std::string int_str;
 };
+struct ps_parse_uid_err_t {
+  std::string uid_str;
+};
 struct ps_parse_double_err_t {
   std::string double_str;
 };
@@ -65,12 +68,12 @@ struct ps_flux_rpc_err_t {
 struct ps_flux_rpc_pack_err_t {
   std::string msg;
 };
-struct ps_flux_job_id_parse_err_t {
+struct ps_flux_jobid_parse_err_t {
   std::string jobid;
   std::string msg;
 };
 struct ps_flux_job_list_id_err_t {
-  flux_jobid_t id;
+  flux_jobid_t jobid;
   std::string msg;
 };
 struct ps_flux_kvs_lookup_get_dir_err_t {
@@ -127,30 +130,29 @@ struct ps_timewin_neg_duration_t {
 
 ////
 
-using ps_error_kind_t =
-    std::variant<ps_str_empty_t, ps_parse_int_err_t, ps_parse_double_err_t,
-                 ps_json_unpack_err_t, ps_json_pack_err_t,
+using ps_error_kind_t = std::variant<
+    ps_str_empty_t, ps_parse_int_err_t, ps_parse_uid_err_t,
+    ps_parse_double_err_t, ps_json_unpack_err_t, ps_json_pack_err_t,
 
-                 ps_flux_open_err_t, ps_flux_future_get_err_t,
-                 ps_flux_txn_create_err_t, ps_flux_kvs_commit_err_t,
-                 ps_flux_kvs_txn_create_err_t, ps_flux_kvs_txn_unlink_err_t,
-                 ps_flux_kvs_get_err_t, ps_flux_kvs_lookup_err_t,
-                 ps_flux_kvs_lookup_get_err_t, ps_flux_rpc_get_unpack_err_t,
-                 ps_flux_rpc_pack_err_t, ps_flux_rpc_err_t,
-                 ps_flux_job_id_parse_err_t, ps_flux_job_list_id_err_t,
-                 ps_flux_kvs_lookup_get_dir_err_t, ps_flux_kvsitr_create_err_t,
-                 ps_flux_kvs_txn_put_err_t,
+    ps_flux_open_err_t, ps_flux_future_get_err_t, ps_flux_txn_create_err_t,
+    ps_flux_kvs_commit_err_t, ps_flux_kvs_txn_create_err_t,
+    ps_flux_kvs_txn_unlink_err_t, ps_flux_kvs_get_err_t,
+    ps_flux_kvs_lookup_err_t, ps_flux_kvs_lookup_get_err_t,
+    ps_flux_rpc_get_unpack_err_t, ps_flux_rpc_pack_err_t, ps_flux_rpc_err_t,
+    ps_flux_jobid_parse_err_t, ps_flux_job_list_id_err_t,
+    ps_flux_kvs_lookup_get_dir_err_t, ps_flux_kvsitr_create_err_t,
+    ps_flux_kvs_txn_put_err_t,
 
-                 ps_decay_priority_missing_t, ps_decay_duration_invalid_t,
+    ps_decay_priority_missing_t, ps_decay_duration_invalid_t,
 
-                 ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
-                 ps_formula_name_missing_t, ps_formula_expr_missing_t,
-                 ps_formula_var_value_missing_t,
+    ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
+    ps_formula_name_missing_t, ps_formula_expr_missing_t,
+    ps_formula_var_value_missing_t,
 
-                 ps_timewin_name_missing_t, ps_timewin_duration_missing_t,
-                 ps_timewin_cron_missing_t, ps_timewin_score_missing_t,
-                 ps_timewin_score_parse_err_t, ps_timewin_duration_parse_err_t,
-                 ps_cron_parse_err_t, ps_timewin_neg_duration_t>;
+    ps_timewin_name_missing_t, ps_timewin_duration_missing_t,
+    ps_timewin_cron_missing_t, ps_timewin_score_missing_t,
+    ps_timewin_score_parse_err_t, ps_timewin_duration_parse_err_t,
+    ps_cron_parse_err_t, ps_timewin_neg_duration_t>;
 
 struct ps_error_t {
   std::vector<std::string> context;

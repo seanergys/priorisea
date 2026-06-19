@@ -61,8 +61,8 @@ COPY seanerbus /opt/seanerbus
 
 WORKDIR /opt/seanerbus/bindings/cpp
 
-RUN git submodule update --init --recursive && \
-    mkdir build
+RUN git submodule update --init --recursive
+RUN mkdir build
 
 WORKDIR /opt/seanerbus/bindings/cpp/build
 

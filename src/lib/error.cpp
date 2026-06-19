@@ -26,6 +26,10 @@ std::string ps_error_message_kind(const ps_parse_int_err_t &err) {
   return "could not parse integer: " + err.int_str;
 }
 
+std::string ps_error_message_kind(const ps_parse_uid_err_t &err) {
+  return "could not parse uid: " + err.uid_str;
+}
+
 std::string ps_error_message_kind(const ps_parse_double_err_t &err) {
   return "could not parse double: " + err.double_str;
 }
@@ -82,13 +86,13 @@ std::string ps_error_message_kind(const ps_flux_rpc_pack_err_t &err) {
   return "flux rpc pack error: " + err.msg;
 }
 
-std::string ps_error_message_kind(const ps_flux_job_id_parse_err_t &err) {
+std::string ps_error_message_kind(const ps_flux_jobid_parse_err_t &err) {
   return "flux job id parse error for '" + err.jobid + "': " + err.msg +
          ". Is the job id valid?";
 }
 
 std::string ps_error_message_kind(const ps_flux_job_list_id_err_t &err) {
-  return "flux job list error for id " + std::to_string(err.id) + ": " +
+  return "flux job list error for id " + std::to_string(err.jobid) + ": " +
          err.msg + ". Does the job exist?";
 }
 

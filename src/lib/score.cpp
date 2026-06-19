@@ -13,23 +13,17 @@
 #include "util.hpp"
 #include <chrono>
 #include <cmath>
+#include <flux/core/job.h>
 #include <iostream>
 #include <sstream>
+#include <sys/types.h>
 
-ps_result_t<ps_db_get_jobs_t>
-ps_db_jobs_get(const std::vector<std::string> &jobids) {
-  ps_db_get_jobs_t res;
+ps_result_t<ps_db_jobs_get_t>
+ps_db_jobs_get(const std::vector<flux_jobid_t> &jobids) {
+  ps_db_jobs_get_t res;
   std::vector<std::string> keys;
   for (const auto &jobid : jobids) {
-
-    flux_jobid_t id;
-    if (flux_job_id_parse(jobid.c_str(), &id) < 0) {
-      res.push_back({.jobid = jobid,
-                     .result = ps_error(ps_flux_job_id_parse_err_t{
-                         .jobid = jobid, .msg = strerror(errno)})});
-      continue;
-    }
-    keys.push_back("priorisea.job." + std::to_string(id));
+    keys.push_back("priorisea.job." + std::to_string(jobid));
   }
   auto kvs_res = ps_flux_kvs_lookup(keys);
   if (!ps_is_ok(kvs_res)) {
@@ -38,20 +32,27 @@ ps_db_jobs_get(const std::vector<std::string> &jobids) {
     for (const auto &key : keys) {
       ss << key << " ";
     }
-    return ps_forward_error<ps_db_get_jobs_t>(kvs_res, ss.str());
+    return ps_forward_error<ps_db_jobs_get_t>(kvs_res, ss.str());
   }
 
   for (const auto &lookup_key_res : ps_unwrap(kvs_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
-    std::string jobid = (pos == std::string::npos)
-                            ? lookup_key_res.key
-                            : lookup_key_res.key.substr(pos + 1);
+    auto jobid_str = (pos == std::string::npos)
+                         ? lookup_key_res.key
+                         : lookup_key_res.key.substr(pos + 1);
+    flux_jobid_t jobid;
+    if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
+      res.push_back({.jobid = 0,
+                     .result = ps_error(ps_flux_jobid_parse_err_t{
+                         .jobid = jobid_str, .msg = strerror(errno)})});
+      continue;
+    }
 
     if (!ps_is_ok(lookup_key_res.value)) {
       res.push_back({.jobid = jobid,
                      .result = ps_forward_error<ps_job_t>(
                          lookup_key_res.value,
-                         "looking up job " + jobid + " in flux kvs")});
+                         "looking up job " + jobid_str + " in flux kvs")});
       continue;
     }
     auto lkrv = lookup_key_res.value;
@@ -102,7 +103,7 @@ ps_result_t<ps_success_t> ps_db_job_set(const ps_job_t &job) {
   if (!txn) {
     return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
-  auto key = "priorisea.job." + job.jobid;
+  auto key = "priorisea.job." + std::to_string(job.jobid);
   auto value = std::to_string(job.score);
   if (flux_kvs_txn_put(txn, 0, key.c_str(), value.c_str()) < 0) {
     return ps_error(ps_flux_kvs_txn_put_err_t{
@@ -119,8 +120,8 @@ ps_result_t<ps_success_t> ps_db_score_init() {
   return ps_success_t{};
 }
 
-ps_result_t<ps_db_get_users_t>
-ps_db_users_get(const std::vector<int> &userids) {
+ps_result_t<ps_db_users_get_t>
+ps_db_users_get(const std::vector<uid_t> &userids) {
   std::vector<std::string> keys;
   for (const auto &userid : userids) {
     keys.push_back("priorisea.user." + std::to_string(userid));
@@ -132,21 +133,21 @@ ps_db_users_get(const std::vector<int> &userids) {
     for (const auto &key : keys) {
       ss << key << " ";
     }
-    return ps_forward_error<ps_db_get_users_t>(kvs_res, ss.str());
+    return ps_forward_error<ps_db_users_get_t>(kvs_res, ss.str());
   }
 
-  ps_db_get_users_t res;
+  ps_db_users_get_t res;
   for (const auto &lookup_key_res : ps_unwrap(kvs_res)) {
     size_t pos = lookup_key_res.key.rfind('.');
     std::string userid_str = (pos == std::string::npos)
                                  ? lookup_key_res.key
                                  : lookup_key_res.key.substr(pos + 1);
 
-    int userid;
-    if (!parse_int(userid_str, userid)) {
+    uid_t userid;
+    if (!parse_uid(userid_str, userid)) {
       res.push_back(
           {.userid = userid,
-           .result = ps_error(ps_parse_int_err_t{.int_str = userid_str})});
+           .result = ps_error(ps_parse_uid_err_t{.uid_str = userid_str})});
       continue;
     }
 
@@ -216,23 +217,23 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
         eval_res, "evaluating formula for job " + std::to_string(job_info.id));
   }
 
-  return ps_db_job_set({std::to_string(job_info.id), ps_unwrap(eval_res)});
+  return ps_db_job_set({.jobid = job_info.id, .score = ps_unwrap(eval_res)});
 }
 
-ps_result_t<ps_db_get_users_t> ps_db_users_list() {
+ps_result_t<ps_db_users_get_t> ps_db_users_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.user");
   if (!ps_is_ok(ls_res)) {
-    return ps_forward_error<ps_db_get_users_t>(ls_res,
+    return ps_forward_error<ps_db_users_get_t>(ls_res,
                                                "listing users in flux kvs");
   }
-  ps_db_get_users_t res;
-  std::vector<int> userids;
+  ps_db_users_get_t res;
+  std::vector<uid_t> userids;
   for (const auto &userid_str : ps_unwrap(ls_res)) {
-    int userid;
-    if (!parse_int(userid_str, userid)) {
+    uid_t userid;
+    if (!parse_uid(userid_str, userid)) {
       res.push_back(
-          {.userid = userid,
-           .result = ps_error(ps_parse_int_err_t{.int_str = userid_str})});
+          {.userid = 0,
+           .result = ps_error(ps_parse_uid_err_t{.uid_str = userid_str})});
       continue;
     }
     userids.push_back(userid);
@@ -245,7 +246,7 @@ ps_result_t<ps_db_get_users_t> ps_db_users_list() {
     for (const auto &e : userids) {
       ss << e << " ";
     }
-    return ps_forward_error<ps_db_get_users_t>(get_res, ss.str());
+    return ps_forward_error<ps_db_users_get_t>(get_res, ss.str());
   }
 
   auto get_res_value = ps_unwrap(get_res);
@@ -253,14 +254,23 @@ ps_result_t<ps_db_get_users_t> ps_db_users_list() {
   return res;
 }
 
-ps_result_t<ps_db_get_jobs_t> ps_db_jobs_list() {
+ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.job");
   if (!ps_is_ok(ls_res)) {
-    return ps_forward_error<ps_db_get_jobs_t>(ls_res,
+    return ps_forward_error<ps_db_jobs_get_t>(ls_res,
                                               "listing jobs from flux kvs");
   }
   auto ls_res_value = ps_unwrap(ls_res);
-  return ps_db_jobs_get(ls_res_value);
+  std::vector<flux_jobid_t> jobids;
+  for (const auto &e : ls_res_value) {
+    flux_jobid_t id;
+    if (flux_job_id_parse(e.c_str(), &id) < 0) {
+      return ps_error(ps_parse_uid_err_t{.uid_str = e},
+                      "parsing listed jobs from flux kvs");
+    }
+    jobids.push_back(id);
+  }
+  return ps_db_jobs_get(jobids);
 }
 
 // TODO: refactor error handling and result
@@ -290,15 +300,15 @@ ps_result_t<ps_success_t> ps_db_users_update() {
     double sum;
     size_t count;
   };
-  std::map<int, std::vector<sum_agg>> sum_aggs;
+  std::map<uid_t, std::vector<sum_agg>> sum_aggs;
   ps_flux_list_inactive_jobs_stream(
       timestamp, 10, [&sum_aggs, &decay, &timestamp](json_t *jobs) {
-        std::vector<std::string> jobids;
+        std::vector<flux_jobid_t> jobids;
         struct job_info {
           int decay_index;
           ps_flux_job_info_t info;
         };
-        std::map<std::string, job_info> jobid_info;
+        std::map<flux_jobid_t, job_info> jobid_info;
 
         size_t index;
         json_t *value;
@@ -319,7 +329,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
             }
           }
 
-          jobid_info[std::to_string(unpack_value.id)] =
+          jobid_info[unpack_value.id] =
               job_info{.decay_index = i, .info = unpack_value};
         }
 
@@ -340,8 +350,9 @@ ps_result_t<ps_success_t> ps_db_users_update() {
         for (const auto &get_job_res : get_jobs_value) {
           if (!ps_is_ok(get_job_res.result)) {
             return ps_forward_error<ps_success_t>(
-                get_job_res.result,
-                "getting jobid: '" + get_job_res.jobid + "' from database");
+                get_job_res.result, "getting jobid: '" +
+                                        std::to_string(get_job_res.jobid) +
+                                        "' from database");
           }
           auto gjv = get_job_res.result;
           auto get_job_value = ps_unwrap(gjv);
@@ -363,7 +374,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
         return (ps_result_t<ps_success_t>)ps_success_t{};
       });
 
-  std::map<int, double> scores;
+  std::map<uid_t, double> scores;
   for (const auto &[userid, value] : sum_aggs) {
     double score = 0;
     for (const auto &agg : value) {

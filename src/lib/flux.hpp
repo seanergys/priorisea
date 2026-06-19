@@ -18,7 +18,7 @@ struct ps_flux_kvs_lookup_entry_t {
 };
 
 struct ps_flux_job_entry_t {
-  std::string jobid;
+  flux_jobid_t jobid;
   ps_result_t<ps_flux_job_info_t> result;
 };
 
@@ -67,7 +67,7 @@ ps_result_t<ps_flux_kvs_list_inactive_t>
 ps_flux_list_inactive_jobs(double since, int max_entries);
 
 ps_result_t<std::vector<ps_flux_job_entry_t>>
-ps_flux_list_jobs(const std::vector<std::string> &jobids);
+ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids);
 
 ps_result_t<std::vector<std::string>>
 ps_flux_kvs_ls_dir(const std::string &key);

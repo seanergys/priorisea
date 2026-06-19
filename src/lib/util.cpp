@@ -22,6 +22,20 @@ bool parse_int(const std::string &s, int &out) {
   }
 }
 
+bool parse_uid(const std::string &s, uid_t &out) {
+  char *end = nullptr;
+  errno = 0;
+  unsigned long value = std::strtoul(s.c_str(), &end, 10);
+  if (errno != 0 || *end != '\0') {
+    return false;
+  }
+  if (value > std::numeric_limits<uid_t>::max()) {
+    return false;
+  }
+  out = static_cast<uid_t>(value);
+  return true;
+}
+
 bool parse_double(const std::string &s, double &out) {
   try {
     size_t pos = 0;
