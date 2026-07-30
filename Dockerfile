@@ -8,8 +8,6 @@ RUN apt update && apt install -y \
     openssh-client \
     git \
     cmake \
-    capnproto \
-    libcapnp-dev \
     libfmt-dev
 
 #
@@ -37,6 +35,7 @@ RUN apt install -y \
 RUN ./configure --prefix=/usr/local && \
     make -j$(nproc) && \
     make install
+RUN ldconfig
 
 #
 # Build flux-core
@@ -53,28 +52,29 @@ RUN yes | bash scripts/install-deps-deb.sh
 RUN ./configure --prefix=/usr/local --with-flux-security && \
     make -j$(nproc) && \
     make install
-
-#
-# Build seanerbus
-#
-COPY seanerbus /opt/seanerbus
-
-WORKDIR /opt/seanerbus/bindings/cpp
-
-RUN git submodule update --init --recursive
-RUN mkdir build
-
-WORKDIR /opt/seanerbus/bindings/cpp/build
-
-RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && \
-    cmake --build . && \
-    cmake --install .
-
-# Remove seanerbus' fmt lib
-RUN rm /usr/local/lib/libfmt*
-RUN rm -rf /usr/local/include/fmt
-RUN rm -r /usr/local/lib/pkgconfig/fmt*
 RUN ldconfig
+
+##
+## Build seanerbus
+##
+#COPY seanerbus /opt/seanerbus
+#
+#WORKDIR /opt/seanerbus/bindings/cpp
+#
+#RUN git submodule update --init --recursive
+#RUN mkdir build
+#
+#WORKDIR /opt/seanerbus/bindings/cpp/build
+#
+#RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && \
+#    cmake --build . && \
+#    cmake --install .
+#
+## Remove seanerbus' fmt lib
+#RUN rm /usr/local/lib/libfmt*
+#RUN rm -rf /usr/local/include/fmt
+#RUN rm -r /usr/local/lib/pkgconfig/fmt*
+#RUN ldconfig
 
 #
 # Build plugin
@@ -90,3 +90,4 @@ RUN ./autogen.sh && \
     make -j$(nproc) && \
     make install && \
     strip /usr/local/bin/priorisea
+RUN ldconfig
