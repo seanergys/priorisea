@@ -12,6 +12,7 @@
 #include "types.hpp"
 #include "util.hpp"
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <flux/core/job.h>
 #include <iostream>
@@ -309,7 +310,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
   };
   std::map<uid_t, std::vector<sum_agg>> sum_aggs;
   ps_flux_list_inactive_jobs_stream(
-      timestamp, 10, [&sum_aggs, &decay, &timestamp](json_t *jobs) {
+      timestamp, INT_MAX, [&sum_aggs, &decay, &timestamp](json_t *jobs) {
         std::vector<flux_jobid_t> jobids;
         struct job_info {
           int decay_index;

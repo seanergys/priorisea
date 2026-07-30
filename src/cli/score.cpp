@@ -11,6 +11,7 @@
 #include "lib/timewin.hpp"
 #include "lib/types.hpp"
 #include "util.hpp"
+#include <climits>
 #include <errno.h>
 #include <flux/core.h>
 #include <flux/core/job.h>
@@ -66,7 +67,7 @@ static void register_update_command(CLI::App *app) {
 
       // retrieve new inactive jobs since the last threshold
       auto list_inactive_res =
-          ps_flux_list_inactive_jobs(ps_unwrap(get_t_inactive_res), 10);
+          ps_flux_list_inactive_jobs(ps_unwrap(get_t_inactive_res), INT_MAX);
       if (!ps_is_ok(list_inactive_res)) {
         return cli_error(list_inactive_res);
       }
