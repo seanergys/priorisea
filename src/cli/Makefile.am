@@ -18,12 +18,10 @@ priorisea_CPPFLAGS = \
     -I$(top_srcdir)/src \
     -I$(top_srcdir)/src/cli/ \
     $(JANSSON_CFLAGS) \
-    $(SEANERBUS_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
 priorisea_LDADD = \
     $(top_builddir)/src/lib/libpriorisea.la \
     $(top_builddir)/external/libtinyexpr.la \
     $(JANSSON_LIBS) \
-    $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)

@@ -8,13 +8,11 @@ libpriorisea_la_CPPFLAGS= \
     -I$(top_srcdir)/external/tinyexpr \
     -I$(top_srcdir)/external/croncpp/include \
     $(JANSSON_CFLAGS) \
-    $(SEANERBUS_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
 #libpriorisea_la_LIBADD = \
 #    $(top_builddir)/external/libtinyexpr.la \
 #    $(JANSSON_LIBS) \
-#    $(SEANERBUS_LIBS) \
 #    $(FLUX_CORE_LIBS)
 
 libpriorisea_la_SOURCES = \
