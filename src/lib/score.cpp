@@ -357,10 +357,13 @@ ps_result_t<ps_success_t> ps_db_users_update() {
 
         for (const auto &get_job_res : get_jobs_value) {
           if (!ps_is_ok(get_job_res.result)) {
-            return ps_forward_error<ps_success_t>(
-                get_job_res.result, "getting jobid: '" +
-                                        std::to_string(get_job_res.jobid) +
-                                        "' from database");
+            // some jobs may have ended and not computed a score
+            // thus we ignore errors and continue
+            continue;
+            // return ps_forward_error<ps_success_t>(
+            //     get_job_res.result, "getting jobid: '" +
+            //                             std::to_string(get_job_res.jobid) +
+            //                             "' from database");
           }
           auto gjv = get_job_res.result;
           auto get_job_value = ps_unwrap(gjv);
