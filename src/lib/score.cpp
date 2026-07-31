@@ -11,6 +11,7 @@
 #include "timewin.hpp"
 #include "types.hpp"
 #include "util.hpp"
+#include <algorithm>
 #include <chrono>
 #include <climits>
 #include <cmath>
@@ -216,7 +217,7 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
   auto real_duration = job_info.t_cleanup - job_info.t_run;
   auto duration_ratio = real_duration / job_info.duration;
   if (!std::isinf(duration_ratio)) {
-    vars_over["duration_ratio"] = duration_ratio;
+    vars_over["duration_ratio"] = std::min(1.0, duration_ratio);
   }
 
   auto eval_res = ps_eval_formula(formula, vars_over);
