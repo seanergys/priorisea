@@ -310,7 +310,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
     size_t count;
   };
   std::map<uid_t, std::vector<sum_agg>> sum_aggs;
-  ps_flux_list_inactive_jobs_stream(
+  auto list_res = ps_flux_list_inactive_jobs_stream(
       timestamp, INT_MAX, [&sum_aggs, &decay, &timestamp](json_t *jobs) {
         std::vector<flux_jobid_t> jobids;
         struct job_info {
@@ -382,7 +382,9 @@ ps_result_t<ps_success_t> ps_db_users_update() {
         }
         return (ps_result_t<ps_success_t>)ps_success_t{};
       });
-
+  if (!ps_is_ok(list_res)) {
+    return ps_add_context(list_res, "listing inactive jobs");
+  }
   std::map<uid_t, double> scores;
   for (const auto &[userid, value] : sum_aggs) {
     double score = 0;
