@@ -6,7 +6,6 @@
 #include "lib/decay.hpp"
 #include "lib/error.hpp"
 #include "util.hpp"
-#include <bits/stdc++.h>
 #include <iostream>
 #include <jansson.h>
 #include <string>
