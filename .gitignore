@@ -66,5 +66,4 @@ test-driver
 ar-lib
 src/cli/priorisea
 install.tar.gz
-seanerbus/
 .vscode/
