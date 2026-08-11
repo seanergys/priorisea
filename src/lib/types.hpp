@@ -25,7 +25,7 @@ struct ps_timewin_t {
 struct ps_formula_t {
   std::string name;
   std::string expr;
-  std::map<std::string, double> vars;
+  std::map<std::string, double> defaults;
 };
 
 //// score

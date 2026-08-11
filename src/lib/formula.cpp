@@ -8,17 +8,18 @@
 #include "tinyexpr.h"
 #include "types.hpp"
 #include "util.hpp"
+#include <regex>
 #include <sstream>
 
 static const ps_formula_t DEFAULT_JOB_PRIORITY = {
     .name = "job_priority",
-    .expr = "prev_priority * 0.5 + user_score * 0.5",
-    .vars = {{"prev_priority", 16}, {"user_score", 16}}};
+    .expr = "{{var:prev_priority}} * 0.5 + {{var:user_score}} * 0.5",
+    .defaults = {{"var:prev_priority", 16}, {"var:user_score", 16}}};
 
 static const ps_formula_t DEFAULT_JOB_SCORE = {
     .name = "job_score",
-    .expr = "duration_ratio + timewin_score",
-    .vars = {{"timewin_score", 0}, {"duration_ratio", 0}}};
+    .expr = "{{var:duration_ratio}} + {{var:timewin_score}}",
+    .defaults = {{"var:timewin_score", 0}, {"var:duration_ratio", 0}}};
 
 static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
                                                            DEFAULT_JOB_SCORE};
@@ -31,26 +32,42 @@ ps_result_t<double>
 ps_eval_formula(const ps_formula_t &formula,
                 const std::map<std::string, double> &vars_over) {
   std::map<std::string, double> vars_merged = vars_over;
-  for (const auto &[name, value] : formula.vars) {
+  for (const auto &[name, value] : formula.defaults) {
     if (vars_merged.find(name) != vars_merged.end())
       continue;
     vars_merged[name] = value;
   }
 
+  std::string transformed_expr = formula.expr;
+  std::vector<std::string> var_ids;
+  var_ids.reserve(vars_merged.size());
+
   auto *te_vars =
       (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
   int i = 0;
+  int var_idx = 0;
 
   for (const auto &[name, value] : vars_merged) {
-    te_vars[i++] = {name.c_str(), &value};
+    std::string var_id = "v" + std::to_string(var_idx++);
+    var_ids.push_back(var_id);
+
+    std::string pattern = "{{" + name + "}}";
+    size_t pos = 0;
+    while ((pos = transformed_expr.find(pattern, pos)) != std::string::npos) {
+      transformed_expr.replace(pos, pattern.length(), var_id);
+      pos += var_id.length();
+    }
+
+    te_vars[i++] = {var_ids.back().c_str(), &value};
   }
   te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
   te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
 
   int err = 0;
-  te_expr *compiled = te_compile(formula.expr.c_str(), te_vars, i, &err);
+  te_expr *compiled = te_compile(transformed_expr.c_str(), te_vars, i, &err);
   if (!compiled) {
-    return ps_error(ps_formula_expr_invalid_t{.expr = formula.expr});
+    return ps_error(
+        ps_formula_eval_err_t{.formula = formula, .var_values = vars_merged});
   }
   auto result = te_eval(compiled);
   te_free(compiled);
@@ -58,8 +75,14 @@ ps_eval_formula(const ps_formula_t &formula,
 }
 
 bool ps_validate_formula(const ps_formula_t &formula) {
+  auto formula_expr =
+      std::regex_replace(formula.expr, std::regex(R"(\{\{[^}]*\}\})"), "0");
   std::map<std::string, double> vars;
-  return (ps_is_ok(ps_eval_formula(formula, vars)));
+  auto result = ps_eval_formula({.name = formula.name,
+                                 .expr = formula_expr,
+                                 .defaults = formula.defaults},
+                                vars);
+  return (ps_is_ok(result));
 }
 
 ps_result_t<ps_db_formulas_get_t>
@@ -214,16 +237,22 @@ ps_result_t<ps_success_t> ps_db_formulas_init() {
   return ps_success_t{};
 }
 
+/**
+ * TODO: find a better serialization format
+ */
 std::string ps_formula_to_str(const ps_formula_t &formula) {
   std::stringstream ss;
-  ss << formula.name << "$" << formula.expr;
-  for (auto &[name, value] : formula.vars) {
-    ss << "$";
-    ss << name << ":" << value;
+  ss << formula.name << "\x1E" << formula.expr;
+  for (auto &[name, value] : formula.defaults) {
+    ss << "\x1E";
+    ss << name << "\x1F" << value;
   }
   return ss.str();
 }
 
+/**
+ * TODO: find a better serialization format
+ */
 ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str) {
   ps_formula_t res;
   if (formula_str.empty()) {
@@ -233,18 +262,18 @@ ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str) {
   std::stringstream ss(formula_str);
   std::string t;
 
-  if (!getline(ss, t, '$')) {
+  if (!getline(ss, t, '\x1E')) {
     return ps_error(ps_formula_name_missing_t{});
   }
   res.name = t;
 
-  if (!getline(ss, t, '$')) {
+  if (!getline(ss, t, '\x1E')) {
     return ps_error(ps_formula_expr_missing_t{.name = res.name});
   }
   res.expr = t;
 
-  while (getline(ss, t, '$')) {
-    auto pos = t.find(':');
+  while (getline(ss, t, '\x1E')) {
+    auto pos = t.find('\x1F');
     if (pos == std::string::npos) {
       return ps_error(ps_formula_var_value_missing_t{.name = res.name});
     }
@@ -257,7 +286,7 @@ ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str) {
       return ps_error(ps_parse_double_err_t{.double_str = value_str});
     }
 
-    res.vars[name_str] = value;
+    res.defaults[name_str] = value;
   }
   return res;
 }

@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "types.hpp"
 #include "util.hpp"
 #include <flux/core.h>
 #include <iostream>
+#include <map>
 #include <string>
 #include <variant>
 #include <vector>
@@ -105,6 +107,10 @@ struct ps_formula_expr_invalid_t {
 struct ps_formula_invalid_name_t {
   std::string name;
 };
+struct ps_formula_eval_err_t {
+  ps_formula_t formula;
+  std::map<std::string, double> var_values;
+};
 struct ps_formula_name_missing_t {};
 struct ps_formula_expr_missing_t {
   std::string name;
@@ -147,7 +153,7 @@ using ps_error_kind_t = std::variant<
 
     ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
     ps_formula_name_missing_t, ps_formula_expr_missing_t,
-    ps_formula_var_value_missing_t,
+    ps_formula_var_value_missing_t, ps_formula_eval_err_t,
 
     ps_timewin_name_missing_t, ps_timewin_duration_missing_t,
     ps_timewin_cron_missing_t, ps_timewin_score_missing_t,

@@ -20,11 +20,12 @@ static void print_formula_json(const std::vector<ps_formula_t> &formulas) {
   for (const auto &formula : formulas) {
     auto f_json_obj = json_object();
     json_object_set_new(f_json_obj, "expr", json_string(formula.expr.c_str()));
-    auto var_json_obj = json_object();
-    for (const auto [var_name, var_value] : formula.vars) {
-      json_object_set_new(var_json_obj, var_name.c_str(), json_real(var_value));
+    auto default_json_obj = json_object();
+    for (const auto [var_name, default_value] : formula.defaults) {
+      json_object_set_new(default_json_obj, var_name.c_str(),
+                          json_real(default_value));
     }
-    json_object_set_new(f_json_obj, "vars", var_json_obj);
+    json_object_set_new(f_json_obj, "defaults", default_json_obj);
     json_object_set_new(obj, formula.name.c_str(), f_json_obj);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
@@ -40,10 +41,10 @@ static void print_formula_table(const std::vector<ps_formula_t> &formulas) {
       formulas,
       {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
        {"Formula", [](auto &value, auto index) -> auto { return value.expr; }},
-       {"Vars", [](auto &value, auto index) -> auto {
+       {"Defaults", [](auto &value, auto index) -> auto {
           std::stringstream ss;
           bool first = true;
-          for (const auto &[name, value] : value.vars) {
+          for (const auto &[name, value] : value.defaults) {
             if (!first) {
               ss << ", ";
             } else {
@@ -133,31 +134,33 @@ static void register_get_command(CLI::App *app) {
 
 static void register_set_command(CLI::App *app) {
   auto *set_cmd = app->add_subcommand("set", "Set formula values");
-  set_cmd->footer("Example:\n  priorisea formula set job_priority "
-                  "\"prev_priority * 2\" --var prev_priority 5 # set "
-                  "job_priority formula with a default prev_priority of 5");
+  set_cmd->footer(
+      "Example:\n  priorisea formula set job_priority "
+      "\"{{var:prev_priority}} * 2\" --default var:prev_priority 5 # set "
+      "job_priority formula with a default prev_priority of 5");
   set_cmd->set_help_flag("-h,--help", "Show help for set command");
   struct options {
     std::string name;
     std::string expr;
-    std::vector<std::string> vars;
+    std::vector<std::string> defaults;
   };
   auto opts = std::make_shared<options>();
   set_cmd->add_option("name", opts->name, "Formulas to set")->required();
   set_cmd->add_option("expr", opts->expr, "Expression to set")->required();
-  set_cmd->add_option("-v,--var", opts->vars, "Variables to set")->type_size(2);
+  set_cmd->add_option("-d,--default", opts->defaults, "Defaults to set")
+      ->type_size(2);
   set_cmd->callback([opts] {
     auto formula = ps_formula_t{.name = opts->name, .expr = opts->expr};
-    for (size_t i = 0; i < opts->vars.size(); i += 2) {
-      auto var_name = opts->vars[i];
-      auto value_str = opts->vars[i + 1];
+    for (size_t i = 0; i < opts->defaults.size(); i += 2) {
+      auto default_name = opts->defaults[i];
+      auto value_str = opts->defaults[i + 1];
       double value;
       if (!parse_double(value_str, value)) {
         ps_result_t<bool> err =
             ps_error(ps_parse_double_err_t{.double_str = value_str});
         return cli_error(err);
       }
-      formula.vars[var_name] = value;
+      formula.defaults[default_name] = value;
     }
     auto update_res = ps_db_formula_set(formula);
     if (!ps_is_ok(update_res)) {

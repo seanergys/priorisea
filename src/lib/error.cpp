@@ -127,6 +127,15 @@ std::string ps_error_message_kind(const ps_formula_expr_invalid_t &err) {
   return "formula expression invalid: " + err.expr;
 }
 
+std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
+  std::string var_err;
+  for (const auto &var : err.var_values) {
+    var_err += ", " + var.first + ": " + std::to_string(var.second);
+  }
+  return "formula eval error. name: " + err.formula.name +
+         ", expr: " + err.formula.expr + var_err;
+}
+
 std::string ps_error_message_kind(const ps_formula_invalid_name_t &err) {
   return "formula invalid name: " + err.name;
 }

@@ -190,17 +190,18 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
   int64_t priority;
   if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_OUT, "{s:I}", "priority",
                              &priority) >= 0) {
-    vars_over["prev_priority"] = static_cast<double>(priority);
+    vars_over["var:prev_priority"] = static_cast<double>(priority);
   }
 
   auto scores_it = scores.find(userid);
   if (scores_it != scores.end()) {
-    vars_over["user_score"] = static_cast<double>(scores_it->second);
+    vars_over["var:user_score"] = static_cast<double>(scores_it->second);
   }
 
   auto eval_res = ps_eval_formula(priority_formula, vars_over);
   if (!ps_is_ok(eval_res)) {
-    flux_log_error(h, "formula evaluation failed");
+    auto errmsg = ps_error_message(eval_res);
+    flux_log(h, LOG_ERR, "formula evaluation failed: %s", errmsg.c_str());
     return flux_jobtap_priority_unavail(p, args);
   }
 
