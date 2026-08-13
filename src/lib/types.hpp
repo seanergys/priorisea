@@ -44,12 +44,12 @@ typedef std::map<uid_t, double> ps_score_map_t;
 
 //// decay
 
-struct ps_decay_one_t {
+struct ps_decay_frame_t {
   int duration;
   double priority;
 };
 
-typedef std::vector<ps_decay_one_t> ps_decay_t;
+typedef std::vector<ps_decay_frame_t> ps_decay_t;
 
 //// flux
 
@@ -81,4 +81,11 @@ struct ps_flux_job_info_t {
   double expiration;
   // json_t annotations;
   // int waitstatus;
+};
+
+// seanerbus
+
+struct ps_seanerbus_t {
+  std::string ip;
+  int port;
 };

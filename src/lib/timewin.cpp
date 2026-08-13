@@ -16,13 +16,6 @@
 #include <variant>
 #include <vector>
 
-std::string ps_timewin_to_str(const ps_timewin_t &timewin) {
-  std::stringstream ss;
-  ss << timewin.name << "," << timewin.cron << "," << timewin.duration << ","
-     << timewin.score;
-  return ss.str();
-}
-
 ps_result_t<ps_success_t> ps_validate_cron(const std::string &expr) {
   try {
     cron::make_cron(expr);
@@ -46,58 +39,50 @@ ps_result_t<ps_success_t> ps_validate_timewin(const ps_timewin_t &timewin) {
   return ps_success_t{};
 }
 
-ps_result_t<ps_timewin_t> ps_timewin_from_str(const std::string &str) {
-  ps_timewin_t timewin;
-  std::stringstream ss(str);
-  std::string t;
-  if (!getline(ss, t, ',')) {
-    return ps_error(ps_timewin_name_missing_t{});
-  }
-  timewin.name = t;
+json_t *ps_timewin_to_json(const ps_timewin_t &timewin) {
+  auto *obj = json_object();
+  json_object_set_new(obj, "name", json_string(timewin.name.c_str()));
+  json_object_set_new(obj, "cron", json_string(timewin.cron.c_str()));
+  json_object_set_new(obj, "duration", json_integer(timewin.duration));
+  json_object_set_new(obj, "score", json_real(timewin.score));
+  return obj;
+}
 
-  if (!getline(ss, t, ',')) {
-    return ps_error(ps_timewin_cron_missing_t{});
-  }
-  timewin.cron = t;
-
-  if (!getline(ss, t, ',')) {
-    return ps_error(ps_timewin_duration_missing_t{});
-  }
+ps_timewin_t ps_timewin_from_json(json_t *obj) {
+  ps_timewin_t res;
+  const char *name = nullptr;
+  const char *cron = nullptr;
   int duration = 0;
-  if (!parse_int(t, duration)) {
-    return ps_error(ps_parse_int_err_t{});
-  }
-  timewin.duration = duration;
-
-  if (!getline(ss, t, ',')) {
-    return ps_error(ps_timewin_score_missing_t{});
-  }
   double score = 0;
-  if (!parse_double(t, score)) {
-    return ps_error(ps_timewin_score_parse_err_t{});
-  }
-  timewin.score = score;
-
-  auto validate_res = ps_validate_timewin(timewin);
-  if (!ps_is_ok(validate_res)) {
-    return ps_forward_error<ps_timewin_t>(validate_res, "validating timewin");
-  }
-  return timewin;
+  json_unpack(obj, "{s:s, s:s, s:i, s:f}", "name", &name, "cron", &cron,
+              "duration", &duration, "score", &score);
+  res.name = name ? name : "";
+  res.cron = cron ? cron : "";
+  res.duration = duration;
+  res.score = score;
+  return res;
 }
 
 ps_result_t<ps_success_t> ps_db_timewin_set(const ps_timewin_t &timewin) {
-  auto timewin_str = ps_timewin_to_str(timewin);
+  auto *json_timewin = ps_timewin_to_json(timewin);
+  char *timewin_str = json_dumps(json_timewin, 0);
+  json_decref(json_timewin);
+  if (!timewin_str) {
+    return ps_error(ps_json_pack_err_t{});
+  }
 
   flux_kvs_txn_t *txn;
   if (!(txn = flux_kvs_txn_create())) {
+    free(timewin_str);
     return ps_error(ps_flux_txn_create_err_t{.msg = strerror(errno)});
   }
   auto key = "priorisea.timewin." + timewin.name;
-  auto value = timewin_str;
-  if (flux_kvs_txn_put(txn, 0, key.c_str(), value.c_str()) < 0) {
+  if (flux_kvs_txn_put(txn, 0, key.c_str(), timewin_str) < 0) {
+    free(timewin_str);
     return ps_error(ps_flux_kvs_txn_put_err_t{
-        .key = key, .value = value, .msg = strerror(errno)});
+        .key = key, .value = timewin_str, .msg = strerror(errno)});
   }
+  free(timewin_str);
   return ps_flux_kvs_commit(txn);
 }
 
@@ -137,8 +122,18 @@ ps_db_timewins_get(const std::vector<std::string> &names) {
     auto lkv = lookup_key_res.value;
     auto lookup_key_value = ps_unwrap(lkv);
 
-    auto from_res = ps_timewin_from_str(lookup_key_value);
-    res.push_back({.name = timewin_name, .result = from_res});
+    json_error_t json_err;
+    auto *json_timewin = json_loads(lookup_key_value.c_str(), 0, &json_err);
+    if (!json_timewin) {
+      res.push_back({.name = timewin_name,
+                     .result = ps_error(
+                         ps_json_unpack_err_t{.dumps = lookup_key_value})});
+      continue;
+    }
+
+    auto timewin = ps_timewin_from_json(json_timewin);
+    json_decref(json_timewin);
+    res.push_back({.name = timewin_name, .result = timewin});
   }
 
   return res;

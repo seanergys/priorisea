@@ -89,3 +89,12 @@ Meaning jobs ran on the same day keep their scores, jobs ran the next seven days
 The testing is separated into:
 - TAP tests using sharness (user-side tests)
 - Unit tests per language (TODO)
+
+## Configuration
+
+[priorisea]
+[priorisea.seanerbus]
+ip = "localhost"
+port = 5398
+[priorisea.database]
+...

@@ -96,9 +96,8 @@ static void register_update_command(CLI::App *app) {
       for (const auto &jobid_str : opts->jobids_str) {
         flux_jobid_t jobid;
         if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
-          auto err = ps_error(ps_flux_jobid_parse_err_t{
-              .jobid = jobid_str, .msg = strerror(errno)});
-          return cli_error(err);
+          return cli_error(ps_error(ps_flux_jobid_parse_err_t{
+              .jobid = jobid_str, .msg = strerror(errno)}));
         }
         jobids.push_back(jobid);
       }
@@ -186,9 +185,8 @@ static void register_job_command(CLI::App *app) {
       for (const auto &jobid_str : opts->jobids_str) {
         flux_jobid_t jobid;
         if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
-          ps_error_t err = ps_error(ps_flux_jobid_parse_err_t{
-              .jobid = jobid_str, .msg = strerror(errno)});
-          return cli_error(err);
+          return cli_error(ps_error(ps_flux_jobid_parse_err_t{
+              .jobid = jobid_str, .msg = strerror(errno)}));
         }
         jobids.push_back(jobid);
       }

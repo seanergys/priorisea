@@ -26,6 +26,37 @@ static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
 
 ////
 
+json_t *ps_formula_to_json(const ps_formula_t &formula) {
+  auto *obj = json_object();
+  json_object_set_new(obj, "name", json_string(formula.name.c_str()));
+  json_object_set_new(obj, "expr", json_string(formula.expr.c_str()));
+  auto *defaults_obj = json_object();
+  for (const auto &[var_name, value] : formula.defaults) {
+    json_object_set_new(defaults_obj, var_name.c_str(), json_real(value));
+  }
+  json_object_set_new(obj, "defaults", defaults_obj);
+  return obj;
+}
+
+ps_formula_t ps_formula_from_json(json_t *obj) {
+  ps_formula_t res;
+  const char *name = nullptr;
+  const char *expr = nullptr;
+  json_t *defaults_obj = nullptr;
+  json_unpack(obj, "{s:s, s:s, s:o}", "name", &name, "expr", &expr, "defaults",
+              &defaults_obj);
+  res.name = name ? name : "";
+  res.expr = expr ? expr : "";
+  if (defaults_obj && json_is_object(defaults_obj)) {
+    const char *var_name;
+    json_t *value_j;
+    json_object_foreach(defaults_obj, var_name, value_j) {
+      res.defaults[var_name] = json_real_value(value_j);
+    }
+  }
+  return res;
+}
+
 static double min(double a, double b) { return a < b ? a : b; }
 static double max(double a, double b) { return a > b ? a : b; }
 ps_result_t<double>
@@ -71,6 +102,7 @@ ps_eval_formula(const ps_formula_t &formula,
   }
   auto result = te_eval(compiled);
   te_free(compiled);
+  free(te_vars);
   return result;
 }
 
@@ -120,16 +152,19 @@ ps_db_formulas_get(const std::vector<std::string> &names) {
     auto lkrv = lookup_key_res.value;
     auto lookup_key_unwrap = ps_unwrap(lkrv);
 
-    auto from_res = ps_formula_from_str(lookup_key_unwrap);
-    if (!ps_is_ok(from_res)) {
+    json_error_t json_err;
+    auto *json_formula = json_loads(lookup_key_unwrap.c_str(), 0, &json_err);
+    if (!json_formula) {
       res.push_back({.name = formula_name,
-                     .result = ps_forward_error<ps_formula_t>(
-                         from_res, "parsing stored formula '" + formula_name +
-                                       "' from flux kvs")});
+                     .result = ps_error(
+                         ps_json_unpack_err_t{.dumps = lookup_key_unwrap},
+                         "parsing stored formula '" + formula_name + "'")});
       continue;
     }
 
-    res.push_back({.name = formula_name, .result = ps_unwrap(from_res)});
+    auto formula = ps_formula_from_json(json_formula);
+    json_decref(json_formula);
+    res.push_back({.name = formula_name, .result = formula});
   }
 
   return res;
@@ -160,15 +195,24 @@ ps_result_t<ps_success_t> ps_db_formula_set(const ps_formula_t &formula) {
   // TODO: if the store is rejected, roll
   // back the priority formula in the flux plugin
   auto kvs_key = "priorisea.formula." + formula.name;
-  auto formula_str = ps_formula_to_str(formula);
+  auto *json_formula = ps_formula_to_json(formula);
+  char *formula_str = json_dumps(json_formula, 0);
+  json_decref(json_formula);
+  if (!formula_str) {
+    return ps_error(ps_json_pack_err_t{});
+  }
+
   auto txn = flux_kvs_txn_create();
   if (!txn) {
+    free(formula_str);
     return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
-  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), formula_str.c_str()) < 0) {
+  if (flux_kvs_txn_put(txn, 0, kvs_key.c_str(), formula_str) < 0) {
+    free(formula_str);
     return ps_error(ps_flux_kvs_txn_put_err_t{
         .key = kvs_key, .value = formula_str, .msg = strerror(errno)});
   }
+  free(formula_str);
   auto commit_res = ps_flux_kvs_commit(txn);
   if (!ps_is_ok(commit_res)) {
     return ps_forward_error<ps_success_t>(
@@ -215,8 +259,8 @@ ps_result_t<ps_success_t> ps_db_formulas_init() {
     return ps_forward_error<ps_success_t>(
         get_res, "getting default formulas from database");
   }
-  auto get_unwrap = ps_unwrap(get_res);
 
+  auto get_unwrap = ps_unwrap(get_res);
   std::vector<std::string> missing_formulas;
   for (const auto &get_formula_res : get_unwrap) {
     if (!(ps_is_ok(get_formula_res.result))) {
@@ -231,64 +275,11 @@ ps_result_t<ps_success_t> ps_db_formulas_init() {
     for (const auto &formula : missing_formulas) {
       ss << formula << " ";
     }
+
     return ps_forward_error<ps_success_t>(reset_res, ss.str());
   }
 
   return ps_success_t{};
-}
-
-/**
- * TODO: find a better serialization format
- */
-std::string ps_formula_to_str(const ps_formula_t &formula) {
-  std::stringstream ss;
-  ss << formula.name << "\x1E" << formula.expr;
-  for (auto &[name, value] : formula.defaults) {
-    ss << "\x1E";
-    ss << name << "\x1F" << value;
-  }
-  return ss.str();
-}
-
-/**
- * TODO: find a better serialization format
- */
-ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str) {
-  ps_formula_t res;
-  if (formula_str.empty()) {
-    return ps_error(ps_str_empty_t{});
-  }
-
-  std::stringstream ss(formula_str);
-  std::string t;
-
-  if (!getline(ss, t, '\x1E')) {
-    return ps_error(ps_formula_name_missing_t{});
-  }
-  res.name = t;
-
-  if (!getline(ss, t, '\x1E')) {
-    return ps_error(ps_formula_expr_missing_t{.name = res.name});
-  }
-  res.expr = t;
-
-  while (getline(ss, t, '\x1E')) {
-    auto pos = t.find('\x1F');
-    if (pos == std::string::npos) {
-      return ps_error(ps_formula_var_value_missing_t{.name = res.name});
-    }
-
-    auto name_str = t.substr(0, pos);
-    auto value_str = t.substr(pos + 1);
-
-    double value = 0;
-    if (!parse_double(value_str, value)) {
-      return ps_error(ps_parse_double_err_t{.double_str = value_str});
-    }
-
-    res.defaults[name_str] = value;
-  }
-  return res;
 }
 
 ps_result_t<std::vector<ps_db_formula_get_entry_t>> ps_db_formulas_list() {

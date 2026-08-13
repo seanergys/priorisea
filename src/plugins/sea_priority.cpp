@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "lib/error.hpp"
+#include "lib/flux.hpp"
 #include "lib/formula.hpp"
 #include "lib/score.hpp"
 #include "lib/types.hpp"
@@ -21,6 +22,7 @@
 
 static ps_formula_t priority_formula;
 static ps_score_map_t scores;
+static ps_seanerbus_t seanerbus;
 
 static void init_formula() {
   auto get_res = ps_db_formula_get("job_priority");
@@ -45,8 +47,9 @@ static void init_scores() {
 
 static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  auto formula_str = ps_formula_to_str(priority_formula);
-  if (flux_respond_pack(h, msg, "{s:s}", "data", formula_str.c_str()) < 0) {
+  auto *json_formula = ps_formula_to_json(priority_formula);
+  if (flux_respond_pack(h, msg, "{s:o}", "data", json_formula) < 0) {
+
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
   }
@@ -54,25 +57,16 @@ static void get_formula_cb(flux_t *h, flux_msg_handler_t *mh,
 
 static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
                            const flux_msg_t *msg, void *arg) {
-  const char *formula_str = nullptr;
-  if (flux_request_unpack(msg, NULL, "{s:s}", "data", &formula_str) < 0) {
+  json_t *json_formula = NULL;
+
+  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &json_formula) < 0) {
     auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
     flux_respond_error(h, msg, errno, errmsg.c_str());
     return;
   }
 
-  if (!formula_str) {
-    flux_respond_error(h, msg, EINVAL, "data is null");
-    return;
-  }
+  auto formula = ps_formula_from_json(json_formula);
 
-  auto from_res = ps_formula_from_str(formula_str);
-  if (!ps_is_ok(from_res)) {
-    auto errmsg = fmt::format("invalid formula: {}", formula_str);
-    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-    return;
-  }
-  auto formula = ps_unwrap(from_res);
   if (!ps_validate_formula(formula)) {
     auto errmsg = fmt::format("invalid formula: {}", formula.expr);
     flux_respond_error(h, msg, EINVAL, errmsg.c_str());
@@ -81,7 +75,9 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
 
   priority_formula = formula;
 
-  flux_respond(h, msg, NULL);
+  if (flux_respond(h, msg, NULL) < 0)
+    flux_log_error(h, "flux_respond");
+  return;
 }
 
 static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
@@ -99,7 +95,8 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  auto *res = json_object();
+  // Build a temporary map of requested userids to look up scores
+  ps_score_map_t result_map;
   size_t num_data = json_array_size(arr);
 
   for (size_t i = 0; i < num_data; i++) {
@@ -108,7 +105,6 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
     if (!json_is_integer(elem)) {
       auto errmsg = fmt::format("element {} is not an integer", i);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      json_decref(res);
       return;
     }
 
@@ -118,15 +114,15 @@ static void get_score_cb(flux_t *h, flux_msg_handler_t *mh,
     if (it == scores.end()) {
       auto errmsg = fmt::format("user_id {} not found", user_id);
       flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      json_decref(res);
       return;
     }
 
-    std::string user_id_key = std::to_string(user_id);
-    json_object_set_new(res, user_id_key.c_str(), json_real(it->second));
+    result_map[user_id] = it->second;
   }
 
+  auto *res = score_map_to_json(result_map);
   if (flux_respond_pack(h, msg, "{s:o}", "data", res) < 0) {
+    json_decref(res);
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
     flux_log_error(h, "%s", errmsg.c_str());
   }
@@ -147,27 +143,32 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  const char *user_id_key = nullptr;
-  json_t *score_j = nullptr;
+  auto new_scores = score_map_from_json(obj);
+  scores.insert(new_scores.begin(), new_scores.end());
 
-  json_object_foreach(obj, user_id_key, score_j) {
-    int user_id = 0;
+  flux_respond(h, msg, NULL);
+}
 
-    if (!parse_int(user_id_key, user_id)) {
-      auto errmsg = fmt::format("invalid user_id key '{}'", user_id_key);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      return;
-    }
-
-    if (!json_is_real(score_j)) {
-      auto errmsg = fmt::format("score for user_id {} is not an real", user_id);
-      flux_respond_error(h, msg, EINVAL, errmsg.c_str());
-      return;
-    }
-
-    double score_value = json_real_value(score_j);
-    scores[user_id] = score_value;
+static void get_seanerbus_cb(flux_t *h, flux_msg_handler_t *mh,
+                             const flux_msg_t *msg, void *arg) {
+  auto *json_seanerbus = ps_seanerbus_to_json(seanerbus);
+  if (flux_respond_pack(h, msg, "{s:o}", "data", json_seanerbus) < 0) {
+    json_decref(json_seanerbus);
+    auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
+    flux_log_error(h, "%s", errmsg.c_str());
   }
+}
+
+static void set_seanerbus_cb(flux_t *h, flux_msg_handler_t *mh,
+                             const flux_msg_t *msg, void *arg) {
+  json_t *json_seanerbus = NULL;
+  if (flux_request_unpack(msg, NULL, "{s:o}", "data", &json_seanerbus) < 0) {
+    auto errmsg = fmt::format("payload unpack failed: {}", strerror(errno));
+    flux_respond_error(h, msg, errno, errmsg.c_str());
+    return;
+  }
+
+  seanerbus = ps_seanerbus_from_json(json_seanerbus);
 
   flux_respond(h, msg, NULL);
 }
@@ -227,17 +228,40 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
   return 0;
 }
 
+static int conf_update_cb(flux_plugin_t *p, const char *topic,
+                          flux_plugin_arg_t *args, void *arg) {
+  json_t *conf;
+  if (flux_plugin_arg_unpack(args, FLUX_PLUGIN_ARG_IN, "{s:o}", "conf", &conf) <
+      0) {
+    auto errmsg = fmt::format("error unpacking conf.update arguments: {}",
+                              strerror(errno));
+    return flux_jobtap_error(p, args, "%s", errmsg.c_str());
+  }
+
+  const char *ip = nullptr;
+  int port = 0;
+  if (json_unpack(conf, "{s?{s?{s:s, s:i}}}", "priorisea", "seanerbus", "ip",
+                  &ip, "port", &port) < 0)
+    return 0;
+
+  if (ip)
+    seanerbus.ip = ip;
+  if (port)
+    seanerbus.port = port;
+
+  return 0;
+}
+
 ////
 
 static const struct flux_plugin_handler tab[] = {
     {"job.state.priority", priority_cb, NULL},
     {"job.priority.get", priority_cb, NULL},
+    {"conf.update", conf_update_cb, NULL},
     {0},
 };
 
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
-  flux_t *h = flux_jobtap_get_flux(p);
-
   init_formula();
   init_scores();
 
@@ -245,7 +269,10 @@ extern "C" int flux_plugin_init(flux_plugin_t *p) {
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||
       flux_jobtap_service_register(p, "set_formula", set_formula_cb, p) < 0 ||
       flux_jobtap_service_register(p, "get_score", get_score_cb, p) < 0 ||
-      flux_jobtap_service_register(p, "set_score", set_score_cb, p) < 0)
+      flux_jobtap_service_register(p, "set_score", set_score_cb, p) < 0 ||
+      flux_jobtap_service_register(p, "get_seanerbus", get_seanerbus_cb, p) <
+          0 ||
+      flux_jobtap_service_register(p, "set_seanerbus", set_seanerbus_cb, p) < 0)
     return -1;
 
   return 0;

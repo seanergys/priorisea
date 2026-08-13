@@ -18,15 +18,8 @@
 static void print_formula_json(const std::vector<ps_formula_t> &formulas) {
   auto obj = json_object();
   for (const auto &formula : formulas) {
-    auto f_json_obj = json_object();
-    json_object_set_new(f_json_obj, "expr", json_string(formula.expr.c_str()));
-    auto default_json_obj = json_object();
-    for (const auto [var_name, default_value] : formula.defaults) {
-      json_object_set_new(default_json_obj, var_name.c_str(),
-                          json_real(default_value));
-    }
-    json_object_set_new(f_json_obj, "defaults", default_json_obj);
-    json_object_set_new(obj, formula.name.c_str(), f_json_obj);
+    auto *f_json = ps_formula_to_json(formula);
+    json_object_set_new(obj, formula.name.c_str(), f_json);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
   if (dump) {
@@ -137,30 +130,45 @@ static void register_set_command(CLI::App *app) {
   set_cmd->footer(
       "Example:\n  priorisea formula set job_priority "
       "\"{{var:prev_priority}} * 2\" --default var:prev_priority 5 # set "
-      "job_priority formula with a default prev_priority of 5");
+      "job_priority formula with a default prev_priority of 5\n  priorisea "
+      "formula set '{\"name\":\"job_priority\",\"expr\":\"{{var:x}} * "
+      "2\",\"defaults\":{\"var:x\":5}}' --json # JSON format");
   set_cmd->set_help_flag("-h,--help", "Show help for set command");
   struct options {
     std::string name;
     std::string expr;
     std::vector<std::string> defaults;
+    bool json;
   };
   auto opts = std::make_shared<options>();
-  set_cmd->add_option("name", opts->name, "Formulas to set")->required();
-  set_cmd->add_option("expr", opts->expr, "Expression to set")->required();
+  set_cmd->add_option("formula", opts->name, "Formula JSON or name")
+      ->required();
+  set_cmd->add_option("expr", opts->expr, "Expression to set");
   set_cmd->add_option("-d,--default", opts->defaults, "Defaults to set")
       ->type_size(2);
+  set_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
   set_cmd->callback([opts] {
-    auto formula = ps_formula_t{.name = opts->name, .expr = opts->expr};
-    for (size_t i = 0; i < opts->defaults.size(); i += 2) {
-      auto default_name = opts->defaults[i];
-      auto value_str = opts->defaults[i + 1];
-      double value;
-      if (!parse_double(value_str, value)) {
-        ps_result_t<bool> err =
-            ps_error(ps_parse_double_err_t{.double_str = value_str});
-        return cli_error(err);
+    ps_formula_t formula;
+    if (opts->json) {
+      json_error_t json_err;
+      auto *json_formula = json_loads(opts->name.c_str(), 0, &json_err);
+      if (!json_formula) {
+        return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->name}));
       }
-      formula.defaults[default_name] = value;
+      formula = ps_formula_from_json(json_formula);
+      json_decref(json_formula);
+    } else {
+      formula = ps_formula_t{.name = opts->name, .expr = opts->expr};
+      for (size_t i = 0; i < opts->defaults.size(); i += 2) {
+        auto default_name = opts->defaults[i];
+        auto value_str = opts->defaults[i + 1];
+        double value;
+        if (!parse_double(value_str, value)) {
+          return cli_error(
+              ps_error(ps_parse_double_err_t{.double_str = value_str}));
+        }
+        formula.defaults[default_name] = value;
+      }
     }
     auto update_res = ps_db_formula_set(formula);
     if (!ps_is_ok(update_res)) {

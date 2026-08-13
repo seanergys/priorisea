@@ -98,6 +98,9 @@ struct ps_decay_priority_missing_t {};
 struct ps_decay_duration_invalid_t {
   int value;
 };
+struct ps_decay_string_parse_err_t {
+  std::string expr;
+};
 
 //// formula
 
@@ -150,6 +153,7 @@ using ps_error_kind_t = std::variant<
     ps_flux_kvs_txn_put_err_t,
 
     ps_decay_priority_missing_t, ps_decay_duration_invalid_t,
+    ps_decay_string_parse_err_t,
 
     ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
     ps_formula_name_missing_t, ps_formula_expr_missing_t,

@@ -5,6 +5,7 @@
 #include "decay.hpp"
 #include "formula.hpp"
 #include "init.hpp"
+#include "plugin.hpp"
 #include "score.hpp"
 #include "timewin.hpp"
 #include <fmt/format.h>
@@ -21,6 +22,7 @@ int main(int argc, char *argv[]) {
   register_decay_commands(&app);
   register_score_commands(&app);
   register_timewin_commands(&app);
+  register_plugin_commands(&app);
 
   CLI11_PARSE(app, argc, argv);
   return 0;

@@ -9,7 +9,8 @@ priorisea_SOURCES = main.cpp \
     score.cpp score.hpp \
     decay.cpp  decay.hpp \
     init.cpp init.hpp \
-    util.cpp util.hpp
+    util.cpp util.hpp \
+    plugin.cpp plugin.hpp
 
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
