@@ -20,28 +20,6 @@
         "type": "github"
       }
     },
-    "flux-core": {
-      "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "systems": [
-          "systems"
-        ]
-      },
-      "locked": {
-        "path": "./nix",
-        "type": "path"
-      },
-      "original": {
-        "path": "./nix",
-        "type": "path"
-      },
-      "parent": []
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1777954456,
@@ -61,7 +39,6 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "flux-core": "flux-core",
         "nixpkgs": "nixpkgs",
         "systems": "systems"
       }

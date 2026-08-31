@@ -4,4 +4,6 @@
 
 #pragma once
 #include <CLI/CLI.hpp>
-void register_score_commands(CLI::App *app);
+#include <lib/types.hpp>
+#include <string>
+void register_score_commands(CLI::App *app, const std::string &config_path);

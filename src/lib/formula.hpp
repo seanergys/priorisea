@@ -39,3 +39,8 @@ ps_db_formulas_reset(const std::vector<std::string> &names);
 ps_result_t<ps_success_t> ps_db_formulas_init();
 
 ps_result_t<ps_db_formulas_get_t> ps_db_formulas_list();
+
+ps_result_t<std::map<std::string, ps_result_t<double>>>
+ps_resolve_seanerbus_vars(const ps_formula_t &formula,
+                          const flux_jobid_t &jobid,
+                          const ps_seanerbus_t &seanerbus);

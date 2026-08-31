@@ -40,7 +40,8 @@ ps_result_t<ps_success_t> ps_db_user_set(const ps_user_t &user);
 
 ps_result_t<ps_success_t>
 ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
-                 const std::vector<ps_timewin_t> &timewins);
+                 const std::vector<ps_timewin_t> &timewins,
+                 const ps_seanerbus_t &seanerbus);
 
 ps_result_t<ps_db_users_get_t> ps_db_users_list();
 

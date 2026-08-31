@@ -5,10 +5,8 @@
 #include "timewin.hpp"
 #include "error.hpp"
 #include "flux.hpp"
-#include "util.hpp"
 #include <cerrno>
 #include <flux/core.h>
-#include <iostream>
 #include <jansson.h>
 #include <sstream>
 #include <string.h>

@@ -32,7 +32,7 @@ static void register_seanerbus_get_command(CLI::App *app) {
       json_decref(obj);
     } else {
       auto seanerbus_vec = std::vector<ps_seanerbus_t>{seanerbus};
-      ps_print_table(
+      ps_print_table_v(
           seanerbus_vec,
           {{"IP", [](auto &value, auto index) -> auto { return value.ip; }},
            {"Port", [](auto &value, auto index) -> auto {

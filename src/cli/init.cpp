@@ -11,7 +11,7 @@
 
 void register_init_command(CLI::App *app) {
   auto *init_cmd = app->add_subcommand("init", "Initialize the database");
-  init_cmd->set_help_flag("-h,--help", "Show help for score commands");
+  init_cmd->set_help_flag("-h,--help", "Show help for init commands");
   init_cmd->callback([] {
     auto init_decay_res = ps_db_decay_init();
     if (!ps_is_ok(init_decay_res)) {

@@ -193,7 +193,8 @@ ps_result_t<ps_success_t> ps_db_user_set(const ps_user_t &user) {
 
 ps_result_t<ps_success_t>
 ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
-                 const std::vector<ps_timewin_t> &timewins) {
+                 const std::vector<ps_timewin_t> &timewins,
+                 const ps_seanerbus_t &seanerbus) {
 
   std::map<std::string, double> vars_over;
 
@@ -218,6 +219,24 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
   auto duration_ratio = real_duration / job_info.duration;
   if (!std::isinf(duration_ratio)) {
     vars_over["var:duration_ratio"] = std::min(1.0, duration_ratio);
+  }
+
+  auto sb_res = ps_resolve_seanerbus_vars(formula, job_info.id, seanerbus);
+  if (!ps_is_ok(sb_res)) {
+    return ps_forward_error<ps_success_t>(sb_res,
+                                          "resolving seanerbus vars for job " +
+                                              std::to_string(job_info.id));
+  }
+  auto sb_val = ps_unwrap(sb_res);
+  for (const auto &[var, val] : sb_val) {
+    if (!ps_is_ok(val)) {
+      // A failed var can still be recovered using default values
+      // A warning could be raised through
+      continue;
+      // return ps_forward_error<ps_success_t>(val, "resolving seanerbus var " +
+      // var + " for job " + std::to_string(job_info.id));
+    }
+    vars_over[var] = ps_unwrap(val);
   }
 
   auto eval_res = ps_eval_formula(formula, vars_over);

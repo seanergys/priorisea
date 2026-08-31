@@ -30,7 +30,7 @@ static void print_formula_json(const std::vector<ps_formula_t> &formulas) {
 }
 
 static void print_formula_table(const std::vector<ps_formula_t> &formulas) {
-  ps_print_table(
+  ps_print_table_v(
       formulas,
       {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
        {"Formula", [](auto &value, auto index) -> auto { return value.expr; }},

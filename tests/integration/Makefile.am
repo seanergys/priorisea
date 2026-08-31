@@ -5,7 +5,8 @@ TESTS = \
     t1003-score-cmd.t \
     t1004-decay-cmd.t \
     t1005-plugin-reload.t \
-    t1006-large-update.t
+    t1006-large-update.t \
+    t1007-seanerbus.t
 
 EXTRA_DIST = \
     $(TESTS) \

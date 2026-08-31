@@ -42,6 +42,14 @@ std::string ps_error_message_kind(const ps_json_pack_err_t &) {
   return "json pack error";
 }
 
+std::string ps_error_message_kind(const ps_unimplemented_err_t &err) {
+  return "feature unimplemented";
+}
+
+std::string ps_error_message_kind(const ps_no_file_err_t &err) {
+  return "no such file: " + err.path;
+}
+
 //// flux
 
 std::string ps_error_message_kind(const ps_flux_open_err_t &err) {
@@ -69,6 +77,10 @@ std::string ps_error_message_kind(const ps_flux_kvs_txn_unlink_err_t &err) {
          "': " + err.msg;
 }
 
+std::string ps_error_message_kind(const ps_flux_kvs_get_err_t &err) {
+  return "flux kvs get error: " + err.msg;
+}
+
 std::string ps_error_message_kind(const ps_flux_kvs_lookup_err_t &err) {
   return "flux kvs lookup error for key '" + err.key + "': " + err.msg;
 }
@@ -84,6 +96,10 @@ std::string ps_error_message_kind(const ps_flux_rpc_get_unpack_err_t &err) {
 
 std::string ps_error_message_kind(const ps_flux_rpc_pack_err_t &err) {
   return "flux rpc pack error: " + err.msg;
+}
+
+std::string ps_error_message_kind(const ps_flux_rpc_err_t &err) {
+  return "flux rpc error: " + err.msg;
 }
 
 std::string ps_error_message_kind(const ps_flux_jobid_parse_err_t &err) {
@@ -121,6 +137,10 @@ std::string ps_error_message_kind(const ps_decay_duration_invalid_t &err) {
   return "decay duration invalid: " + std::to_string(err.value);
 }
 
+std::string ps_error_message_kind(const ps_decay_string_parse_err_t &err) {
+  return "decay string parse error: " + err.expr;
+}
+
 //// formula
 
 std::string ps_error_message_kind(const ps_formula_expr_invalid_t &err) {
@@ -128,12 +148,29 @@ std::string ps_error_message_kind(const ps_formula_expr_invalid_t &err) {
 }
 
 std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
-  std::string var_err;
-  for (const auto &var : err.var_values) {
-    var_err += ", " + var.first + ": " + std::to_string(var.second);
+  std::string msg = "formula eval error. name: " + err.formula.name + "\n" +
+                    err.compiled_expr;
+
+  if (err.error_pos > 0) {
+    size_t caret = static_cast<size_t>(err.error_pos) - 1;
+    if (caret > err.compiled_expr.length())
+      caret = err.compiled_expr.length();
+    msg += "\n" + std::string(caret, ' ') + "^";
   }
-  return "formula eval error. name: " + err.formula.name +
-         ", expr: " + err.formula.expr + var_err;
+
+  if (!err.formula.expr.empty() && err.formula.expr != err.compiled_expr)
+    msg += "\n(original: " + err.formula.expr + ")";
+
+  std::string var_err;
+  for (const auto &[var_name, value] : err.var_values) {
+    if (!var_err.empty())
+      var_err += ", ";
+    var_err += var_name + ": " + std::to_string(value);
+  }
+  if (!var_err.empty())
+    msg += "\nvariables: " + var_err;
+
+  return msg;
 }
 
 std::string ps_error_message_kind(const ps_formula_invalid_name_t &err) {
@@ -186,8 +223,13 @@ std::string ps_error_message_kind(const ps_timewin_neg_duration_t &err) {
   return "time window negative duration: " + std::to_string(err.duration);
 }
 
+std::string ps_error_message_kind(const ps_config_err_t &err) {
+  return "config error at " + err.path + ": " + err.msg;
+}
+
 std::string ps_error_message_kind(const ps_error_kind_t &error) {
-  return "unknown error: " + ps_type_name(error);
+  return "unknown error: " +
+         std::visit([](const auto &e) { return ps_type_name(e); }, error);
 }
 
 ////

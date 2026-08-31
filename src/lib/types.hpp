@@ -83,9 +83,13 @@ struct ps_flux_job_info_t {
   // int waitstatus;
 };
 
-// seanerbus
+// config
 
 struct ps_seanerbus_t {
   std::string ip;
   int port;
+};
+
+struct ps_config_t {
+  ps_seanerbus_t seanerbus;
 };

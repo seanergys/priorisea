@@ -30,7 +30,7 @@ static void print_timewins_json(const std::vector<ps_timewin_t> &timewins) {
 }
 
 static void print_timewins_table(const std::vector<ps_timewin_t> &timewins) {
-  ps_print_table(
+  ps_print_table_v(
       timewins,
       {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
        {"Cron", [](auto &value, auto index) -> auto { return value.cron; }},

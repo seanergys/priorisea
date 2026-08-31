@@ -18,8 +18,8 @@ template <typename T> struct ps_column_t {
 ////
 
 template <typename T>
-void ps_print_table(const std::vector<T> &rows,
-                    const std::vector<ps_column_t<T>> &columns) {
+void ps_print_table_v(const std::vector<T> &rows,
+                      const std::vector<ps_column_t<T>> &columns) {
   std::vector<std::size_t> widths;
 
   // Compute column widths
@@ -61,6 +61,42 @@ void ps_print_table(const std::vector<T> &rows,
 
       if (col + 1 < columns.size())
         std::cout << " | ";
+    }
+
+    std::cout << '\n';
+  }
+
+  std::cout << std::endl;
+}
+
+template <typename T>
+void ps_print_table_h(const std::vector<T> &rows,
+                      const std::vector<ps_column_t<T>> &columns) {
+  std::vector<std::size_t> widths;
+
+  // Width of the leading header column
+  std::size_t header_width = 0;
+  for (const auto &col : columns) {
+    header_width = std::max(header_width, col.header.size());
+  }
+  widths.push_back(header_width);
+
+  // Width of each record column (widest value in that record)
+  for (std::size_t row = 0; row < rows.size(); ++row) {
+    std::size_t width = 0;
+    for (const auto &col : columns) {
+      width = std::max(width, col.getter(rows[row], row).size());
+    }
+    widths.push_back(width);
+  }
+
+  // One line per field
+  for (std::size_t col = 0; col < columns.size(); ++col) {
+    std::cout << std::left << std::setw(widths[0]) << columns[col].header;
+
+    for (std::size_t row = 0; row < rows.size(); ++row) {
+      std::cout << " | " << std::left << std::setw(widths[row + 1])
+                << columns[col].getter(rows[row], row);
     }
 
     std::cout << '\n';

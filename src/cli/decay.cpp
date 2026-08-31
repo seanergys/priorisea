@@ -44,17 +44,18 @@ static void register_get_command(CLI::App *app) {
       }
       json_decref(obj);
     } else {
-      ps_print_table(decay, {{"Index",
-                              [](auto &value, auto index) -> auto {
-                                return std::to_string(index);
-                              }},
-                             {"Duration",
-                              [](auto &value, auto index) -> auto {
-                                return std::to_string(value.duration);
-                              }},
-                             {"Priority", [](auto &value, auto index) -> auto {
-                                return std::to_string(value.priority);
-                              }}});
+      ps_print_table_v(decay,
+                       {{"Index",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(index);
+                         }},
+                        {"Duration",
+                         [](auto &value, auto index) -> auto {
+                           return std::to_string(value.duration);
+                         }},
+                        {"Priority", [](auto &value, auto index) -> auto {
+                           return std::to_string(value.priority);
+                         }}});
     }
   });
 }

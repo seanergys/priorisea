@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
+#include "lib/config.hpp"
 #include "lib/error.hpp"
 #include "lib/flux.hpp"
 #include "lib/formula.hpp"
 #include "lib/score.hpp"
 #include "lib/types.hpp"
-#include "lib/util.hpp"
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -41,6 +41,18 @@ static void init_scores() {
       scores[user_res.userid] = ps_unwrap(urr).score;
     }
   }
+}
+
+static int init_config(flux_t *h) {
+  std::string config_path = ps_config_default_path();
+  auto config_res = ps_config_load(config_path);
+  if (!ps_is_ok(config_res)) {
+    flux_log_error(h, "failed to read config: %s", strerror(errno));
+    return -1;
+  }
+  auto config = ps_unwrap(config_res);
+  seanerbus = config.seanerbus;
+  return 0;
 }
 
 ////
@@ -202,7 +214,7 @@ static int priority_cb(flux_plugin_t *p, const char *topic,
   auto eval_res = ps_eval_formula(priority_formula, vars_over);
   if (!ps_is_ok(eval_res)) {
     auto errmsg = ps_error_message(eval_res);
-    flux_log(h, LOG_ERR, "formula evaluation failed: %s", errmsg.c_str());
+    flux_log_error(h, "formula evaluation failed: %s", errmsg.c_str());
     return flux_jobtap_priority_unavail(p, args);
   }
 
@@ -262,9 +274,12 @@ static const struct flux_plugin_handler tab[] = {
 };
 
 extern "C" int flux_plugin_init(flux_plugin_t *p) {
+  flux_t *h = flux_jobtap_get_flux(p);
+  if (init_config(h) < 0) {
+    return -1;
+  }
   init_formula();
   init_scores();
-
   if (flux_plugin_register(p, "sea_priority", tab) < 0 ||
       flux_jobtap_service_register(p, "get_formula", get_formula_cb, p) < 0 ||
       flux_jobtap_service_register(p, "set_formula", set_formula_cb, p) < 0 ||

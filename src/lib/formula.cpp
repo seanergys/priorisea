@@ -7,9 +7,9 @@
 #include "flux.hpp"
 #include "tinyexpr.h"
 #include "types.hpp"
-#include "util.hpp"
 #include <regex>
 #include <sstream>
+#include <utility>
 
 static const ps_formula_t DEFAULT_JOB_PRIORITY = {
     .name = "job_priority",
@@ -76,10 +76,14 @@ ps_eval_formula(const ps_formula_t &formula,
   auto *te_vars =
       (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
   int i = 0;
-  int var_idx = 0;
 
   for (const auto &[name, value] : vars_merged) {
-    std::string var_id = "v" + std::to_string(var_idx++);
+    // Rewrite "{{A:B}}" into the identifier "A_B" so tinyexpr parses a real,
+    // prefix-unique variable name; error locations then point at readable text.
+    std::string var_id = name;
+    size_t colon = var_id.find(':');
+    if (colon != std::string::npos)
+      var_id[colon] = '_';
     var_ids.push_back(var_id);
 
     std::string pattern = "{{" + name + "}}";
@@ -97,8 +101,10 @@ ps_eval_formula(const ps_formula_t &formula,
   int err = 0;
   te_expr *compiled = te_compile(transformed_expr.c_str(), te_vars, i, &err);
   if (!compiled) {
-    return ps_error(
-        ps_formula_eval_err_t{.formula = formula, .var_values = vars_merged});
+    return ps_error(ps_formula_eval_err_t{.formula = formula,
+                                          .var_values = vars_merged,
+                                          .error_pos = err,
+                                          .compiled_expr = transformed_expr});
   }
   auto result = te_eval(compiled);
   te_free(compiled);
@@ -289,4 +295,42 @@ ps_result_t<std::vector<ps_db_formula_get_entry_t>> ps_db_formulas_list() {
         ls_res, "listing formulas in flux kvs");
   }
   return ps_db_formulas_get(ps_unwrap(ls_res));
+}
+
+ps_result_t<std::map<std::string, ps_result_t<double>>>
+ps_resolve_seanerbus_vars(const ps_formula_t &formula,
+                          const flux_jobid_t &jobid,
+                          const ps_seanerbus_t &seanerbus) {
+  std::map<std::string, ps_result_t<double>> sb_results;
+
+  std::regex rpc_pattern(R"(\{\{rpc:[^}]*\}\})");
+  auto begin = std::sregex_iterator(formula.expr.begin(), formula.expr.end(),
+                                    rpc_pattern);
+  auto end = std::sregex_iterator();
+  for (auto it = begin; it != end; ++it) {
+    std::string match = (*it)[0].str();
+    std::string inner = match.substr(2, match.length() - 4);
+    if (sb_results.find(inner) != sb_results.end()) {
+      continue;
+    }
+    sb_results[inner] =
+        ps_error(ps_unimplemented_err_t{}, "seanerbus rpc (" + inner + ")");
+    // std::cout << "Found rpc: " << inner << "\n";
+  }
+
+  std::regex adapter_pattern(R"(\{\{adapter:[^}]*\}\})");
+  begin = std::sregex_iterator(formula.expr.begin(), formula.expr.end(),
+                               adapter_pattern);
+  end = std::sregex_iterator();
+  for (auto it = begin; it != end; ++it) {
+    std::string match = (*it)[0].str();
+    std::string inner = match.substr(2, match.length() - 4);
+    if (sb_results.find(inner) != sb_results.end()) {
+      continue;
+    }
+    sb_results[inner] =
+        ps_error(ps_unimplemented_err_t{}, "seanerbus adapter (" + inner + ")");
+    // std::cout << "Found adapter: " << inner << "\n";
+  }
+  return sb_results;
 }
