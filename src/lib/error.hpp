@@ -159,6 +159,27 @@ struct ps_config_err_t {
 struct ps_seanerbus_resolve_err_t {
   std::string service;
 };
+struct ps_seanerbus_err_t {
+  std::string service;
+  std::string msg;
+};
+struct ps_seanerbus_wrong_payload_err_t {
+  std::string service;
+};
+struct ps_seanerbus_decode_err_t {
+  std::string service;
+  std::string msg;
+};
+struct ps_seanerbus_connection_err_t {
+  ps_seanerbus_t seanerbus;
+  std::string msg;
+};
+struct ps_invalid_uuid_err_t {
+  std::string uuid;
+};
+struct ps_invalid_rpc_ns_err_t {
+  std::string expr;
+};
 
 ////
 
@@ -191,7 +212,10 @@ using ps_error_kind_t =
 
                  ps_config_err_t,
 
-                 ps_seanerbus_resolve_err_t>;
+                 ps_seanerbus_resolve_err_t, ps_seanerbus_err_t,
+                 ps_seanerbus_wrong_payload_err_t, ps_seanerbus_decode_err_t,
+                 ps_seanerbus_connection_err_t, ps_invalid_uuid_err_t,
+                 ps_invalid_rpc_ns_err_t>;
 
 struct ps_error_t {
   std::vector<std::string> context;

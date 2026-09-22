@@ -5,10 +5,10 @@ test_description="test seanergys formula subcommand"
 . `dirname $0`/sharness.sh
 
 PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
-DEFAULT_JOB_SCORE_FORMULA="{{var:duration_ratio}} + {{var:timewin_score}}"
+DEFAULT_JOB_SCORE_FORMULA="<var:duration_ratio> + <var:timewin_score>"
 DEFAULT_JOB_SCORE_VARS_DURATION_RATIO=0.0
 DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE=0.0
-DEFAULT_JOB_PRIORITY_FORMULA="{{var:prev_priority}} * 0.5 + {{var:user_score}} * 0.5"
+DEFAULT_JOB_PRIORITY_FORMULA="<var:prev_priority> * 0.5 + <var:user_score> * 0.5"
 DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY=16.0
 DEFAULT_JOB_PRIORITY_VARS_USER_SCORE=16.0
 test_under_flux 1
@@ -42,7 +42,7 @@ jq -e "
 
 test_expect_success 'check the edition of default formulas' '
 job_score="8" &&
-job_priority="max(1,{{var:prev_priority}} * {{var:user_score}})" &&
+job_priority="max(1,<var:prev_priority> * <var:user_score>)" &&
 job_priority_prev_priority=10 &&
 job_priority_user_score=5 &&
 

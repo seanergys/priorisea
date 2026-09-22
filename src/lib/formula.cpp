@@ -11,18 +11,19 @@
 #include <seanerbus/client/simple_event_loop.hpp>
 #include <seanerbus/helpers/resolve.hpp>
 #include <seanerbus/msg/message.hpp>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
 
 static const ps_formula_t DEFAULT_JOB_PRIORITY = {
     .name = "job_priority",
-    .expr = "{{var:prev_priority}} * 0.5 + {{var:user_score}} * 0.5",
+    .expr = "<var:prev_priority> * 0.5 + <var:user_score> * 0.5",
     .defaults = {{"var:prev_priority", 16}, {"var:user_score", 16}}};
 
 static const ps_formula_t DEFAULT_JOB_SCORE = {
     .name = "job_score",
-    .expr = "{{var:duration_ratio}} + {{var:timewin_score}}",
+    .expr = "<var:duration_ratio> + <var:timewin_score>",
     .defaults = {{"var:timewin_score", 0}, {"var:duration_ratio", 0}}};
 
 static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
@@ -84,7 +85,7 @@ ps_eval_formula(const ps_formula_t &formula,
   std::unordered_map<std::string, std::size_t> next_index;
   std::unordered_map<std::string, std::string> assigned_ids;
   for (const auto &[name, value] : vars_merged) {
-    // Rewrite "{{A:B}}" into the identifier "A_vX" so tinyexpr parses a real,
+    // Rewrite "<A:B>" into the identifier "A_vX" so tinyexpr parses a real,
     // prefix-unique variable name; error locations then point at readable text.
 
     size_t colon = name.find(':');
@@ -97,7 +98,7 @@ ps_eval_formula(const ps_formula_t &formula,
 
     var_ids.push_back(var_id);
 
-    std::string pattern = "{{" + name + "}}";
+    std::string pattern = "<" + name + ">";
     size_t pos = 0;
     while ((pos = transformed_expr.find(pattern, pos)) != std::string::npos) {
       transformed_expr.replace(pos, pattern.length(), var_id);
@@ -125,7 +126,7 @@ ps_eval_formula(const ps_formula_t &formula,
 
 bool ps_validate_formula(const ps_formula_t &formula) {
   auto formula_expr =
-      std::regex_replace(formula.expr, std::regex(R"(\{\{[^}]*\}\})"), "0");
+      std::regex_replace(formula.expr, std::regex(R"(<[^>]*>)"), "0");
   std::map<std::string, double> vars;
   auto result = ps_eval_formula({.name = formula.name,
                                  .expr = formula_expr,
@@ -314,23 +315,23 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
                           const ps_seanerbus_t &seanerbus) {
   std::map<std::string, ps_result_t<double>> sb_results;
 
-  std::regex rpc_pattern(R"(\{\{rpc:[^}]*\}\})");
-  std::regex rpc_ns_pattern(R"(\{\{rpc_ns:[^}]*\}\})");
-  std::regex adapter_pattern(R"(\{\{adapter:[^}]*\}\})");
+  std::regex rpc_pattern(R"(<rpc:[^>]*>)");
+  std::regex rpc_ns_pattern(R"(<rpc_ns:([^>]*)>)");
+  std::regex adapter_pattern(R"(<adapter:[^>]*>)");
 
   auto collect = [&formula](const std::regex &pattern) {
-    std::vector<std::string> matches;
+    std::set<std::string> matches;
     for (auto it = std::sregex_iterator(formula.expr.begin(),
                                         formula.expr.end(), pattern);
          it != std::sregex_iterator(); ++it) {
-      matches.push_back((*it)[0].str());
+      matches.insert((*it)[0].str());
     }
     return matches;
   };
 
-  std::vector<std::string> rpc_matches = collect(rpc_pattern);
-  std::vector<std::string> rpc_ns_matches = collect(rpc_ns_pattern);
-  std::vector<std::string> adapter_matches = collect(adapter_pattern);
+  std::set<std::string> rpc_matches = collect(rpc_pattern);
+  std::set<std::string> rpc_ns_matches = collect(rpc_ns_pattern);
+  std::set<std::string> adapter_matches = collect(adapter_pattern);
 
   if (rpc_matches.empty() && rpc_ns_matches.empty() &&
       adapter_matches.empty()) {
@@ -343,60 +344,66 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
   // Send a HelloWorldReqV1 carrying the job id to the given entity and store
   // the parsed double reply (or an error) under service_full.
   auto do_request = [&](const std::string &service_full,
-                        const std::string &service,
                         const seanerbus::msg::Entity &entity) {
     if (sb_results.find(service_full) != sb_results.end()) {
       return;
     }
-    seanerbus::client::Connection req_conn(endpoint, endpoint);
-    seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
-    bd.builder().setMsg(std::to_string(jobid));
-    req_conn.request(
-        bd.to_message(entity),
-        [&](seanerbus::client::Connection &c,
-            seanerbus::Expected<seanerbus::msg::Message, seanerbus::Error>
-                res) {
-          if (!res.ok()) {
-            std::cerr << "seanerbus rpc (" << service
-                      << "): " << res.unwrap_error().what() << std::endl;
-            c.shutdown(seanerbus::Unexpected(res.unwrap_error()));
-            return;
-          }
-          auto msg = std::move(res.unwrap_ok());
-          if (msg.payload_type() != HelloWorldResV1::TYPE) {
-            std::cerr << "Got unknown return message type!" << std::endl;
+    try {
+      seanerbus::client::Connection req_conn(endpoint, endpoint);
+      seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
+      bd.builder().setMsg(std::to_string(jobid));
+      req_conn.request(
+          bd.to_message(entity),
+          [&](seanerbus::client::Connection &c,
+              seanerbus::Expected<seanerbus::msg::Message, seanerbus::Error>
+                  res) {
+            if (!res.ok()) {
+              sb_results[service_full] = ps_error(ps_seanerbus_err_t{
+                  .service = service_full, .msg = res.unwrap_error().what()});
+              c.shutdown(seanerbus::Unexpected(res.unwrap_error()));
+              return;
+            }
+            auto msg = std::move(res.unwrap_ok());
+            if (msg.payload_type() != HelloWorldResV1::TYPE) {
+              sb_results[service_full] = ps_error(
+                  ps_seanerbus_wrong_payload_err_t{.service = service_full});
+              c.shutdown();
+              return;
+            }
+            auto rd_res =
+                seanerbus::msg::MessageReader<HelloWorldResV1>::from_msg(msg);
+            if (!rd_res.ok()) {
+              sb_results[service_full] = ps_error(ps_seanerbus_decode_err_t{
+                  .service = service_full,
+                  .msg = rd_res.unwrap_error().what()});
+              c.shutdown();
+              return;
+            }
+            auto rd = std::move(rd_res.unwrap_ok());
+            const std::string res_str = rd.reader().getMsg().cStr();
+            double res_double;
+            if (!parse_double(res_str, res_double)) {
+              sb_results[service_full] =
+                  ps_error(ps_parse_double_err_t{.double_str = res_str},
+                           "seanerbus rpc (" + service_full + ")");
+              c.shutdown();
+              return;
+            }
+            sb_results[service_full] = res_double;
             c.shutdown();
-            return;
-          }
-          auto rd_res =
-              seanerbus::msg::MessageReader<HelloWorldResV1>::from_msg(msg);
-          if (!rd_res.ok()) {
-            std::cerr << "Failed to decode response as HelloWorldResV1: "
-                      << rd_res.unwrap_error().what() << std::endl;
-            c.shutdown();
-            return;
-          }
-          auto rd = std::move(rd_res.unwrap_ok());
-          const std::string res_str = rd.reader().getMsg().cStr();
-          double res_double;
-          if (!parse_double(res_str, res_double)) {
-            sb_results[service_full] =
-                ps_error(ps_parse_double_err_t{.double_str = res_str},
-                         "seanerbus rpc (" + service + ")");
-            c.shutdown();
-            return;
-          }
-          sb_results[service_full] = res_double;
-          c.shutdown();
-        });
-    seanerbus::client::SimpleEventLoop req_sel(req_conn);
-    req_sel.run();
+          });
+      seanerbus::client::SimpleEventLoop req_sel(req_conn);
+      req_sel.run();
+    } catch (const std::exception &e) {
+      sb_results[service_full] = ps_error(ps_seanerbus_connection_err_t{
+          .seanerbus = seanerbus, .msg = e.what()});
+    }
   };
 
-  // {{rpc:UUID}}: the inner text is the entity UUID, used directly.
+  // <rpc:UUID>: the inner text is the entity UUID, used directly.
   for (const std::string &match : rpc_matches) {
     const std::string rpc_service_full =
-        match.substr(2, match.length() - 4); // rpc:UUID
+        match.substr(1, match.length() - 2); // rpc:UUID
     const std::string rpc_service =
         rpc_service_full.substr(4, rpc_service_full.length() - 4); // UUID
 
@@ -405,27 +412,53 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
       entity = seanerbus::msg::Entity(seanerbus::msg::Uuid(rpc_service));
     } catch (const std::invalid_argument &) {
       sb_results[rpc_service_full] =
-          ps_error(ps_seanerbus_resolve_err_t{.service = rpc_service},
-                   "invalid UUID in rpc expression '" + rpc_service + "'");
+          ps_error(ps_invalid_uuid_err_t{.uuid = rpc_service});
       continue;
     }
-    do_request(rpc_service_full, rpc_service, entity);
+    do_request(rpc_service_full, entity);
   }
 
-  // {{rpc_ns:NAME}}: the inner text is a name resolved to an entity by the
-  // naming service.
+  // <rpc_ns:{...}>: the inner text is a JSON object (a map<string,string>)
+  // naming the entity to resolve via the naming service, e.g.
+  // <rpc_ns:{"service":"time_series_db"}>.
   for (const std::string &match : rpc_ns_matches) {
+    // Key by the token content (name), matching what ps_eval_formula rebuilds
+    // as "<" + name + ">" and what the rpc path already does.
     const std::string rpc_ns_service_full =
-        match.substr(2, match.length() - 4); // rpc_ns:NAME
-    const std::string rpc_ns_service =
-        rpc_ns_service_full.substr(7, rpc_ns_service_full.length() - 7); // NAME
+        match.substr(1, match.length() - 2); // rpc_ns:{...}
+
+    std::smatch json_m;
+    if (!std::regex_search(match, json_m, rpc_ns_pattern) ||
+        json_m.size() < 2) {
+      sb_results[rpc_ns_service_full] =
+          ps_error(ps_invalid_rpc_ns_err_t{.expr = match});
+      continue;
+    }
+    const std::string rpc_ns_json = json_m[1].str();
+
+    json_error_t json_err;
+    json_t *json_obj = json_loads(rpc_ns_json.c_str(), 0, &json_err);
+    if (!json_obj || !json_is_object(json_obj)) {
+      sb_results[rpc_ns_service_full] =
+          ps_error(ps_invalid_rpc_ns_err_t{.expr = rpc_ns_json});
+      json_decref(json_obj);
+      continue;
+    }
+
+    std::map<std::string, std::string> resolve_name;
+    const char *key = nullptr;
+    json_t *value_j = nullptr;
+    json_object_foreach(json_obj, key, value_j) {
+      if (json_is_string(value_j)) {
+        resolve_name[key] = json_string_value(value_j);
+      }
+    }
+    json_decref(json_obj);
 
     seanerbus::msg::Entity entity;
     bool resolved = false;
     {
       seanerbus::client::Connection conn(endpoint, endpoint);
-      const std::map<std::string, std::string> resolve_name = {
-          {"service", rpc_ns_service}};
       seanerbus::resolve::resolve(
           conn, resolve_name,
           [&](seanerbus::client::Connection &c,
@@ -450,10 +483,10 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
 
     if (!resolved) {
       sb_results[rpc_ns_service_full] =
-          ps_error(ps_seanerbus_resolve_err_t{.service = rpc_ns_service});
+          ps_error(ps_seanerbus_resolve_err_t{.service = rpc_ns_json});
       continue;
     }
-    do_request(rpc_ns_service_full, rpc_ns_service, entity);
+    do_request(rpc_ns_service_full, entity);
   }
 
   for (const std::string &match : adapter_matches) {

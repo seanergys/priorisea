@@ -230,10 +230,9 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
   for (const auto &[var, val] : sb_val) {
     if (!ps_is_ok(val)) {
       // A failed var can still be recovered using default values
-      // A warning could be raised through
+      std::cerr << "WARN: failed to resolve var " << var << std::endl;
+      std::cerr << "  " << ps_error_message(val) << std::endl;
       continue;
-      // return ps_forward_error<ps_success_t>(val, "resolving seanerbus var " +
-      // var + " for job " + std::to_string(job_info.id));
     }
     vars_over[var] = ps_unwrap(val);
   }
@@ -379,10 +378,6 @@ ps_result_t<ps_success_t> ps_db_users_update() {
             // some jobs may have ended and not computed a score
             // thus we ignore errors and continue
             continue;
-            // return ps_forward_error<ps_success_t>(
-            //     get_job_res.result, "getting jobid: '" +
-            //                             std::to_string(get_job_res.jobid) +
-            //                             "' from database");
           }
           auto gjv = get_job_res.result;
           auto get_job_value = ps_unwrap(gjv);

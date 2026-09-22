@@ -96,12 +96,17 @@ static void register_add_command(CLI::App *app) {
   auto opts = std::make_shared<options>();
   add_cmd->add_option("timewin", opts->arg, "Time window JSON or name")
       ->required();
-  add_cmd->add_option("-s,--score", opts->score, "Score of the time window");
-  add_cmd->add_option("-c,--cron", opts->cron,
-                      "Cron expression for the time "
-                      "window");
-  add_cmd->add_option("-d,--duration", opts->duration,
-                      "Duration of the time window");
+  add_cmd->add_option("-s,--score", opts->score, "Score of the time window")
+      ->required();
+  add_cmd
+      ->add_option("-c,--cron", opts->cron,
+                   "Cron expression for the time "
+                   "window")
+      ->required();
+  add_cmd
+      ->add_option("-d,--duration", opts->duration,
+                   "Duration of the time window")
+      ->required();
   add_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
   add_cmd->callback([opts] {
     ps_timewin_t timewin;
@@ -115,15 +120,6 @@ static void register_add_command(CLI::App *app) {
       json_decref(json_timewin);
     } else {
       timewin.name = opts->arg;
-      if (!opts->score.has_value()) {
-        return cli_error(ps_error(ps_timewin_score_missing_t{}));
-      }
-      if (!opts->cron.has_value()) {
-        return cli_error(ps_error(ps_timewin_cron_missing_t{}));
-      }
-      if (!opts->duration.has_value()) {
-        return cli_error(ps_error(ps_timewin_duration_missing_t{}));
-      }
       timewin.score = opts->score.value();
       timewin.cron = opts->cron.value();
       timewin.duration = opts->duration.value();

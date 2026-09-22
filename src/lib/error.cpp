@@ -5,6 +5,7 @@
 #include "error.hpp"
 #include "util.hpp"
 #include <sstream>
+#include <string>
 
 ps_error_t ps_error(ps_error_kind_t kind, std::string ctx) {
   ps_error_t e{.kind = kind};
@@ -229,6 +230,31 @@ std::string ps_error_message_kind(const ps_config_err_t &err) {
 
 std::string ps_error_message_kind(const ps_seanerbus_resolve_err_t &err) {
   return "error when resolving seanerbus service: " + err.service;
+}
+
+std::string ps_error_message_kind(const ps_seanerbus_err_t &err) {
+  return "seanerbus rpc error (" + err.service + "): " + err.msg;
+}
+
+std::string ps_error_message_kind(const ps_seanerbus_wrong_payload_err_t &err) {
+  return "seanerbus wrong payload error (" + err.service + ")";
+}
+
+std::string ps_error_message_kind(const ps_seanerbus_decode_err_t &err) {
+  return "seanerbus failed to decode error (" + err.service + "): " + err.msg;
+}
+
+std::string ps_error_message_kind(const ps_seanerbus_connection_err_t &err) {
+  return "seanerbus (" + err.seanerbus.ip + ":" +
+         std::to_string(err.seanerbus.port) + ") connection error: " + err.msg;
+}
+
+std::string ps_error_message_kind(const ps_invalid_uuid_err_t &err) {
+  return "invalid uuid: " + err.uuid;
+}
+
+std::string ps_error_message_kind(const ps_invalid_rpc_ns_err_t &err) {
+  return "invalid rpc_ns expression: " + err.expr;
 }
 
 std::string ps_error_message_kind(const ps_error_kind_t &error) {

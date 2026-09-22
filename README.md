@@ -40,9 +40,9 @@ __Formulas__
 
 A formula is a [tinyexpr](https://github.com/codeplea/tinyexpr) expression.
 
-When evaluated, some formulas can set some variables values (ex: `{{var:job_priority}}` formula can set the `{{var:prev_priority}}` variable). You can use them in the formula expressions and pass the `--default` option with the variable name and default value (in case the variable is not set when evaluating the formula). Not setting a default value will cause jobs to be set on-hold.
+When evaluated, some formulas can set some variables values (ex: `<var:job_priority>` formula can set the `<var:prev_priority>` variable). You can use them in the formula expressions and pass the `--default` option with the variable name and default value (in case the variable is not set when evaluating the formula). Not setting a default value will cause jobs to be set on-hold.
 
-Example: `formula set job_priority "{{var:prev_priority}} * 2" --default var:prev_priority 5`
+Example: `formula set job_priority "<var:prev_priority> * 2" --default var:prev_priority 5`
 
 - `formula list` _list formulas_
 - `formula get <formula_name1> <formula_name2> ...` _get formulas_

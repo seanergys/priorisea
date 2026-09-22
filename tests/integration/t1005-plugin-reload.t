@@ -25,7 +25,7 @@ priorisea score user --json ${USERID} \
 '
 
 test_expect_success 'edit job priority formula' '
-priorisea formula set job_priority "{{var:user_score}} * ${SCORE_MULT}" --default var:user_score 4
+priorisea formula set job_priority "<var:user_score> * ${SCORE_MULT}" --default var:user_score 4
 '
 
 test_expect_success 'reload plugin' '

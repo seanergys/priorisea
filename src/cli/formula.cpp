@@ -129,9 +129,9 @@ static void register_set_command(CLI::App *app) {
   auto *set_cmd = app->add_subcommand("set", "Set formula values");
   set_cmd->footer(
       "Example:\n  priorisea formula set job_priority "
-      "\"{{var:prev_priority}} * 2\" --default var:prev_priority 5 # set "
+      "\"<var:prev_priority> * 2\" --default var:prev_priority 5 # set "
       "job_priority formula with a default prev_priority of 5\n  priorisea "
-      "formula set '{\"name\":\"job_priority\",\"expr\":\"{{var:x}} * "
+      "formula set '{\"name\":\"job_priority\",\"expr\":\"<var:x> * "
       "2\",\"defaults\":{\"var:x\":5}}' --json # JSON format");
   set_cmd->set_help_flag("-h,--help", "Show help for set command");
   struct options {
@@ -143,7 +143,7 @@ static void register_set_command(CLI::App *app) {
   auto opts = std::make_shared<options>();
   set_cmd->add_option("formula", opts->name, "Formula JSON or name")
       ->required();
-  set_cmd->add_option("expr", opts->expr, "Expression to set");
+  set_cmd->add_option("expr", opts->expr, "Expression to set")->required();
   set_cmd->add_option("-d,--default", opts->defaults, "Defaults to set")
       ->type_size(2);
   set_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
