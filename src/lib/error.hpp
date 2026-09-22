@@ -154,6 +154,12 @@ struct ps_config_err_t {
   std::string msg;
 };
 
+//// seanerbus
+
+struct ps_seanerbus_resolve_err_t {
+  std::string service;
+};
+
 ////
 
 using ps_error_kind_t =
@@ -183,7 +189,9 @@ using ps_error_kind_t =
                  ps_timewin_score_parse_err_t, ps_timewin_duration_parse_err_t,
                  ps_cron_parse_err_t, ps_timewin_neg_duration_t,
 
-                 ps_config_err_t>;
+                 ps_config_err_t,
+
+                 ps_seanerbus_resolve_err_t>;
 
 struct ps_error_t {
   std::vector<std::string> context;

@@ -1,7 +1,7 @@
 FROM rockylinux/rockylinux:9.8-minimal
 
 ENV TZ=Etc/UTC
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:$PKG_CONFIG_PATH
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
 
 #
 # Base packages
@@ -22,6 +22,13 @@ RUN dnf install -y \
     epel-release
 
 RUN dnf config-manager --set-enabled crb || true
+
+#
+# devcontainer
+#
+RUN dnf install -y \
+    nano \
+    clang-tools-extra
 
 #
 # Build flux-security
@@ -76,9 +83,27 @@ RUN ./configure --prefix=/usr/local --with-flux-security && \
     make install && \
     ldconfig
 
+#
+# Build seanerbus server
+#
+WORKDIR /opt
+RUN dnf install -y \
+    cargo \
+    capnproto \
+    capnproto-devel
+RUN git clone --recurse-submodules --revision 06aed34cc69e3de66e0e6587d786d58423a1dc30 \
+    git@gitlab.seanergys.fz-juelich.de:software/demobus.git
+WORKDIR /opt/demobus
+RUN cargo install --path . --root /usr/local
+
+#
+# Clone Seanerbus naming service
+#
+WORKDIR /opt
+RUN git clone --recurse-submodules --revision 44893ce72181079f81b26f6140ca8d1c808dff15 \
+    git@gitlab.seanergys.fz-juelich.de:software/seanerbus-naming-service.git
 
 WORKDIR /app
-
 COPY . .
 
 #
@@ -92,11 +117,8 @@ RUN if [ -n "$CI_JOB_TOKEN" ]; then \
 RUN git submodule update --init --recursive
 
 #
-# Build seanerbus
+# Build seanerbus cpp
 #
-RUN dnf install -y \
-    capnproto \
-    capnproto-devel
 WORKDIR /app/external/seanerbus-cpp
 RUN mkdir build
 WORKDIR /app/external/seanerbus-cpp/build
@@ -105,6 +127,7 @@ RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON && \
     make install
 RUN rm /usr/local/lib64/pkgconfig/fmt.pc && \
     rm -r /usr/local/include/fmt && \
+    echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
     ldconfig
 
 #

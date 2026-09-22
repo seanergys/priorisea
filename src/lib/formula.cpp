@@ -6,9 +6,13 @@
 #include "error.hpp"
 #include "flux.hpp"
 #include "tinyexpr.h"
-#include "types.hpp"
+#include "util.hpp"
 #include <regex>
+#include <seanerbus/client/simple_event_loop.hpp>
+#include <seanerbus/helpers/resolve.hpp>
+#include <seanerbus/msg/message.hpp>
 #include <sstream>
+#include <stdexcept>
 #include <utility>
 
 static const ps_formula_t DEFAULT_JOB_PRIORITY = {
@@ -77,13 +81,20 @@ ps_eval_formula(const ps_formula_t &formula,
       (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
   int i = 0;
 
+  std::unordered_map<std::string, std::size_t> next_index;
+  std::unordered_map<std::string, std::string> assigned_ids;
   for (const auto &[name, value] : vars_merged) {
-    // Rewrite "{{A:B}}" into the identifier "A_B" so tinyexpr parses a real,
+    // Rewrite "{{A:B}}" into the identifier "A_vX" so tinyexpr parses a real,
     // prefix-unique variable name; error locations then point at readable text.
-    std::string var_id = name;
-    size_t colon = var_id.find(':');
-    if (colon != std::string::npos)
-      var_id[colon] = '_';
+
+    size_t colon = name.find(':');
+    const std::string prefix =
+        colon == std::string::npos ? name : name.substr(0, colon);
+
+    const std::size_t index = next_index[prefix]++;
+    auto var_id = prefix + "_v" + std::to_string(index);
+    assigned_ids.emplace(name, var_id);
+
     var_ids.push_back(var_id);
 
     std::string pattern = "{{" + name + "}}";
@@ -304,33 +315,154 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
   std::map<std::string, ps_result_t<double>> sb_results;
 
   std::regex rpc_pattern(R"(\{\{rpc:[^}]*\}\})");
-  auto begin = std::sregex_iterator(formula.expr.begin(), formula.expr.end(),
-                                    rpc_pattern);
-  auto end = std::sregex_iterator();
-  for (auto it = begin; it != end; ++it) {
-    std::string match = (*it)[0].str();
-    std::string inner = match.substr(2, match.length() - 4);
-    if (sb_results.find(inner) != sb_results.end()) {
-      continue;
+  std::regex rpc_ns_pattern(R"(\{\{rpc_ns:[^}]*\}\})");
+  std::regex adapter_pattern(R"(\{\{adapter:[^}]*\}\})");
+
+  auto collect = [&formula](const std::regex &pattern) {
+    std::vector<std::string> matches;
+    for (auto it = std::sregex_iterator(formula.expr.begin(),
+                                        formula.expr.end(), pattern);
+         it != std::sregex_iterator(); ++it) {
+      matches.push_back((*it)[0].str());
     }
-    sb_results[inner] =
-        ps_error(ps_unimplemented_err_t{}, "seanerbus rpc (" + inner + ")");
-    // std::cout << "Found rpc: " << inner << "\n";
+    return matches;
+  };
+
+  std::vector<std::string> rpc_matches = collect(rpc_pattern);
+  std::vector<std::string> rpc_ns_matches = collect(rpc_ns_pattern);
+  std::vector<std::string> adapter_matches = collect(adapter_pattern);
+
+  if (rpc_matches.empty() && rpc_ns_matches.empty() &&
+      adapter_matches.empty()) {
+    return sb_results;
   }
 
-  std::regex adapter_pattern(R"(\{\{adapter:[^}]*\}\})");
-  begin = std::sregex_iterator(formula.expr.begin(), formula.expr.end(),
-                               adapter_pattern);
-  end = std::sregex_iterator();
-  for (auto it = begin; it != end; ++it) {
-    std::string match = (*it)[0].str();
+  const std::string endpoint =
+      "demobus://" + seanerbus.ip + ":" + std::to_string(seanerbus.port);
+
+  // Send a HelloWorldReqV1 carrying the job id to the given entity and store
+  // the parsed double reply (or an error) under service_full.
+  auto do_request = [&](const std::string &service_full,
+                        const std::string &service,
+                        const seanerbus::msg::Entity &entity) {
+    if (sb_results.find(service_full) != sb_results.end()) {
+      return;
+    }
+    seanerbus::client::Connection req_conn(endpoint, endpoint);
+    seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
+    bd.builder().setMsg(std::to_string(jobid));
+    req_conn.request(
+        bd.to_message(entity),
+        [&](seanerbus::client::Connection &c,
+            seanerbus::Expected<seanerbus::msg::Message, seanerbus::Error>
+                res) {
+          if (!res.ok()) {
+            std::cerr << "seanerbus rpc (" << service
+                      << "): " << res.unwrap_error().what() << std::endl;
+            c.shutdown(seanerbus::Unexpected(res.unwrap_error()));
+            return;
+          }
+          auto msg = std::move(res.unwrap_ok());
+          if (msg.payload_type() != HelloWorldResV1::TYPE) {
+            std::cerr << "Got unknown return message type!" << std::endl;
+            c.shutdown();
+            return;
+          }
+          auto rd_res =
+              seanerbus::msg::MessageReader<HelloWorldResV1>::from_msg(msg);
+          if (!rd_res.ok()) {
+            std::cerr << "Failed to decode response as HelloWorldResV1: "
+                      << rd_res.unwrap_error().what() << std::endl;
+            c.shutdown();
+            return;
+          }
+          auto rd = std::move(rd_res.unwrap_ok());
+          const std::string res_str = rd.reader().getMsg().cStr();
+          double res_double;
+          if (!parse_double(res_str, res_double)) {
+            sb_results[service_full] =
+                ps_error(ps_parse_double_err_t{.double_str = res_str},
+                         "seanerbus rpc (" + service + ")");
+            c.shutdown();
+            return;
+          }
+          sb_results[service_full] = res_double;
+          c.shutdown();
+        });
+    seanerbus::client::SimpleEventLoop req_sel(req_conn);
+    req_sel.run();
+  };
+
+  // {{rpc:UUID}}: the inner text is the entity UUID, used directly.
+  for (const std::string &match : rpc_matches) {
+    const std::string rpc_service_full =
+        match.substr(2, match.length() - 4); // rpc:UUID
+    const std::string rpc_service =
+        rpc_service_full.substr(4, rpc_service_full.length() - 4); // UUID
+
+    seanerbus::msg::Entity entity;
+    try {
+      entity = seanerbus::msg::Entity(seanerbus::msg::Uuid(rpc_service));
+    } catch (const std::invalid_argument &) {
+      sb_results[rpc_service_full] =
+          ps_error(ps_seanerbus_resolve_err_t{.service = rpc_service},
+                   "invalid UUID in rpc expression '" + rpc_service + "'");
+      continue;
+    }
+    do_request(rpc_service_full, rpc_service, entity);
+  }
+
+  // {{rpc_ns:NAME}}: the inner text is a name resolved to an entity by the
+  // naming service.
+  for (const std::string &match : rpc_ns_matches) {
+    const std::string rpc_ns_service_full =
+        match.substr(2, match.length() - 4); // rpc_ns:NAME
+    const std::string rpc_ns_service =
+        rpc_ns_service_full.substr(7, rpc_ns_service_full.length() - 7); // NAME
+
+    seanerbus::msg::Entity entity;
+    bool resolved = false;
+    {
+      seanerbus::client::Connection conn(endpoint, endpoint);
+      const std::map<std::string, std::string> resolve_name = {
+          {"service", rpc_ns_service}};
+      seanerbus::resolve::resolve(
+          conn, resolve_name,
+          [&](seanerbus::client::Connection &c,
+              seanerbus::Expected<seanerbus::resolve::ResolveResult,
+                                  seanerbus::Error>
+                  res) {
+            if (!res.ok()) {
+              c.shutdown(seanerbus::Unexpected(res.unwrap_error()));
+              return;
+            }
+            auto result = res.unwrap_ok();
+            auto entities = result.entities();
+            if (!entities.empty()) {
+              entity = entities[0];
+              resolved = true;
+            }
+            c.shutdown();
+          });
+      seanerbus::client::SimpleEventLoop sel(conn);
+      sel.run();
+    }
+
+    if (!resolved) {
+      sb_results[rpc_ns_service_full] =
+          ps_error(ps_seanerbus_resolve_err_t{.service = rpc_ns_service});
+      continue;
+    }
+    do_request(rpc_ns_service_full, rpc_ns_service, entity);
+  }
+
+  for (const std::string &match : adapter_matches) {
     std::string inner = match.substr(2, match.length() - 4);
     if (sb_results.find(inner) != sb_results.end()) {
       continue;
     }
     sb_results[inner] =
         ps_error(ps_unimplemented_err_t{}, "seanerbus adapter (" + inner + ")");
-    // std::cout << "Found adapter: " << inner << "\n";
   }
   return sb_results;
 }

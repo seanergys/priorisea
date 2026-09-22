@@ -56,7 +56,7 @@ jq -e "
 '
 
 test_expect_success 'edit a time window with invalid cron' '
-test_must_fail priorisea timewin edit test_01 -c "* * * * * * *" &&
+test_must_fail priorisea timewin edit test_01 -c "* * * * * * * *" &&
 test_must_fail priorisea timewin edit test_01 -c "* * * * *"
 '
 

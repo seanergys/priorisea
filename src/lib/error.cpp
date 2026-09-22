@@ -227,6 +227,10 @@ std::string ps_error_message_kind(const ps_config_err_t &err) {
   return "config error at " + err.path + ": " + err.msg;
 }
 
+std::string ps_error_message_kind(const ps_seanerbus_resolve_err_t &err) {
+  return "error when resolving seanerbus service: " + err.service;
+}
+
 std::string ps_error_message_kind(const ps_error_kind_t &error) {
   return "unknown error: " +
          std::visit([](const auto &e) { return ps_type_name(e); }, error);

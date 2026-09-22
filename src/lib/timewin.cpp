@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "timewin.hpp"
+#include "croncpp.h"
 #include "error.hpp"
 #include "flux.hpp"
 #include <cerrno>
@@ -189,6 +190,7 @@ ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list() {
   return ps_db_timewins_get(ps_unwrap(ls_res));
 }
 
+/*
 double ps_cron_prev(const cron::cronexpr &cron, double timestamp) {
   int step = 1;
   double low = timestamp - step;
@@ -210,3 +212,4 @@ double ps_cron_prev(const cron::cronexpr &cron, double timestamp) {
   }
   return cron::cron_next(cron, low);
 }
+*/

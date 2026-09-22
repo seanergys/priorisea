@@ -8,7 +8,6 @@
 #include "error.hpp"
 #include "flux.hpp"
 #include "formula.hpp"
-#include "timewin.hpp"
 #include "types.hpp"
 #include "util.hpp"
 #include <algorithm>
@@ -203,8 +202,8 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
     auto timewin_score = 0;
     bool found = false;
     for (const auto &timewin : timewins) {
-      auto cron = cron::make_cron(timewin.cron);
-      auto prev_timestamp = ps_cron_prev(cron, job_info.t_submit);
+      auto cron_expr = cron::make_cron(timewin.cron);
+      auto prev_timestamp = cron::cron_prev(cron_expr, job_info.t_submit);
       if (prev_timestamp + timewin.duration > job_info.t_submit) {
         timewin_score += timewin.score;
         found = true;

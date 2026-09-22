@@ -12,6 +12,7 @@ sea_priority_la_CPPFLAGS = \
    -I$(top_srcdir)/src \
     $(JANSSON_CFLAGS) \
     $(FMT_CFLAGS) \
+    $(SEANERBUS_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
 sea_priority_la_LIBADD = \
@@ -19,6 +20,7 @@ sea_priority_la_LIBADD = \
     $(top_builddir)/external/libtinyexpr.la \
     $(JANSSON_LIBS) \
     $(FMT_LIBS) \
+    $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)
 
 sea_priority_la_LDFLAGS = -module -avoid-version

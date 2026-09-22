@@ -22,7 +22,7 @@
 
 static ps_formula_t priority_formula;
 static ps_score_map_t scores;
-static ps_seanerbus_t seanerbus;
+static ps_seanerbus_t seanerbus_cfg;
 
 static void init_formula() {
   auto get_res = ps_db_formula_get("job_priority");
@@ -51,7 +51,7 @@ static int init_config(flux_t *h) {
     return -1;
   }
   auto config = ps_unwrap(config_res);
-  seanerbus = config.seanerbus;
+  seanerbus_cfg = config.seanerbus;
   return 0;
 }
 
@@ -163,7 +163,7 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
 
 static void get_seanerbus_cb(flux_t *h, flux_msg_handler_t *mh,
                              const flux_msg_t *msg, void *arg) {
-  auto *json_seanerbus = ps_seanerbus_to_json(seanerbus);
+  auto *json_seanerbus = ps_seanerbus_to_json(seanerbus_cfg);
   if (flux_respond_pack(h, msg, "{s:o}", "data", json_seanerbus) < 0) {
     json_decref(json_seanerbus);
     auto errmsg = fmt::format("respond pack failed: {}", strerror(errno));
@@ -180,7 +180,7 @@ static void set_seanerbus_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  seanerbus = ps_seanerbus_from_json(json_seanerbus);
+  seanerbus_cfg = ps_seanerbus_from_json(json_seanerbus);
 
   flux_respond(h, msg, NULL);
 }
@@ -257,9 +257,9 @@ static int conf_update_cb(flux_plugin_t *p, const char *topic,
     return 0;
 
   if (ip)
-    seanerbus.ip = ip;
+    seanerbus_cfg.ip = ip;
   if (port)
-    seanerbus.port = port;
+    seanerbus_cfg.port = port;
 
   return 0;
 }

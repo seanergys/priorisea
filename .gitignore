@@ -58,6 +58,10 @@ tests/integration/test-results
 tests/integration/trash*
 tests/integration/*.log
 tests/integration/*.trs
+tests/integration/scripts/sb_register
+tests/integration/scripts/sb_request
+tests/integration/scripts/sb_resolve
+tests/integration/scripts/sb_response
 .gitlab-ci-local
 .env
 test-driver

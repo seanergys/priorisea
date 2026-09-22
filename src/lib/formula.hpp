@@ -6,6 +6,7 @@
 #include "error.hpp"
 #include "types.hpp"
 #include <jansson.h>
+#include <seanerbus/client/connection.hpp>
 #include <string>
 #include <vector>
 
