@@ -30,6 +30,11 @@ RUN dnf install -y \
     nano \
     clang-tools-extra
 
+ARG CI_JOB_TOKEN
+RUN if [ -n "$CI_JOB_TOKEN" ]; then \
+        git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/".insteadOf "git@gitlab.seanergys.fz-juelich.de:"; \
+    fi
+
 #
 # Build flux-security
 #
@@ -105,15 +110,6 @@ RUN git clone --recurse-submodules --revision 44893ce72181079f81b26f6140ca8d1c80
 
 WORKDIR /app
 COPY . .
-
-#
-# Update submodules
-#
-ARG CI_JOB_TOKEN
-RUN if [ -n "$CI_JOB_TOKEN" ]; then \
-        git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/".insteadOf "git@gitlab.seanergys.fz-juelich.de:"; \
-    fi
-
 RUN git submodule update --init --recursive
 
 #
