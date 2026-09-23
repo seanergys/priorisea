@@ -164,12 +164,17 @@ static void register_job_command(CLI::App *app) {
   struct options {
     bool json;
     bool all;
+    int limit;
     std::vector<std::string> jobids_str;
     std::string id_format;
   };
   auto opts = std::make_shared<options>();
   job_cmd->add_flag("--json", opts->json, "Output in JSON format");
   job_cmd->add_flag("--all", opts->all, "Output all users");
+  job_cmd
+      ->add_option("--limit,-n", opts->limit,
+                   "Return the N most recent jobs, ranked by t_inactive")
+      ->default_val(0);
   job_cmd->add_option("jobids", opts->jobids_str, "Job IDs to retrieve");
   job_cmd->add_option("--id-format", opts->id_format, "Job IDs output format")
       ->check(CLI::IsMember(
@@ -177,7 +182,19 @@ static void register_job_command(CLI::App *app) {
       ->default_val("dec");
   job_cmd->callback([opts] {
     std::vector<ps_job_t> jobs;
-    if (opts->all) {
+    if (opts->limit > 0) {
+      auto list_res = ps_db_jobs_list_ranked((size_t)opts->limit);
+      if (!ps_is_ok(list_res)) {
+        return cli_error(list_res);
+      }
+
+      for (const auto &job : ps_unwrap(list_res)) {
+        if (!ps_is_ok(job.result)) {
+          continue;
+        }
+        jobs.push_back(ps_unwrap(job.result));
+      }
+    } else if (opts->all) {
       auto list_res = ps_db_jobs_list();
       if (!ps_is_ok(list_res)) {
         return cli_error(list_res);
@@ -228,20 +245,24 @@ static void register_job_command(CLI::App *app) {
       std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
       json_decref(obj);
     } else {
-      ps_print_table_v(jobs, {{"Job Id",
-                               [&opts](auto &value, auto index) -> auto {
-                                 if (opts->id_format == "dec") {
-                                   return std::to_string(value.jobid);
-                                 }
-                                 char buf[256];
-                                 flux_job_id_encode(value.jobid,
-                                                    opts->id_format.c_str(),
-                                                    buf, sizeof(buf));
-                                 return std::string(buf);
-                               }},
-                              {"Score", [](auto &value, auto index) -> auto {
-                                 return std::to_string(value.score);
-                               }}});
+      ps_print_table_v(
+          jobs, {{"Job Id",
+                  [&opts](auto &value, auto index) -> auto {
+                    if (opts->id_format == "dec") {
+                      return std::to_string(value.jobid);
+                    }
+                    char buf[256];
+                    flux_job_id_encode(value.jobid, opts->id_format.c_str(),
+                                       buf, sizeof(buf));
+                    return std::string(buf);
+                  }},
+                 {"Score",
+                  [](auto &value, auto index) -> auto {
+                    return std::to_string(value.score);
+                  }},
+                 {"t_inactive", [](auto &value, auto index) -> auto {
+                    return std::to_string(value.t_inactive);
+                  }}});
     }
   });
 }

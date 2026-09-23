@@ -19,6 +19,21 @@
 #include <sstream>
 #include <sys/types.h>
 
+json_t *ps_job_to_json(const ps_job_t &job) {
+  auto *obj = json_object();
+  json_object_set_new(obj, "jobid", json_integer((json_int_t)job.jobid));
+  json_object_set_new(obj, "t_inactive", json_real(job.t_inactive));
+  json_object_set_new(obj, "score", json_real(job.score));
+  return obj;
+}
+
+ps_job_t ps_job_from_json(json_t *obj) {
+  ps_job_t res{.jobid = 0, .t_inactive = 0, .score = 0};
+  json_unpack(obj, "{s:I, s:f, s:f}", "jobid", &res.jobid, "t_inactive",
+              &res.t_inactive, "score", &res.score);
+  return res;
+}
+
 ps_result_t<ps_db_jobs_get_t>
 ps_db_jobs_get(const std::vector<flux_jobid_t> &jobids) {
   ps_db_jobs_get_t res;
@@ -58,15 +73,19 @@ ps_db_jobs_get(const std::vector<flux_jobid_t> &jobids) {
     }
     auto lkrv = lookup_key_res.value;
     auto lookup_key_res_value = ps_unwrap(lkrv);
-    double score;
-    if (!parse_double(lookup_key_res_value, score)) {
+
+    json_error_t json_err;
+    auto *json_job = json_loads(lookup_key_res_value.c_str(), 0, &json_err);
+    if (!json_job) {
       res.push_back({.jobid = jobid,
-                     .result = ps_error(ps_parse_double_err_t{
-                         .double_str = lookup_key_res_value})});
+                     .result = ps_error(
+                         ps_json_unpack_err_t{.dumps = lookup_key_res_value})});
       continue;
     }
-    res.push_back(
-        {.jobid = jobid, .result = ps_job_t{.jobid = jobid, .score = score}});
+
+    auto job = ps_job_from_json(json_job);
+    json_decref(json_job);
+    res.push_back({.jobid = jobid, .result = job});
   }
   return res;
 };
@@ -105,11 +124,18 @@ ps_result_t<ps_success_t> ps_db_job_set(const ps_job_t &job) {
     return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
   }
   auto key = "priorisea.job." + std::to_string(job.jobid);
-  auto value = std::to_string(job.score);
-  if (flux_kvs_txn_put(txn, 0, key.c_str(), value.c_str()) < 0) {
-    return ps_error(ps_flux_kvs_txn_put_err_t{
-        .key = key, .value = value, .msg = strerror(errno)});
+  auto *json_job = ps_job_to_json(job);
+  char *job_str = json_dumps(json_job, 0);
+  json_decref(json_job);
+  if (!job_str) {
+    return ps_error(ps_json_pack_err_t{});
   }
+  if (flux_kvs_txn_put(txn, 0, key.c_str(), job_str) < 0) {
+    free(job_str);
+    return ps_error(ps_flux_kvs_txn_put_err_t{
+        .key = key, .value = job_str, .msg = strerror(errno)});
+  }
+  free(job_str);
   return ps_flux_kvs_commit(txn);
 }
 
@@ -243,7 +269,9 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
         eval_res, "evaluating formula for job " + std::to_string(job_info.id));
   }
 
-  return ps_db_job_set({.jobid = job_info.id, .score = ps_unwrap(eval_res)});
+  return ps_db_job_set({.jobid = job_info.id,
+                        .t_inactive = job_info.t_inactive,
+                        .score = ps_unwrap(eval_res)});
 }
 
 ps_result_t<ps_db_users_get_t> ps_db_users_list() {
@@ -305,6 +333,33 @@ ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list() {
     jobids.push_back(id);
   }
   return ps_db_jobs_get(jobids);
+}
+
+ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list_ranked(size_t limit) {
+  auto list_res = ps_db_jobs_list();
+  if (!ps_is_ok(list_res)) {
+    return ps_forward_error<ps_db_jobs_get_t>(
+        list_res, "listing jobs to rank by t_inactive");
+  }
+
+  ps_db_jobs_get_t ranked;
+  for (const auto &entry : ps_unwrap(list_res)) {
+    if (ps_is_ok(entry.result)) {
+      ranked.push_back(entry);
+    }
+  }
+
+  // Most recent first: higher t_inactive sorts earlier.
+  std::sort(ranked.begin(), ranked.end(),
+            [](const ps_db_job_get_entry_t &a, const ps_db_job_get_entry_t &b) {
+              return ps_unwrap(a.result).t_inactive >
+                     ps_unwrap(b.result).t_inactive;
+            });
+
+  if (ranked.size() > limit) {
+    ranked.resize(limit);
+  }
+  return ranked;
 }
 
 // TODO: refactor error handling and result
