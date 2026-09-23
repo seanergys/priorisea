@@ -304,7 +304,7 @@ ps_result_t<std::vector<ps_db_formula_get_entry_t>> ps_db_formulas_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.formula");
   if (!ps_is_ok(ls_res)) {
     return ps_forward_error<ps_db_formulas_get_t>(
-        ls_res, "listing formulas in flux kvs");
+        ls_res, "No formulas stored. Did you run `priorisea init`?");
   }
   return ps_db_formulas_get(ps_unwrap(ls_res));
 }

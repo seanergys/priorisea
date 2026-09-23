@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-test_description="test flux plugin update many jobs"
+test_description="test priorisea when seanerbus is not available"
 
 . `dirname $0`/sharness.sh
 PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so

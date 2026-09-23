@@ -10,7 +10,8 @@ TESTS = \
     t1006-large-update.t \
     t1007-sb-config.t \
     t1008-sb-query.t \
-    t1009-sb-nobus.t
+    t1009-sb-nobus.t \
+    t1010-list-empty.t
 
 EXTRA_DIST = \
     $(TESTS) \
