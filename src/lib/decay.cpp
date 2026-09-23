@@ -104,8 +104,8 @@ ps_result_t<ps_success_t> ps_db_decay_set(const ps_decay_t &decay) {
 ps_result_t<ps_decay_t> ps_db_decay_get() {
   auto lookup_res = ps_flux_kvs_lookup("priorisea.decay");
   if (!ps_is_ok(lookup_res)) {
-    return ps_forward_error<ps_decay_t>(lookup_res,
-                                        "getting stored decay value");
+    return ps_forward_error<ps_decay_t>(
+        lookup_res, "No decay value stored. Did you run `priorisea init`?");
   }
   auto decay_str = ps_unwrap(lookup_res);
 

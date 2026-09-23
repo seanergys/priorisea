@@ -248,6 +248,10 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
 
 ps_result_t<ps_db_users_get_t> ps_db_users_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.user");
+  // return empty result if directory not found
+  if (ps_is_error_type<ps_flux_kvs_lookup_get_dir_err_t>(ls_res)) {
+    return {};
+  }
   if (!ps_is_ok(ls_res)) {
     return ps_forward_error<ps_db_users_get_t>(ls_res,
                                                "listing users in flux kvs");
@@ -282,6 +286,10 @@ ps_result_t<ps_db_users_get_t> ps_db_users_list() {
 
 ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.job");
+  // return empty result if directory not found
+  if (ps_is_error_type<ps_flux_kvs_lookup_get_dir_err_t>(ls_res)) {
+    return {};
+  }
   if (!ps_is_ok(ls_res)) {
     return ps_forward_error<ps_db_jobs_get_t>(ls_res,
                                               "listing jobs from flux kvs");

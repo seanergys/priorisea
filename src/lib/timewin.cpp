@@ -183,33 +183,13 @@ ps_result_t<ps_success_t> ps_db_timewin_del(const std::string &name) {
 
 ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list() {
   auto ls_res = ps_flux_kvs_ls_dir("priorisea.timewin");
+  // return empty result if directory not found
+  if (ps_is_error_type<ps_flux_kvs_lookup_get_dir_err_t>(ls_res)) {
+    return {};
+  }
   if (!ps_is_ok(ls_res)) {
     return ps_forward_error<ps_db_timewins_get_t>(
         ls_res, "listing timewins from flux kvs");
   }
   return ps_db_timewins_get(ps_unwrap(ls_res));
 }
-
-/*
-double ps_cron_prev(const cron::cronexpr &cron, double timestamp) {
-  int step = 1;
-  double low = timestamp - step;
-  while (cron::cron_next(cron, low) >= timestamp) {
-    step = step * 2;
-    low = timestamp - step;
-    if (low < 0) {
-      return -1;
-    }
-  }
-  double high = timestamp;
-  while (low + 1 < high) {
-    double mid = (low + high) / 2;
-    if (cron::cron_next(cron, mid) < timestamp) {
-      low = mid;
-    } else {
-      high = mid;
-    }
-  }
-  return cron::cron_next(cron, low);
-}
-*/
