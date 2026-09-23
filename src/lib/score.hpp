@@ -6,6 +6,7 @@
 #include "error.hpp"
 #include "types.hpp"
 #include <flux/core.h>
+#include <jansson.h>
 #include <vector>
 
 struct ps_db_job_get_entry_t {
@@ -19,6 +20,11 @@ struct ps_db_user_get_entry_t {
   ps_result_t<ps_user_t> result;
 };
 using ps_db_users_get_t = std::vector<ps_db_user_get_entry_t>;
+
+////
+
+json_t *ps_job_to_json(const ps_job_t &job);
+ps_job_t ps_job_from_json(json_t *obj);
 
 ////
 
@@ -46,5 +52,8 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
 ps_result_t<ps_db_users_get_t> ps_db_users_list();
 
 ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list();
+
+// List jobs ranked by t_inactive (most recent first), capped at limit.
+ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list_ranked(size_t limit);
 
 ps_result_t<ps_success_t> ps_db_users_update();

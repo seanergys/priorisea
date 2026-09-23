@@ -32,6 +32,7 @@ struct ps_formula_t {
 
 struct ps_job_t {
   flux_jobid_t jobid;
+  double t_inactive;
   double score;
 };
 
