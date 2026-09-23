@@ -5,6 +5,8 @@
 #pragma once
 #include "error.hpp"
 #include "types.hpp"
+#include <jansson.h>
+#include <seanerbus/client/connection.hpp>
 #include <string>
 #include <vector>
 
@@ -22,6 +24,9 @@ ps_result_t<double>
 ps_eval_formula(const ps_formula_t &formula,
                 const std::map<std::string, double> &vars_over);
 
+json_t *ps_formula_to_json(const ps_formula_t &formula);
+ps_formula_t ps_formula_from_json(json_t *obj);
+
 ps_result_t<ps_db_formulas_get_t>
 ps_db_formulas_get(const std::vector<std::string> &names);
 
@@ -34,8 +39,9 @@ ps_db_formulas_reset(const std::vector<std::string> &names);
 
 ps_result_t<ps_success_t> ps_db_formulas_init();
 
-std::string ps_formula_to_str(const ps_formula_t &formula);
-
-ps_result_t<ps_formula_t> ps_formula_from_str(const std::string &formula_str);
-
 ps_result_t<ps_db_formulas_get_t> ps_db_formulas_list();
+
+ps_result_t<std::map<std::string, ps_result_t<double>>>
+ps_resolve_seanerbus_vars(const ps_formula_t &formula,
+                          const flux_jobid_t &jobid,
+                          const ps_seanerbus_t &seanerbus);

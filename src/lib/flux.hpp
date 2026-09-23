@@ -71,3 +71,18 @@ ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids);
 
 ps_result_t<std::vector<std::string>>
 ps_flux_kvs_ls_dir(const std::string &key);
+
+ps_result_t<ps_seanerbus_t> ps_flux_plugin_get_seanerbus();
+
+ps_result_t<ps_success_t>
+ps_flux_plugin_set_seanerbus(const ps_seanerbus_t &seanerbus);
+
+////
+
+json_t *ps_seanerbus_to_json(const ps_seanerbus_t &seanerbus);
+ps_seanerbus_t ps_seanerbus_from_json(json_t *obj);
+
+json_t *ps_flux_job_info_to_json(const ps_flux_job_info_t &info);
+
+json_t *score_map_to_json(const ps_score_map_t &scores);
+ps_score_map_t score_map_from_json(json_t *obj);

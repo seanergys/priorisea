@@ -31,7 +31,7 @@ jq -e "
 '
 
 test_expect_success 'run a job with time window' '
-priorisea formula set job_score "timewin_score" --var timewin_score 0 &&
+priorisea formula set job_score "<var:timewin_score>" --default var:timewin_score 0 &&
 jobid=$(flux python ${SUBMIT_AS} ${USERID} hostname) &&
 priorisea score update --new &&
 priorisea score job --json ${jobid} | grep 100
@@ -56,7 +56,7 @@ jq -e "
 '
 
 test_expect_success 'edit a time window with invalid cron' '
-test_must_fail priorisea timewin edit test_01 -c "* * * * * * *" &&
+test_must_fail priorisea timewin edit test_01 -c "* * * * * * * *" &&
 test_must_fail priorisea timewin edit test_01 -c "* * * * *"
 '
 

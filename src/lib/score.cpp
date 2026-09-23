@@ -8,7 +8,6 @@
 #include "error.hpp"
 #include "flux.hpp"
 #include "formula.hpp"
-#include "timewin.hpp"
 #include "types.hpp"
 #include "util.hpp"
 #include <algorithm>
@@ -193,17 +192,18 @@ ps_result_t<ps_success_t> ps_db_user_set(const ps_user_t &user) {
 
 ps_result_t<ps_success_t>
 ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
-                 const std::vector<ps_timewin_t> &timewins) {
+                 const std::vector<ps_timewin_t> &timewins,
+                 const ps_seanerbus_t &seanerbus) {
 
   std::map<std::string, double> vars_over;
 
-  auto timewin_str = "timewin_score";
+  auto timewin_str = "var:timewin_score";
   if (formula.expr.find(timewin_str) != std::string::npos) {
     auto timewin_score = 0;
     bool found = false;
     for (const auto &timewin : timewins) {
-      auto cron = cron::make_cron(timewin.cron);
-      auto prev_timestamp = ps_cron_prev(cron, job_info.t_submit);
+      auto cron_expr = cron::make_cron(timewin.cron);
+      auto prev_timestamp = cron::cron_prev(cron_expr, job_info.t_submit);
       if (prev_timestamp + timewin.duration > job_info.t_submit) {
         timewin_score += timewin.score;
         found = true;
@@ -217,7 +217,24 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
   auto real_duration = job_info.t_cleanup - job_info.t_run;
   auto duration_ratio = real_duration / job_info.duration;
   if (!std::isinf(duration_ratio)) {
-    vars_over["duration_ratio"] = std::min(1.0, duration_ratio);
+    vars_over["var:duration_ratio"] = std::min(1.0, duration_ratio);
+  }
+
+  auto sb_res = ps_resolve_seanerbus_vars(formula, job_info.id, seanerbus);
+  if (!ps_is_ok(sb_res)) {
+    return ps_forward_error<ps_success_t>(sb_res,
+                                          "resolving seanerbus vars for job " +
+                                              std::to_string(job_info.id));
+  }
+  auto sb_val = ps_unwrap(sb_res);
+  for (const auto &[var, val] : sb_val) {
+    if (!ps_is_ok(val)) {
+      // A failed var can still be recovered using default values
+      std::cerr << "WARN: failed to resolve var " << var << std::endl;
+      std::cerr << "  " << ps_error_message(val) << std::endl;
+      continue;
+    }
+    vars_over[var] = ps_unwrap(val);
   }
 
   auto eval_res = ps_eval_formula(formula, vars_over);
@@ -361,10 +378,6 @@ ps_result_t<ps_success_t> ps_db_users_update() {
             // some jobs may have ended and not computed a score
             // thus we ignore errors and continue
             continue;
-            // return ps_forward_error<ps_success_t>(
-            //     get_job_res.result, "getting jobid: '" +
-            //                             std::to_string(get_job_res.jobid) +
-            //                             "' from database");
           }
           auto gjv = get_job_res.result;
           auto get_job_value = ps_unwrap(gjv);

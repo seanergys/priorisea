@@ -18,11 +18,8 @@
 static void print_timewins_json(const std::vector<ps_timewin_t> &timewins) {
   auto obj = json_object();
   for (const auto &timewin : timewins) {
-    auto expr = json_object();
-    json_object_set_new(expr, "cron", json_string(timewin.cron.c_str()));
-    json_object_set_new(expr, "duration", json_integer(timewin.duration));
-    json_object_set_new(expr, "score", json_real(timewin.score));
-    json_object_set_new(obj, timewin.name.c_str(), expr);
+    auto *json_timewin = ps_timewin_to_json(timewin);
+    json_object_set_new(obj, timewin.name.c_str(), json_timewin);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
   if (dump) {
@@ -33,7 +30,7 @@ static void print_timewins_json(const std::vector<ps_timewin_t> &timewins) {
 }
 
 static void print_timewins_table(const std::vector<ps_timewin_t> &timewins) {
-  ps_print_table(
+  ps_print_table_v(
       timewins,
       {{"Name", [](auto &value, auto index) -> auto { return value.name; }},
        {"Cron", [](auto &value, auto index) -> auto { return value.cron; }},
@@ -83,28 +80,55 @@ static void register_get_command(CLI::App *app) {
 
 static void register_add_command(CLI::App *app) {
   auto *add_cmd = app->add_subcommand("add", "Add a time window");
-  add_cmd->footer("Example:\n  priorisea timewin add monday -s 10 -c \"0 0 0 * "
-                  "* 1\" -d 86400 # on monday get 10 points");
+  add_cmd->footer(
+      "Example:\n  priorisea timewin add monday -s 10 -c \"0 0 0 * "
+      "* 1\" -d 86400 # on monday get 10 points\n  priorisea timewin add "
+      "'{\"name\":\"monday\",\"cron\":\"0 0 * * 1\",\"duration\":86400,"
+      "\"score\":10}' --json # JSON format");
   add_cmd->set_help_flag("-h,--help", "Show help for add command");
-  auto opts = std::make_shared<ps_timewin_t>();
-  add_cmd->add_option("name", opts->name, "Name of the time window")
+  struct options {
+    std::string arg;
+    std::optional<int> score;
+    std::optional<std::string> cron;
+    std::optional<int> duration;
+    bool json;
+  };
+  auto opts = std::make_shared<options>();
+  add_cmd->add_option("timewin", opts->arg, "Time window JSON or name")
       ->required();
   add_cmd->add_option("-s,--score", opts->score, "Score of the time window")
       ->required();
   add_cmd
       ->add_option("-c,--cron", opts->cron,
-                   "Cron expression for the time window")
+                   "Cron expression for the time "
+                   "window")
       ->required();
   add_cmd
       ->add_option("-d,--duration", opts->duration,
                    "Duration of the time window")
       ->required();
+  add_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
   add_cmd->callback([opts] {
-    auto validate_res = ps_validate_timewin(*opts);
+    ps_timewin_t timewin;
+    if (opts->json) {
+      json_error_t json_err;
+      auto *json_timewin = json_loads(opts->arg.c_str(), 0, &json_err);
+      if (!json_timewin) {
+        return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->arg}));
+      }
+      timewin = ps_timewin_from_json(json_timewin);
+      json_decref(json_timewin);
+    } else {
+      timewin.name = opts->arg;
+      timewin.score = opts->score.value();
+      timewin.cron = opts->cron.value();
+      timewin.duration = opts->duration.value();
+    }
+    auto validate_res = ps_validate_timewin(timewin);
     if (!ps_is_ok(validate_res)) {
       return cli_error(validate_res);
     }
-    auto store_res = ps_db_timewin_set(*opts);
+    auto store_res = ps_db_timewin_set(timewin);
     if (!ps_is_ok(store_res)) {
       return cli_error(store_res);
     }
@@ -113,37 +137,52 @@ static void register_add_command(CLI::App *app) {
 
 static void register_edit_command(CLI::App *app) {
   auto *edit_cmd = app->add_subcommand("edit", "Edit a time window");
-  edit_cmd->footer("Example:\n  priorisea timewin edit monday -c \"0 0 0 * * "
-                   "2\" # change cron to run every tuesday");
+  edit_cmd->footer(
+      "Example:\n  priorisea timewin edit monday -c \"0 0 0 * * "
+      "2\" # change cron to run every tuesday\n  priorisea timewin edit "
+      "'{\"name\":\"monday\",\"cron\":\"0 0 * * 2\"}' --json # JSON format");
   edit_cmd->set_help_flag("-h,--help", "Show help for edit command");
   struct options {
-    std::string name;
+    std::string arg;
     std::optional<std::string> cron;
     std::optional<int> score;
     std::optional<int> duration;
+    bool json;
   };
   auto opts = std::make_shared<options>();
-  edit_cmd->add_option("name", opts->name, "Name of the time window")
+  edit_cmd->add_option("timewin", opts->arg, "Time window JSON or name")
       ->required();
   edit_cmd->add_option("-s,--score", opts->score, "Score of the time window");
   edit_cmd->add_option("-c,--cron", opts->cron,
                        "Cron expression for the time window");
   edit_cmd->add_option("-d,--duration", opts->duration,
                        "Duration of the time window");
+  edit_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
   edit_cmd->callback([opts] {
-    auto get_res = ps_db_timewin_get(opts->name);
-    if (!ps_is_ok(get_res)) {
-      return cli_error(get_res);
-    }
-    auto timewin = ps_unwrap(get_res);
-    if (opts->cron.has_value()) {
-      timewin.cron = opts->cron.value();
-    }
-    if (opts->duration.has_value()) {
-      timewin.duration = opts->duration.value();
-    }
-    if (opts->score.has_value()) {
-      timewin.score = opts->score.value();
+    ps_timewin_t timewin;
+    if (opts->json) {
+      json_error_t json_err;
+      auto *json_timewin = json_loads(opts->arg.c_str(), 0, &json_err);
+      if (!json_timewin) {
+        return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->arg}));
+      }
+      timewin = ps_timewin_from_json(json_timewin);
+      json_decref(json_timewin);
+    } else {
+      auto get_res = ps_db_timewin_get(opts->arg);
+      if (!ps_is_ok(get_res)) {
+        return cli_error(get_res);
+      }
+      timewin = ps_unwrap(get_res);
+      if (opts->cron.has_value()) {
+        timewin.cron = opts->cron.value();
+      }
+      if (opts->duration.has_value()) {
+        timewin.duration = opts->duration.value();
+      }
+      if (opts->score.has_value()) {
+        timewin.score = opts->score.value();
+      }
     }
 
     auto validate_res = ps_validate_timewin(timewin);

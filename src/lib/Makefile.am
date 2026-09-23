@@ -16,6 +16,7 @@ libpriorisea_la_CPPFLAGS= \
 #    $(FLUX_CORE_LIBS)
 
 libpriorisea_la_SOURCES = \
+    config.cpp config.hpp \
     decay.cpp decay.hpp \
     error.cpp error.hpp \
     flux.cpp flux.hpp \

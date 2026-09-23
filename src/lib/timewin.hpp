@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include "croncpp.h"
+// #include "croncpp.h"
 #include "error.hpp"
 #include "types.hpp"
 #include <flux/core.h>
@@ -25,13 +25,12 @@ using ps_db_timewins_del_t = std::vector<ps_db_timewin_del_entry_t>;
 
 ////
 
-std::string ps_timewin_to_str(const ps_timewin_t &timewin);
-
 ps_result_t<ps_success_t> ps_validate_cron(const std::string &expr);
 
 ps_result_t<ps_success_t> ps_validate_timewin(const ps_timewin_t &timewin);
 
-ps_result_t<ps_timewin_t> ps_timewin_from_str(const std::string &str);
+json_t *ps_timewin_to_json(const ps_timewin_t &timewin);
+ps_timewin_t ps_timewin_from_json(json_t *obj);
 
 ps_result_t<ps_success_t> ps_db_timewin_set(const ps_timewin_t &timewin);
 
@@ -47,4 +46,4 @@ ps_result_t<ps_success_t> ps_db_timewin_del(const std::string &name);
 
 ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list();
 
-double ps_cron_prev(const cron::cronexpr &cron, double timestamp);
+// double ps_cron_prev(const cron::cronexpr &cron, double timestamp);

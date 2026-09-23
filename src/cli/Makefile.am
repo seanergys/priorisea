@@ -9,7 +9,9 @@ priorisea_SOURCES = main.cpp \
     score.cpp score.hpp \
     decay.cpp  decay.hpp \
     init.cpp init.hpp \
-    util.cpp util.hpp
+    util.cpp util.hpp \
+    plugin.cpp plugin.hpp \
+    config.cpp config.hpp
 
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
@@ -18,10 +20,12 @@ priorisea_CPPFLAGS = \
     -I$(top_srcdir)/src \
     -I$(top_srcdir)/src/cli/ \
     $(JANSSON_CFLAGS) \
+    $(SEANERBUS_CFLAGS) \
     $(FLUX_CORE_CFLAGS)
 
 priorisea_LDADD = \
     $(top_builddir)/src/lib/libpriorisea.la \
     $(top_builddir)/external/libtinyexpr.la \
     $(JANSSON_LIBS) \
+    $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)

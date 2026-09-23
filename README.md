@@ -40,14 +40,14 @@ __Formulas__
 
 A formula is a [tinyexpr](https://github.com/codeplea/tinyexpr) expression.
 
-When evaluated, some formulas can set some variables values (ex: `job_priority` formula can set the `prev_priority` variable). To use them, pass the `--var` option with the variable name and default value (in case the variable is not set when evaluating the formula)
+When evaluated, some formulas can set some variables values (ex: `<var:job_priority>` formula can set the `<var:prev_priority>` variable). You can use them in the formula expressions and pass the `--default` option with the variable name and default value (in case the variable is not set when evaluating the formula). Not setting a default value will cause jobs to be set on-hold.
 
-Example: `formula set job_priority "prev_priority * 2" --var prev_priority 5`
+Example: `formula set job_priority "<var:prev_priority> * 2" --default var:prev_priority 5`
 
 - `formula list` _list formulas_
 - `formula get <formula_name1> <formula_name2> ...` _get formulas_
 - `formula get <formula_name1> <formula_name2> ... --json` _get formula as array of {"name": "some_name", "formula": "some_formula"}_
-- `formula set <formula_name> "<formula>" --var var_name var_value` _edit formula_
+- `formula set <formula_name> "<formula>" --default var_name var_value` _edit formula_
 - `formula reset <formula_name1> <formula_name2> ...` _reset formulas_
 
 __Time windows__
@@ -89,3 +89,12 @@ Meaning jobs ran on the same day keep their scores, jobs ran the next seven days
 The testing is separated into:
 - TAP tests using sharness (user-side tests)
 - Unit tests per language (TODO)
+
+## Configuration
+
+[priorisea]
+[priorisea.seanerbus]
+ip = "localhost"
+port = 5398
+[priorisea.database]
+...

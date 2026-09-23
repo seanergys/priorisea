@@ -5,11 +5,15 @@
 #pragma once
 #include "error.hpp"
 #include "types.hpp"
+#include <jansson.h>
 #include <string>
 
-std::string ps_decay_to_str(const ps_decay_t &decay);
+json_t *ps_decay_frame_to_json(const ps_decay_frame_t &frame);
+ps_decay_frame_t ps_decay_frame_from_json(json_t *obj);
 
-ps_result_t<ps_decay_t> ps_decay_from_str(const std::string &decay_str);
+json_t *ps_decay_to_json(const ps_decay_t &decay);
+ps_decay_t ps_decay_from_json(json_t *obj);
+ps_result_t<ps_decay_t> ps_decay_from_string(const std::string &expr);
 
 ps_result_t<ps_success_t> ps_db_decay_set(const ps_decay_t &decay);
 

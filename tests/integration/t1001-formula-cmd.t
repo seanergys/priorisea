@@ -5,10 +5,10 @@ test_description="test seanergys formula subcommand"
 . `dirname $0`/sharness.sh
 
 PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
-DEFAULT_JOB_SCORE_FORMULA="duration_ratio + timewin_score"
+DEFAULT_JOB_SCORE_FORMULA="<var:duration_ratio> + <var:timewin_score>"
 DEFAULT_JOB_SCORE_VARS_DURATION_RATIO=0.0
 DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE=0.0
-DEFAULT_JOB_PRIORITY_FORMULA="prev_priority * 0.5 + user_score * 0.5"
+DEFAULT_JOB_PRIORITY_FORMULA="<var:prev_priority> * 0.5 + <var:user_score> * 0.5"
 DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY=16.0
 DEFAULT_JOB_PRIORITY_VARS_USER_SCORE=16.0
 test_under_flux 1
@@ -29,27 +29,27 @@ priorisea formula get job_score job_priority --json >out &&
 
 jq -e "
   .job_score.expr == \"${DEFAULT_JOB_SCORE_FORMULA}\" and
-  .job_score.vars.duration_ratio == ${DEFAULT_JOB_SCORE_VARS_DURATION_RATIO} and
-  .job_score.vars.timewin_score == ${DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE}
+  .job_score.defaults[\"var:duration_ratio\"] == ${DEFAULT_JOB_SCORE_VARS_DURATION_RATIO} and
+  .job_score.defaults[\"var:timewin_score\"] == ${DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE}
 " out &&
 
 jq -e "
   .job_priority.expr == \"${DEFAULT_JOB_PRIORITY_FORMULA}\" and
-  .job_priority.vars.prev_priority == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
-  .job_priority.vars.user_score == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
+  .job_priority.defaults[\"var:prev_priority\"] == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
+  .job_priority.defaults[\"var:user_score\"] == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
 " out
 '
 
 test_expect_success 'check the edition of default formulas' '
 job_score="8" &&
-job_priority="max(1,prev_priority * user_score)" &&
+job_priority="max(1,<var:prev_priority> * <var:user_score>)" &&
 job_priority_prev_priority=10 &&
 job_priority_user_score=5 &&
 
 priorisea formula set job_score "$job_score" &&
 priorisea formula set job_priority "$job_priority" \
-  --var prev_priority "$job_priority_prev_priority" \
-  --var user_score "$job_priority_user_score" &&
+  --default var:prev_priority "$job_priority_prev_priority" \
+  --default var:user_score "$job_priority_user_score" &&
 
 priorisea formula get job_score job_priority --json >out &&
 
@@ -59,8 +59,8 @@ jq -e "
 
 jq -e "
   .job_priority.expr == \"$job_priority\" and
-  .job_priority.vars.prev_priority == $job_priority_prev_priority and
-  .job_priority.vars.user_score == $job_priority_user_score
+  .job_priority.defaults[\"var:prev_priority\"] == $job_priority_prev_priority and
+  .job_priority.defaults[\"var:user_score\"] == $job_priority_user_score
 " out
 '
 
@@ -82,8 +82,8 @@ jq -e "
 
 jq -e "
   .job_priority.expr == \"${DEFAULT_JOB_PRIORITY_FORMULA}\" and
-  .job_priority.vars.prev_priority == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
-  .job_priority.vars.user_score == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
+  .job_priority.defaults[\"var:prev_priority\"] == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
+  .job_priority.defaults[\"var:user_score\"] == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
 " out
 '
 

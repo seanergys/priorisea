@@ -4,6 +4,7 @@
 
 #include "score.hpp"
 #include "CLI/CLI.hpp"
+#include "lib/config.hpp"
 #include "lib/error.hpp"
 #include "lib/flux.hpp"
 #include "lib/formula.hpp"
@@ -12,6 +13,7 @@
 #include "lib/types.hpp"
 #include "util.hpp"
 #include <climits>
+#include <cstdlib>
 #include <errno.h>
 #include <flux/core.h>
 #include <flux/core/job.h>
@@ -33,7 +35,8 @@ static void register_init_command(CLI::App *app) {
   });
 }
 
-static void register_update_command(CLI::App *app) {
+static void register_update_command(CLI::App *app,
+                                    const std::string &config_path) {
   auto *update_cmd =
       app->add_subcommand("update", "Update jobs and users scores");
   update_cmd->footer(
@@ -49,7 +52,13 @@ static void register_update_command(CLI::App *app) {
   auto opts = std::make_shared<options>();
   update_cmd->add_flag("--new", opts->new_f, "Update scores for all new jobs");
   update_cmd->add_option("jobids", opts->jobids_str, "Job IDs to retrieve");
-  update_cmd->callback([opts] {
+  update_cmd->callback([opts, &config_path] {
+    auto config_res = ps_config_load(config_path);
+    if (!ps_is_ok(config_res)) {
+      return cli_error(config_res);
+    }
+    auto config = ps_unwrap(config_res);
+
     auto get_formula_res = ps_db_formula_get("job_score");
     if (!ps_is_ok(get_formula_res)) {
       return cli_error(get_formula_res);
@@ -96,9 +105,8 @@ static void register_update_command(CLI::App *app) {
       for (const auto &jobid_str : opts->jobids_str) {
         flux_jobid_t jobid;
         if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
-          auto err = ps_error(ps_flux_jobid_parse_err_t{
-              .jobid = jobid_str, .msg = strerror(errno)});
-          return cli_error(err);
+          return cli_error(ps_error(ps_flux_jobid_parse_err_t{
+              .jobid = jobid_str, .msg = strerror(errno)}));
         }
         jobids.push_back(jobid);
       }
@@ -133,8 +141,8 @@ static void register_update_command(CLI::App *app) {
     // TODO: --new and specifying jobid can both find the
     // same job twice, thus updating it twice
     for (const auto &list_job : jobs_to_update) {
-      auto update_res =
-          ps_db_job_update(list_job, ps_unwrap(get_formula_res), timewins);
+      auto update_res = ps_db_job_update(list_job, ps_unwrap(get_formula_res),
+                                         timewins, config.seanerbus);
       if (!ps_is_ok(update_res)) {
         return cli_error(update_res);
       }
@@ -186,9 +194,8 @@ static void register_job_command(CLI::App *app) {
       for (const auto &jobid_str : opts->jobids_str) {
         flux_jobid_t jobid;
         if (flux_job_id_parse(jobid_str.c_str(), &jobid) < 0) {
-          ps_error_t err = ps_error(ps_flux_jobid_parse_err_t{
-              .jobid = jobid_str, .msg = strerror(errno)});
-          return cli_error(err);
+          return cli_error(ps_error(ps_flux_jobid_parse_err_t{
+              .jobid = jobid_str, .msg = strerror(errno)}));
         }
         jobids.push_back(jobid);
       }
@@ -221,20 +228,20 @@ static void register_job_command(CLI::App *app) {
       std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
       json_decref(obj);
     } else {
-      ps_print_table(jobs, {{"Job Id",
-                             [&opts](auto &value, auto index) -> auto {
-                               if (opts->id_format == "dec") {
-                                 return std::to_string(value.jobid);
-                               }
-                               char buf[256];
-                               flux_job_id_encode(value.jobid,
-                                                  opts->id_format.c_str(), buf,
-                                                  sizeof(buf));
-                               return std::string(buf);
-                             }},
-                            {"Score", [](auto &value, auto index) -> auto {
-                               return std::to_string(value.score);
-                             }}});
+      ps_print_table_v(jobs, {{"Job Id",
+                               [&opts](auto &value, auto index) -> auto {
+                                 if (opts->id_format == "dec") {
+                                   return std::to_string(value.jobid);
+                                 }
+                                 char buf[256];
+                                 flux_job_id_encode(value.jobid,
+                                                    opts->id_format.c_str(),
+                                                    buf, sizeof(buf));
+                                 return std::string(buf);
+                               }},
+                              {"Score", [](auto &value, auto index) -> auto {
+                                 return std::to_string(value.score);
+                               }}});
     }
   });
 }
@@ -295,23 +302,23 @@ static void register_user_command(CLI::App *app) {
       }
       json_decref(obj);
     } else {
-      ps_print_table(users, {{"UserId",
-                              [](auto &value, auto index) -> auto {
-                                return std::to_string(value.userid);
-                              }},
-                             {"Score", [](auto &value, auto index) -> auto {
-                                return std::to_string(value.score);
-                              }}});
+      ps_print_table_v(users, {{"UserId",
+                                [](auto &value, auto index) -> auto {
+                                  return std::to_string(value.userid);
+                                }},
+                               {"Score", [](auto &value, auto index) -> auto {
+                                  return std::to_string(value.score);
+                                }}});
     }
   });
 }
 
-void register_score_commands(CLI::App *app) {
+void register_score_commands(CLI::App *app, const std::string &config_path) {
   auto *score_cmd = app->add_subcommand("score", "Manage priority scores");
   score_cmd->require_subcommand(true);
   score_cmd->set_help_flag("-h,--help", "Show help for score commands");
   register_user_command(score_cmd);
   register_job_command(score_cmd);
-  register_update_command(score_cmd);
+  register_update_command(score_cmd, config_path);
   register_init_command(score_cmd);
 }

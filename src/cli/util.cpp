@@ -4,7 +4,7 @@
 
 #include "util.hpp"
 
-void cli_error(ps_error_t &err) {
-  std::cerr << ps_error_message(err) << std::endl;
+void cli_error(const ps_error_t &err) {
+  std::cerr << "ERROR: " << ps_error_message(err) << std::endl;
   std::exit(EXIT_FAILURE);
 }

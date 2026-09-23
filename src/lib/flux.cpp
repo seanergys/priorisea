@@ -26,18 +26,20 @@ ps_result_t<ps_formula_t> ps_flux_plugin_get_formula() {
     flux_close(h);
     return ps_error(ps_flux_rpc_err_t{.msg = strerror(errno)});
   }
-  char *formula_str;
-  if (flux_rpc_get_unpack(f, "{s:s}", "data", formula_str) < 0) {
+  json_t *json_formula = nullptr;
+  if (flux_rpc_get_unpack(f, "{s:o}", "data", &json_formula) < 0) {
     flux_future_destroy(f);
     flux_close(h);
     return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)},
                     "unpacking rpc job-manager.sea_priority.get_formula. Is "
                     "the plugin loaded?");
   }
+
+  auto formula = ps_formula_from_json(json_formula);
+  json_decref(json_formula);
   flux_future_destroy(f);
   flux_close(h);
-
-  return ps_formula_from_str(formula_str);
+  return formula;
 }
 
 ps_result_t<ps_success_t>
@@ -47,12 +49,9 @@ ps_flux_plugin_set_formula(const ps_formula_t &formula) {
   if (!(h = flux_open(NULL, 0))) {
     return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
-
-  std::string formula_str = ps_formula_to_str(formula);
-
+  json_t *json_formula = ps_formula_to_json(formula);
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_formula",
-                          FLUX_NODEID_ANY, 0, "{s:s}", "data",
-                          formula_str.c_str()))) {
+                          FLUX_NODEID_ANY, 0, "{s:o}", "data", json_formula))) {
     flux_close(h);
     return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
@@ -82,35 +81,22 @@ ps_flux_plugin_get_score(const std::vector<int> &userids) {
   }
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.get_score",
                           FLUX_NODEID_ANY, 0, "{s:o}", "data", &data))) {
-    flux_close(h);
     json_decref(data);
+    flux_close(h);
     return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
-  json_decref(data);
 
-  json_t *scores = json_object();
+  json_t *scores = nullptr;
   if (flux_rpc_get_unpack(f, "{s:o}", "data", &scores) < 0) {
     flux_future_destroy(f);
     flux_close(h);
-    json_decref(scores);
     return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)},
                     "unpacking rpc job-manager.sea_priority.get_score. Is the "
                     "plugin loaded?");
   }
 
-  std::map<uid_t, double> score_map;
-  const char *userid_key;
-  json_t *score_value;
-  json_object_foreach(scores, userid_key, score_value) {
-    uid_t userid;
-    if (!parse_uid(std::string(userid_key), userid)) {
-      continue;
-    }
-    double score = json_real_value(score_value);
-    score_map[userid] = score;
-  }
+  auto score_map = score_map_from_json(scores);
   json_decref(scores);
-
   flux_future_destroy(f);
   flux_close(h);
   return score_map;
@@ -123,18 +109,13 @@ ps_flux_plugin_set_score(const ps_score_map_t &scores) {
   if (!(h = flux_open(NULL, 0))) {
     return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
   }
-  json_t *scores_json = json_object();
-  for (const auto &[user_id, score] : scores) {
-    json_object_set_new(scores_json, std::to_string(user_id).c_str(),
-                        json_real(score));
-  }
+  json_t *scores_json = score_map_to_json(scores);
   if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_score",
                           FLUX_NODEID_ANY, 0, "{s:o}", "data", scores_json))) {
-    flux_close(h);
     json_decref(scores_json);
+    flux_close(h);
     return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
   }
-  json_decref(scores_json);
   if (flux_future_get(f, NULL) < 0) {
     flux_future_destroy(f);
     flux_close(h);
@@ -184,6 +165,7 @@ ps_flux_kvs_remove(const std::vector<std::string> &keys) {
       continue;
     }
     if (flux_kvs_txn_unlink(t, 0, key.c_str()) < 0) {
+      flux_kvs_txn_destroy(t);
       res.push_back({.key = key,
                      .result = ps_error(ps_flux_kvs_txn_unlink_err_t{
                          .key = key, .msg = strerror(errno)})});
@@ -191,6 +173,7 @@ ps_flux_kvs_remove(const std::vector<std::string> &keys) {
     }
     flux_future_t *f;
     if (!(f = flux_kvs_commit(h, NULL, 0, t))) {
+      flux_kvs_txn_destroy(t);
       res.push_back({.key = key,
                      .result = ps_error(
                          ps_flux_kvs_commit_err_t{.msg = strerror(errno)})});
@@ -288,10 +271,10 @@ ps_result_t<ps_flux_job_info_t> ps_flux_job_info_unpack(json_t *value) {
                   &res.expiration) < 0) {
     return ps_error(ps_json_unpack_err_t{.dumps = json_dumps(value, 0)});
   }
-  res.name = strdup(name);
-  res.cwd = strdup(cwd);
-  res.ranks = strdup(ranks);
-  res.nodelist = strdup(nodelist);
+  res.name = name;
+  res.cwd = cwd;
+  res.ranks = ranks;
+  res.nodelist = nodelist;
   return res;
 }
 
@@ -437,4 +420,132 @@ ps_flux_kvs_ls_dir(const std::string &key) {
     res.push_back(name);
   }
   return res;
+}
+
+ps_result_t<ps_success_t>
+ps_flux_plugin_set_seanerbus(const ps_seanerbus_t &seanerbus) {
+  flux_t *h;
+  flux_future_t *f;
+  if (!(h = flux_open(NULL, 0))) {
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
+  }
+
+  json_t *data = ps_seanerbus_to_json(seanerbus);
+  if (!(f = flux_rpc_pack(h, "job-manager.sea_priority.set_seanerbus",
+                          FLUX_NODEID_ANY, 0, "{s:o}", "data", data))) {
+    flux_close(h);
+    json_decref(data);
+    return ps_error(ps_flux_rpc_pack_err_t{.msg = strerror(errno)});
+  }
+
+  if (flux_future_get(f, NULL) < 0) {
+    flux_future_destroy(f);
+    flux_close(h);
+    return ps_error(
+        ps_flux_future_get_err_t{.msg = strerror(errno)},
+        "getting rpc job-manager.sea_priority.set_seanerbus. Is the "
+        "plugin loaded?");
+  }
+  flux_future_destroy(f);
+  flux_close(h);
+  return ps_success_t{};
+}
+
+ps_result_t<ps_seanerbus_t> ps_flux_plugin_get_seanerbus() {
+  flux_t *h;
+  flux_future_t *f;
+  if (!(h = flux_open(NULL, 0))) {
+    return ps_error(ps_flux_open_err_t{.msg = strerror(errno)});
+  }
+
+  if (!(f = flux_rpc(h, "job-manager.sea_priority.get_seanerbus", "",
+                     FLUX_NODEID_ANY, 0))) {
+    flux_close(h);
+    return ps_error(ps_flux_rpc_err_t{.msg = strerror(errno)});
+  }
+
+  json_t *data = nullptr;
+  if (flux_rpc_get_unpack(f, "{s:o}", "data", &data) < 0) {
+    flux_future_destroy(f);
+    flux_close(h);
+    return ps_error(ps_flux_rpc_get_unpack_err_t{.msg = strerror(errno)},
+                    "unpacking rpc job-manager.sea_priority.get_seanerbus. Is "
+                    "the plugin loaded?");
+  }
+
+  auto seanerbus = ps_seanerbus_from_json(data);
+  json_decref(data);
+  flux_future_destroy(f);
+  flux_close(h);
+  return seanerbus;
+}
+
+////
+
+json_t *ps_seanerbus_to_json(const ps_seanerbus_t &seanerbus) {
+  auto *obj = json_object();
+  json_object_set_new(obj, "ip", json_string(seanerbus.ip.c_str()));
+  json_object_set_new(obj, "port", json_integer(seanerbus.port));
+  return obj;
+}
+
+ps_seanerbus_t ps_seanerbus_from_json(json_t *obj) {
+  ps_seanerbus_t res;
+  const char *ip = nullptr;
+  int port = 0;
+  json_unpack(obj, "{s:s, s:i}", "ip", &ip, "port", &port);
+  res.ip = ip ? ip : "";
+  res.port = port;
+  return res;
+}
+
+json_t *ps_flux_job_info_to_json(const ps_flux_job_info_t &info) {
+  auto *obj = json_object();
+  json_object_set_new(obj, "id", json_integer(info.id));
+  json_object_set_new(obj, "userid", json_integer(info.userid));
+  json_object_set_new(obj, "urgency", json_integer(info.urgency));
+  json_object_set_new(obj, "priority", json_integer(info.priority));
+  json_object_set_new(obj, "t_submit", json_real(info.t_submit));
+  json_object_set_new(obj, "t_depend", json_real(info.t_depend));
+  json_object_set_new(obj, "t_run", json_real(info.t_run));
+  json_object_set_new(obj, "t_cleanup", json_real(info.t_cleanup));
+  json_object_set_new(obj, "t_inactive", json_real(info.t_inactive));
+  json_object_set_new(obj, "state", json_integer(info.state));
+  json_object_set_new(obj, "name", json_string(info.name.c_str()));
+  json_object_set_new(obj, "cwd", json_string(info.cwd.c_str()));
+  json_object_set_new(obj, "ntasks", json_integer(info.ntasks));
+  json_object_set_new(obj, "ncores", json_integer(info.ncores));
+  json_object_set_new(obj, "duration", json_real(info.duration));
+  json_object_set_new(obj, "nnodes", json_integer(info.nnodes));
+  json_object_set_new(obj, "ranks", json_string(info.ranks.c_str()));
+  json_object_set_new(obj, "nodelist", json_string(info.nodelist.c_str()));
+  json_object_set_new(obj, "success", json_boolean(info.success));
+  json_object_set_new(obj, "exception_occurred",
+                      json_boolean(info.exception_occured));
+  json_object_set_new(obj, "result", json_integer(info.result));
+  json_object_set_new(obj, "expiration", json_real(info.expiration));
+  return obj;
+}
+
+json_t *score_map_to_json(const ps_score_map_t &scores) {
+  auto *obj = json_object();
+  for (const auto &[user_id, score] : scores) {
+    json_object_set_new(obj, std::to_string(user_id).c_str(), json_real(score));
+  }
+  return obj;
+}
+
+ps_score_map_t score_map_from_json(json_t *obj) {
+  ps_score_map_t score_map;
+  const char *userid_key;
+  json_t *score_value;
+  json_object_foreach(obj, userid_key, score_value) {
+    uid_t userid;
+    if (!parse_uid(std::string(userid_key), userid)) {
+      continue;
+    }
+    double score = json_real_value(score_value);
+    score_map[userid] = score;
+  }
+  return score_map;
 }

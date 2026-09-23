@@ -25,7 +25,7 @@ struct ps_timewin_t {
 struct ps_formula_t {
   std::string name;
   std::string expr;
-  std::map<std::string, double> vars;
+  std::map<std::string, double> defaults;
 };
 
 //// score
@@ -44,12 +44,12 @@ typedef std::map<uid_t, double> ps_score_map_t;
 
 //// decay
 
-struct ps_decay_one_t {
+struct ps_decay_frame_t {
   int duration;
   double priority;
 };
 
-typedef std::vector<ps_decay_one_t> ps_decay_t;
+typedef std::vector<ps_decay_frame_t> ps_decay_t;
 
 //// flux
 
@@ -81,4 +81,15 @@ struct ps_flux_job_info_t {
   double expiration;
   // json_t annotations;
   // int waitstatus;
+};
+
+// config
+
+struct ps_seanerbus_t {
+  std::string ip;
+  int port;
+};
+
+struct ps_config_t {
+  ps_seanerbus_t seanerbus;
 };
