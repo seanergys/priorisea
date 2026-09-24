@@ -96,17 +96,12 @@ static void register_add_command(CLI::App *app) {
   auto opts = std::make_shared<options>();
   add_cmd->add_option("timewin", opts->arg, "Time window JSON or name")
       ->required();
-  add_cmd->add_option("-s,--score", opts->score, "Score of the time window")
-      ->required();
-  add_cmd
-      ->add_option("-c,--cron", opts->cron,
-                   "Cron expression for the time "
-                   "window")
-      ->required();
-  add_cmd
-      ->add_option("-d,--duration", opts->duration,
-                   "Duration of the time window")
-      ->required();
+  add_cmd->add_option("-s,--score", opts->score, "Score of the time window");
+  add_cmd->add_option("-c,--cron", opts->cron,
+                      "Cron expression for the time "
+                      "window");
+  add_cmd->add_option("-d,--duration", opts->duration,
+                      "Duration of the time window");
   add_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
   add_cmd->callback([opts] {
     ps_timewin_t timewin;
