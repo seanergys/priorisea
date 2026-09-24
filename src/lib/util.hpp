@@ -7,16 +7,12 @@
 #include <memory>
 #include <string>
 
-////
-
-template <typename T> std::string ps_type_name() {
-  int status = 0;
-  std::unique_ptr<char, void (*)(void *)> res{
-      abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status),
-      std::free};
-  return (status == 0) ? res.get() : typeid(T).name();
-}
-
+/**
+ * Extract the type name of a variable or object.
+ *
+ * @param value The variable or object to extract the type name from.
+ * @return The type name as a string.
+ */
 template <typename T> std::string ps_type_name(const T &value) {
   int status = 0;
   std::unique_ptr<char, void (*)(void *)> res{
@@ -25,8 +21,29 @@ template <typename T> std::string ps_type_name(const T &value) {
   return (status == 0) ? res.get() : typeid(T).name();
 }
 
-////
-
+/**
+ * Parse a string into an integer
+ *
+ * @param s The string to parse.
+ * @param out The output integer variable to store the parsed value.
+ * @return True if parsing was successful, false otherwise.
+ */
 bool parse_int(const std::string &s, int &out);
+
+/**
+ * Parse a string into a uid_t
+ *
+ * @param s The string to parse.
+ * @param out The output uid_t variable to store the parsed value.
+ * @return True if parsing was successful, false otherwise.
+ */
 bool parse_uid(const std::string &s, uid_t &out);
+
+/**
+ * Parse a string into a double
+ *
+ * @param s The string to parse.
+ * @param out The output double variable to store the parsed value.
+ * @return True if parsing was successful, false otherwise.
+ */
 bool parse_double(const std::string &s, double &out);

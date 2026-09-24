@@ -25,13 +25,24 @@ json_t *ps_decay_frame_to_json(const ps_decay_frame_t &frame) {
   return obj;
 }
 
-ps_decay_frame_t ps_decay_frame_from_json(json_t *obj) {
+ps_result_t<ps_decay_frame_t> ps_decay_frame_from_json(json_t *obj) {
   ps_decay_frame_t res;
-  int duration = 0;
-  double priority = 0;
-  json_unpack(obj, "{s:i, s:f}", "duration", &duration, "priority", &priority);
-  res.duration = duration;
-  res.priority = priority;
+  json_t *duration_j = json_object_get(obj, "duration");
+  if (!duration_j) {
+    return ps_error(ps_decay_frame_duration_missing_t{});
+  }
+  if (!json_is_integer(duration_j)) {
+    return ps_error(ps_decay_frame_duration_invalid_t{});
+  }
+  res.duration = (int)json_integer_value(duration_j);
+  json_t *priority_j = json_object_get(obj, "priority");
+  if (!priority_j) {
+    return ps_error(ps_decay_priority_missing_t{});
+  }
+  if (!json_is_number(priority_j)) {
+    return ps_error(ps_decay_priority_invalid_t{});
+  }
+  res.priority = json_number_value(priority_j);
   return res;
 }
 
@@ -43,12 +54,16 @@ json_t *ps_decay_to_json(const ps_decay_t &decay) {
   return arr;
 }
 
-ps_decay_t ps_decay_from_json(json_t *obj) {
+ps_result_t<ps_decay_t> ps_decay_from_json(json_t *obj) {
   ps_decay_t res;
   size_t index;
   json_t *value;
   json_array_foreach(obj, index, value) {
-    res.push_back(ps_decay_frame_from_json(value));
+    auto frame_res = ps_decay_frame_from_json(value);
+    if (!ps_is_ok(frame_res)) {
+      return ps_forward_error<ps_decay_t>(frame_res, "parsing decay frame");
+    }
+    res.push_back(ps_unwrap(frame_res));
   }
   return res;
 }
@@ -116,9 +131,12 @@ ps_result_t<ps_decay_t> ps_db_decay_get() {
                     "parsing stored decay value");
   }
 
-  auto decay = ps_decay_from_json(json_decay);
+  auto decay_res = ps_decay_from_json(json_decay);
   json_decref(json_decay);
-  return decay;
+  if (!ps_is_ok(decay_res)) {
+    return ps_add_context(decay_res, "parsing stored decay value");
+  }
+  return ps_unwrap(decay_res);
 }
 
 bool ps_db_is_decay() { return ps_is_ok(ps_db_decay_get()); }

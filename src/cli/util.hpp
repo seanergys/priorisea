@@ -15,8 +15,12 @@ template <typename T> struct ps_column_t {
   std::function<std::string(const T &, std::size_t)> getter;
 };
 
-////
-
+/**
+ * Prints a vertical table of rows and columns to the console.
+ *
+ * @param rows The rows of the table.
+ * @param columns The columns of the table.
+ */
 template <typename T>
 void ps_print_table_v(const std::vector<T> &rows,
                       const std::vector<ps_column_t<T>> &columns) {
@@ -69,6 +73,12 @@ void ps_print_table_v(const std::vector<T> &rows,
   std::cout << std::endl;
 }
 
+/**
+ * Prints a horizontal table of rows and columns to the console.
+ *
+ * @param rows The rows of the table.
+ * @param columns The columns of the table.
+ */
 template <typename T>
 void ps_print_table_h(const std::vector<T> &rows,
                       const std::vector<ps_column_t<T>> &columns) {
@@ -105,10 +115,18 @@ void ps_print_table_h(const std::vector<T> &rows,
   std::cout << std::endl;
 }
 
-////
-
+/**
+ * Prints an error message to the console.
+ *
+ * @param err The error to print.
+ */
 void cli_error(const ps_error_t &err);
 
+/**
+ * Prints an error message to the console.
+ *
+ * @param res The result to print.
+ */
 template <typename T> void cli_error(const ps_result_t<T> &res) {
   auto err = ps_unwrap_error(res);
   cli_error(err);

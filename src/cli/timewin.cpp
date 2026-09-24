@@ -116,8 +116,12 @@ static void register_add_command(CLI::App *app) {
       if (!json_timewin) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->arg}));
       }
-      timewin = ps_timewin_from_json(json_timewin);
+      auto timewin_res = ps_timewin_from_json(json_timewin);
       json_decref(json_timewin);
+      if (!ps_is_ok(timewin_res)) {
+        return cli_error(timewin_res);
+      }
+      timewin = ps_unwrap(timewin_res);
     } else {
       timewin.name = opts->arg;
       timewin.score = opts->score.value();
@@ -166,8 +170,12 @@ static void register_edit_command(CLI::App *app) {
       if (!json_timewin) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->arg}));
       }
-      timewin = ps_timewin_from_json(json_timewin);
+      auto timewin_res = ps_timewin_from_json(json_timewin);
       json_decref(json_timewin);
+      if (!ps_is_ok(timewin_res)) {
+        return cli_error(timewin_res);
+      }
+      timewin = ps_unwrap(timewin_res);
     } else {
       auto get_res = ps_db_timewin_get(opts->arg);
       if (!ps_is_ok(get_res)) {

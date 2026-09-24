@@ -47,18 +47,43 @@ json_t *ps_timewin_to_json(const ps_timewin_t &timewin) {
   return obj;
 }
 
-ps_timewin_t ps_timewin_from_json(json_t *obj) {
+ps_result_t<ps_timewin_t> ps_timewin_from_json(json_t *obj) {
   ps_timewin_t res;
-  const char *name = nullptr;
-  const char *cron = nullptr;
-  int duration = 0;
-  double score = 0;
-  json_unpack(obj, "{s:s, s:s, s:i, s:f}", "name", &name, "cron", &cron,
-              "duration", &duration, "score", &score);
-  res.name = name ? name : "";
-  res.cron = cron ? cron : "";
-  res.duration = duration;
-  res.score = score;
+  json_t *name_j = json_object_get(obj, "name");
+  if (!name_j) {
+    return ps_error(ps_timewin_name_missing_t{});
+  }
+  if (!json_is_string(name_j)) {
+    return ps_error(ps_timewin_name_invalid_t{});
+  }
+  res.name = json_string_value(name_j);
+
+  json_t *cron_j = json_object_get(obj, "cron");
+  if (!cron_j) {
+    return ps_error(ps_timewin_cron_missing_t{});
+  }
+  if (!json_is_string(cron_j)) {
+    return ps_error(ps_timewin_cron_invalid_t{});
+  }
+  res.cron = json_string_value(cron_j);
+
+  json_t *duration_j = json_object_get(obj, "duration");
+  if (!duration_j) {
+    return ps_error(ps_timewin_duration_missing_t{});
+  }
+  if (!json_is_integer(duration_j)) {
+    return ps_error(ps_timewin_duration_invalid_t{});
+  }
+  res.duration = (int)json_number_value(duration_j);
+
+  json_t *score_j = json_object_get(obj, "score");
+  if (!score_j) {
+    return ps_error(ps_timewin_score_missing_t{});
+  }
+  if (!json_is_real(score_j)) {
+    return ps_error(ps_timewin_score_invalid_t{});
+  }
+  res.score = json_number_value(score_j);
   return res;
 }
 
@@ -130,9 +155,9 @@ ps_db_timewins_get(const std::vector<std::string> &names) {
       continue;
     }
 
-    auto timewin = ps_timewin_from_json(json_timewin);
+    auto timewin_res = ps_timewin_from_json(json_timewin);
     json_decref(json_timewin);
-    res.push_back({.name = timewin_name, .result = timewin});
+    res.push_back({.name = timewin_name, .result = timewin_res});
   }
 
   return res;

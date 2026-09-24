@@ -43,16 +43,29 @@ json_t *ps_formula_to_json(const ps_formula_t &formula) {
   return obj;
 }
 
-ps_formula_t ps_formula_from_json(json_t *obj) {
+ps_result_t<ps_formula_t> ps_formula_from_json(json_t *obj) {
   ps_formula_t res;
-  const char *name = nullptr;
-  const char *expr = nullptr;
-  json_t *defaults_obj = nullptr;
-  json_unpack(obj, "{s:s, s:s, s:o}", "name", &name, "expr", &expr, "defaults",
-              &defaults_obj);
-  res.name = name ? name : "";
-  res.expr = expr ? expr : "";
-  if (defaults_obj && json_is_object(defaults_obj)) {
+  json_t *name_j = json_object_get(obj, "name");
+  if (!name_j) {
+    return ps_error(ps_formula_name_missing_t{});
+  }
+  if (!json_is_string(name_j)) {
+    return ps_error(ps_formula_name_invalid_t{});
+  }
+  res.name = json_string_value(name_j);
+  json_t *expr_j = json_object_get(obj, "expr");
+  if (!expr_j) {
+    return ps_error(ps_formula_expr_missing_t{.name = res.name});
+  }
+  if (!json_is_string(expr_j)) {
+    return ps_error(ps_formula_expr_invalid_t{.name = res.name});
+  }
+  res.expr = json_string_value(expr_j);
+  json_t *defaults_obj = json_object_get(obj, "defaults");
+  if (!defaults_obj) {
+    return ps_error(ps_formula_defaults_missing_t{});
+  }
+  if (json_is_object(defaults_obj)) {
     const char *var_name;
     json_t *value_j;
     json_object_foreach(defaults_obj, var_name, value_j) {
@@ -180,9 +193,9 @@ ps_db_formulas_get(const std::vector<std::string> &names) {
       continue;
     }
 
-    auto formula = ps_formula_from_json(json_formula);
+    auto formula_res = ps_formula_from_json(json_formula);
     json_decref(json_formula);
-    res.push_back({.name = formula_name, .result = formula});
+    res.push_back({.name = formula_name, .result = formula_res});
   }
 
   return res;

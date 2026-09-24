@@ -155,8 +155,12 @@ static void register_set_command(CLI::App *app) {
       if (!json_formula) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->name}));
       }
-      formula = ps_formula_from_json(json_formula);
+      auto formula_res = ps_formula_from_json(json_formula);
       json_decref(json_formula);
+      if (!ps_is_ok(formula_res)) {
+        return cli_error(formula_res);
+      }
+      formula = ps_unwrap(formula_res);
     } else {
       formula = ps_formula_t{.name = opts->name, .expr = opts->expr};
       for (size_t i = 0; i < opts->defaults.size(); i += 2) {

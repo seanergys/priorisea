@@ -83,8 +83,12 @@ static void register_set_command(CLI::App *app) {
       if (!json_decay) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->expr}));
       }
-      decay = ps_decay_from_json(json_decay);
+      auto decay_res = ps_decay_from_json(json_decay);
       json_decref(json_decay);
+      if (!ps_is_ok(decay_res)) {
+        return cli_error(decay_res);
+      }
+      decay = ps_unwrap(decay_res);
     } else {
       auto decay_res = ps_decay_from_string(opts->expr);
       if (!ps_is_ok(decay_res)) {

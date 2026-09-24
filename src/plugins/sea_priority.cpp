@@ -77,7 +77,13 @@ static void set_formula_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  auto formula = ps_formula_from_json(json_formula);
+  auto formula_res = ps_formula_from_json(json_formula);
+  if (!ps_is_ok(formula_res)) {
+    auto errmsg = ps_error_message(formula_res);
+    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+    return;
+  }
+  auto formula = ps_unwrap(formula_res);
 
   if (!ps_validate_formula(formula)) {
     auto errmsg = fmt::format("invalid formula: {}", formula.expr);
@@ -155,7 +161,13 @@ static void set_score_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  auto new_scores = score_map_from_json(obj);
+  auto new_scores_res = score_map_from_json(obj);
+  if (!ps_is_ok(new_scores_res)) {
+    auto errmsg = ps_error_message(new_scores_res);
+    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+    return;
+  }
+  auto new_scores = ps_unwrap(new_scores_res);
   scores.insert(new_scores.begin(), new_scores.end());
 
   flux_respond(h, msg, NULL);
@@ -180,7 +192,13 @@ static void set_seanerbus_cb(flux_t *h, flux_msg_handler_t *mh,
     return;
   }
 
-  seanerbus_cfg = ps_seanerbus_from_json(json_seanerbus);
+  auto seanerbus_res = ps_seanerbus_from_json(json_seanerbus);
+  if (!ps_is_ok(seanerbus_res)) {
+    auto errmsg = ps_error_message(seanerbus_res);
+    flux_respond_error(h, msg, EINVAL, errmsg.c_str());
+    return;
+  }
+  seanerbus_cfg = ps_unwrap(seanerbus_res);
 
   flux_respond(h, msg, NULL);
 }
