@@ -307,21 +307,14 @@ std::string ps_error_message_kind(const ps_config_err_t &err) {
   return "config error at " + err.path + ": " + err.msg;
 }
 
-std::string ps_error_message_kind(const ps_seanerbus_ip_missing_t &) {
-  return "seanerbus ip missing";
+std::string ps_error_message_kind(const ps_seanerbus_url_missing_t &) {
+  return "seanerbus url missing";
 }
 
-std::string ps_error_message_kind(const ps_seanerbus_port_missing_t &) {
-  return "seanerbus port missing";
+std::string ps_error_message_kind(const ps_seanerbus_url_invalid_t &) {
+  return "seanerbus url invalid";
 }
 
-std::string ps_error_message_kind(const ps_seanerbus_ip_invalid_t &) {
-  return "seanerbus ip invalid";
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_port_invalid_t &) {
-  return "seanerbus port invalid";
-}
 std::string ps_error_message_kind(const ps_seanerbus_resolve_err_t &err) {
   return "error when resolving seanerbus service: " + err.service;
 }
@@ -339,8 +332,7 @@ std::string ps_error_message_kind(const ps_seanerbus_decode_err_t &err) {
 }
 
 std::string ps_error_message_kind(const ps_seanerbus_connection_err_t &err) {
-  return "seanerbus (" + err.seanerbus.ip + ":" +
-         std::to_string(err.seanerbus.port) + ") connection error: " + err.msg;
+  return "seanerbus (" + err.seanerbus + ") connection error: " + err.msg;
 }
 
 std::string ps_error_message_kind(const ps_invalid_uuid_err_t &err) {

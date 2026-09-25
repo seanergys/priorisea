@@ -16,10 +16,10 @@
 #include <vector>
 
 static void print_timewins_json(const std::vector<ps_timewin_t> &timewins) {
-  auto obj = json_object();
+  auto obj = json_array();
   for (const auto &timewin : timewins) {
     auto *json_timewin = ps_timewin_to_json(timewin);
-    json_object_set_new(obj, timewin.name.c_str(), json_timewin);
+    json_array_append_new(obj, json_timewin);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
   if (dump) {

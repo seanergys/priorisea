@@ -24,7 +24,7 @@ static void register_seanerbus_get_command(CLI::App *app) {
 
     if (opts->json) {
       auto obj = ps_seanerbus_to_json(seanerbus);
-      char *dump = json_dumps(obj, JSON_INDENT(2));
+      char *dump = json_dumps(obj, JSON_INDENT(2) | JSON_ENCODE_ANY);
       if (dump) {
         std::cout << dump << std::endl;
         free(dump);
@@ -34,10 +34,9 @@ static void register_seanerbus_get_command(CLI::App *app) {
       auto seanerbus_vec = std::vector<ps_seanerbus_t>{seanerbus};
       ps_print_table_v(
           seanerbus_vec,
-          {{"IP", [](auto &value, auto index) -> auto { return value.ip; }},
-           {"Port", [](auto &value, auto index) -> auto {
-              return std::to_string(value.port);
-            }}});
+          {
+              {"URL", [](auto &value, auto index) -> auto { return value; }},
+          });
     }
   });
 }
@@ -46,17 +45,13 @@ static void register_seanerbus_set_command(CLI::App *app) {
   auto *set_cmd = app->add_subcommand("set", "Set Seanerbus connection info");
   set_cmd->set_help_flag("-h,--help", "Show help for set command");
   struct options {
-    std::string ip;
-    int port;
+    std::string url;
   };
   auto opts = std::make_shared<options>();
-  set_cmd->add_option("ip", opts->ip, "IP address of the Seanerbus server")
-      ->required();
-  set_cmd->add_option("port", opts->port, "Port of the Seanerbus server")
+  set_cmd->add_option("url", opts->url, "URL address of the Seanerbus server")
       ->required();
   set_cmd->callback([opts] {
-    auto res =
-        ps_flux_plugin_set_seanerbus({.ip = opts->ip, .port = opts->port});
+    auto res = ps_flux_plugin_set_seanerbus(opts->url);
     if (!ps_is_ok(res)) {
       return cli_error(res);
     }

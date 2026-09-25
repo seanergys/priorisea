@@ -351,9 +351,6 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
     return sb_results;
   }
 
-  const std::string endpoint =
-      "demobus://" + seanerbus.ip + ":" + std::to_string(seanerbus.port);
-
   // Send a HelloWorldReqV1 carrying the job id to the given entity and store
   // the parsed double reply (or an error) under service_full.
   auto do_request = [&](const std::string &service_full,
@@ -362,7 +359,7 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
       return;
     }
     try {
-      seanerbus::client::Connection req_conn(endpoint, endpoint);
+      seanerbus::client::Connection req_conn(seanerbus, seanerbus);
       seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
       bd.builder().setMsg(std::to_string(jobid));
       req_conn.request(
@@ -471,7 +468,7 @@ ps_resolve_seanerbus_vars(const ps_formula_t &formula,
     seanerbus::msg::Entity entity;
     bool resolved = false;
     {
-      seanerbus::client::Connection conn(endpoint, endpoint);
+      seanerbus::client::Connection conn(seanerbus, seanerbus);
       seanerbus::resolve::resolve(
           conn, resolve_name,
           [&](seanerbus::client::Connection &c,

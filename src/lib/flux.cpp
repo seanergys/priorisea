@@ -495,31 +495,14 @@ ps_result_t<ps_seanerbus_t> ps_flux_plugin_get_seanerbus() {
 ////
 
 json_t *ps_seanerbus_to_json(const ps_seanerbus_t &seanerbus) {
-  auto *obj = json_object();
-  json_object_set_new(obj, "ip", json_string(seanerbus.ip.c_str()));
-  json_object_set_new(obj, "port", json_integer(seanerbus.port));
-  return obj;
+  return json_string(seanerbus.c_str());
 }
 
 ps_result_t<ps_seanerbus_t> ps_seanerbus_from_json(json_t *obj) {
-  ps_seanerbus_t res;
-  json_t *ip_j = json_object_get(obj, "ip");
-  if (!ip_j) {
-    return ps_error(ps_seanerbus_ip_missing_t{});
+  if (!json_is_string(obj)) {
+    return ps_error(ps_seanerbus_url_invalid_t{});
   }
-  if (!json_is_string(ip_j)) {
-    return ps_error(ps_seanerbus_ip_invalid_t{});
-  }
-  res.ip = json_string_value(ip_j);
-  json_t *port_j = json_object_get(obj, "port");
-  if (!port_j) {
-    return ps_error(ps_seanerbus_port_missing_t{});
-  }
-  if (!json_is_integer(port_j)) {
-    return ps_error(ps_seanerbus_port_invalid_t{});
-  }
-  res.port = (int)json_integer_value(port_j);
-  return res;
+  return json_string_value(obj);
 }
 
 json_t *ps_flux_job_info_to_json(const ps_flux_job_info_t &info) {

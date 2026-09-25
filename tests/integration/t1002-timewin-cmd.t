@@ -24,9 +24,10 @@ priorisea timewin list | grep test_01
 test_expect_success 'get a time window' '
 priorisea timewin get test_01 --json >out &&
 jq -e "
-  .test_01.cron == \"* * * * * *\" and
-  .test_01.duration == 3600 and
-  .test_01.score == 100
+  .[] | select(.name == \"test_01\") |
+  .cron == \"* * * * * *\" and
+  .duration == 3600 and
+  .score == 100
 " out
 '
 
@@ -41,9 +42,10 @@ test_expect_success 'edit a time window' '
 priorisea timewin edit test_01 -c "1 */1 * * * *" -d 60 -s 10 &&
 priorisea timewin get test_01 --json >out &&
 jq -e "
-  .test_01.cron == \"1 */1 * * * *\" and
-  .test_01.duration == 60 and
-  .test_01.score == 10
+  .[] | select(.name == \"test_01\") |
+  .cron == \"1 */1 * * * *\" and
+  .duration == 60 and
+  .score == 10
 " out
 '
 
@@ -51,7 +53,8 @@ test_expect_success 'set negative score' '
 priorisea timewin edit test_01 -s -100 &&
 priorisea timewin get test_01 --json >out &&
 jq -e "
-  .test_01.score == -100
+  .[] | select(.name == \"test_01\") |
+  .score == -100
 " out
 '
 

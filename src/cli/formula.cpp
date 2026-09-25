@@ -16,10 +16,10 @@
 #include <vector>
 
 static void print_formula_json(const std::vector<ps_formula_t> &formulas) {
-  auto obj = json_object();
+  auto obj = json_array();
   for (const auto &formula : formulas) {
     auto *f_json = ps_formula_to_json(formula);
-    json_object_set_new(obj, formula.name.c_str(), f_json);
+    json_array_append_new(obj, f_json);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
   if (dump) {

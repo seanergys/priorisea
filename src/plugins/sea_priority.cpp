@@ -268,17 +268,15 @@ static int conf_update_cb(flux_plugin_t *p, const char *topic,
     return flux_jobtap_error(p, args, "%s", errmsg.c_str());
   }
 
-  const char *ip = nullptr;
-  int port = 0;
-  if (json_unpack(conf, "{s?{s?{s:s, s:i}}}", "priorisea", "seanerbus", "ip",
-                  &ip, "port", &port) < 0)
+  json_t *seanerbus_conf = NULL;
+  if (json_unpack(conf, "{s:o}", "seanerbus", &seanerbus_conf) < 0)
     return 0;
-
-  if (ip)
-    seanerbus_cfg.ip = ip;
-  if (port)
-    seanerbus_cfg.port = port;
-
+  if (seanerbus_conf) {
+    auto seanerbus_res = ps_seanerbus_from_json(seanerbus_conf);
+    if (ps_is_ok(seanerbus_res)) {
+      seanerbus_cfg = ps_unwrap(seanerbus_res);
+    }
+  }
   return 0;
 }
 

@@ -24,30 +24,23 @@ std::string ps_config_default_path() {
 
 ps_result_t<ps_seanerbus_t>
 ps_get_seanerbus(const std::optional<json_t *> &config_json) {
-  ps_seanerbus_t seanerbus{.ip = "localhost", .port = 5398};
+  ps_seanerbus_t seanerbus = "demobus://localhost:5398";
 
   if (config_json.has_value()) {
-    const char *ip = nullptr;
-    int port = 0;
-    if (json_unpack((config_json.value()), "{s?{s?s, s?i}}", "seanerbus", "ip",
-                    &ip, "port", &port) < 0) {
+    json_t *seanerbus_conf = NULL;
+    if (json_unpack((config_json.value()), "{s:o}", "seanerbus",
+                    &seanerbus_conf) < 0) {
       return ps_error(
           ps_json_unpack_err_t{.dumps = json_dumps(config_json.value(), 0)});
     }
-
-    if (ip) {
-      seanerbus.ip = ip;
-    }
-    if (port) {
-      seanerbus.port = port;
+    auto seanerbus_res = ps_seanerbus_from_json(seanerbus_conf);
+    if (ps_is_ok(seanerbus_res)) {
+      seanerbus = ps_unwrap(seanerbus_res);
     }
   }
 
-  if (const char *ip = std::getenv("SEANERBUS_IP")) {
-    seanerbus.ip = ip;
-  }
-  if (const char *port_str = std::getenv("SEANERBUS_PORT")) {
-    seanerbus.port = std::atoi(port_str);
+  if (const char *url = std::getenv("SEANERBUS_URL")) {
+    seanerbus = url;
   }
 
   return seanerbus;

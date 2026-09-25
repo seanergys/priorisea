@@ -101,10 +101,7 @@ struct ps_flux_job_info_t {
 /**
  * Represents the configuration for the Seanerbus.
  */
-struct ps_seanerbus_t {
-  std::string ip;
-  int port;
-};
+typedef std::string ps_seanerbus_t;
 
 /**
  * Represents the overall configuration for the system.

@@ -182,10 +182,8 @@ struct ps_config_err_t {
 
 //// seanerbus
 
-struct ps_seanerbus_ip_missing_t {};
-struct ps_seanerbus_ip_invalid_t {};
-struct ps_seanerbus_port_missing_t {};
-struct ps_seanerbus_port_invalid_t {};
+struct ps_seanerbus_url_missing_t {};
+struct ps_seanerbus_url_invalid_t {};
 struct ps_seanerbus_resolve_err_t {
   std::string service;
 };
@@ -250,8 +248,7 @@ using ps_error_kind_t = std::variant<
 
     ps_config_err_t,
 
-    ps_seanerbus_ip_missing_t, ps_seanerbus_ip_invalid_t,
-    ps_seanerbus_port_missing_t, ps_seanerbus_port_invalid_t,
+    ps_seanerbus_url_missing_t, ps_seanerbus_url_invalid_t,
     ps_seanerbus_resolve_err_t, ps_seanerbus_err_t,
     ps_seanerbus_wrong_payload_err_t, ps_seanerbus_decode_err_t,
     ps_seanerbus_connection_err_t, ps_invalid_uuid_err_t,
