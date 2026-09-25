@@ -44,18 +44,17 @@ static void register_get_command(CLI::App *app) {
       }
       json_decref(obj);
     } else {
-      ps_print_table_v(decay,
-                       {{"Index",
-                         [](auto &value, auto index) -> auto {
-                           return std::to_string(index);
-                         }},
-                        {"Duration",
-                         [](auto &value, auto index) -> auto {
-                           return std::to_string(value.duration);
-                         }},
-                        {"Priority", [](auto &value, auto index) -> auto {
-                           return std::to_string(value.priority);
-                         }}});
+      ps_print_table_v(decay, {{"Index",
+                                [](auto &value, auto index) -> auto {
+                                  return std::to_string(index);
+                                }},
+                               {"Duration",
+                                [](auto &value, auto index) -> auto {
+                                  return std::to_string(value.duration);
+                                }},
+                               {"Weight", [](auto &value, auto index) -> auto {
+                                  return std::to_string(value.weight);
+                                }}});
     }
   });
 }
@@ -65,8 +64,8 @@ static void register_set_command(CLI::App *app) {
   set_cmd->footer(
       "Example:\n  priorisea decay set \"3600:1,7200:0.5\" # string format\n  "
       "priorisea decay set "
-      "'[{\"duration\":86400,\"priority\":1},{\"duration\":604800,"
-      "\"priority\":0.5}]' --json # JSON format");
+      "'[{\"duration\":86400,\"weight\":1},{\"duration\":604800,"
+      "\"weight\":0.5}]' --json # JSON format");
   set_cmd->set_help_flag("-h,--help", "Show help for set command");
   struct options {
     std::string expr;

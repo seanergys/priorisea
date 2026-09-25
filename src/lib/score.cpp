@@ -478,7 +478,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
 
           auto *curr_agg = &sum_aggs[userid][job_inf.decay_index];
           curr_agg->sum +=
-              get_job_value.score * decay[job_inf.decay_index].priority;
+              get_job_value.score * decay[job_inf.decay_index].weight;
           curr_agg->count++;
         }
         return (ps_result_t<ps_success_t>)ps_success_t{};

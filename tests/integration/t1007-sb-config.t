@@ -86,4 +86,12 @@ test_expect_success 'check direct seanerbus set on plugin' '
 	" out
 '
 
+test_expect_success 'check Flux config precedence' '
+    flux config set -t string priorisea.seanerbus "demobus://1.3.5.7:1357" &&
+	priorisea plugin seanerbus get --json >out &&
+	jq -e "
+  . == \"demobus://1.3.5.7:1357\"
+	" out
+'
+
 test_done

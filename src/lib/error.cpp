@@ -130,12 +130,12 @@ std::string ps_error_message_kind(const ps_flux_kvs_txn_put_err_t &err) {
 
 //// decay
 
-std::string ps_error_message_kind(const ps_decay_priority_missing_t &) {
-  return "decay priority missing";
+std::string ps_error_message_kind(const ps_decay_weight_missing_t &) {
+  return "decay weight missing";
 }
 
-std::string ps_error_message_kind(const ps_decay_priority_invalid_t &) {
-  return "decay priority invalid";
+std::string ps_error_message_kind(const ps_decay_weight_invalid_t &) {
+  return "decay weight invalid";
 }
 
 std::string ps_error_message_kind(const ps_decay_frame_duration_missing_t &) {

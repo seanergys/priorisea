@@ -269,7 +269,8 @@ static int conf_update_cb(flux_plugin_t *p, const char *topic,
   }
 
   json_t *seanerbus_conf = NULL;
-  if (json_unpack(conf, "{s:o}", "seanerbus", &seanerbus_conf) < 0)
+  if (json_unpack(conf, "{s{s?o}}", "priorisea", "seanerbus", &seanerbus_conf) <
+      0)
     return 0;
   if (seanerbus_conf) {
     auto seanerbus_res = ps_seanerbus_from_json(seanerbus_conf);

@@ -53,11 +53,11 @@ struct ps_user_t {
 typedef std::map<uid_t, double> ps_score_map_t;
 
 /**
- * Represents a decay frame with a duration and priority.
+ * Represents a decay frame with a duration and weight.
  */
 struct ps_decay_frame_t {
   int duration;
-  double priority;
+  double weight;
 };
 
 /**

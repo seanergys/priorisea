@@ -11,9 +11,9 @@
 #include <sstream>
 
 static const ps_decay_t DEFAULT_DECAY = {
-    {.duration = 86400, .priority = 1},
-    {.duration = 604800, .priority = 0.5},
-    {.duration = 1209600, .priority = 0.25},
+    {.duration = 86400, .weight = 1},
+    {.duration = 604800, .weight = 0.5},
+    {.duration = 1209600, .weight = 0.25},
 };
 
 ////
@@ -21,7 +21,7 @@ static const ps_decay_t DEFAULT_DECAY = {
 json_t *ps_decay_frame_to_json(const ps_decay_frame_t &frame) {
   auto *obj = json_object();
   json_object_set_new(obj, "duration", json_integer(frame.duration));
-  json_object_set_new(obj, "priority", json_real(frame.priority));
+  json_object_set_new(obj, "weight", json_real(frame.weight));
   return obj;
 }
 
@@ -35,14 +35,14 @@ ps_result_t<ps_decay_frame_t> ps_decay_frame_from_json(json_t *obj) {
     return ps_error(ps_decay_frame_duration_invalid_t{});
   }
   res.duration = (int)json_integer_value(duration_j);
-  json_t *priority_j = json_object_get(obj, "priority");
-  if (!priority_j) {
-    return ps_error(ps_decay_priority_missing_t{});
+  json_t *weight_j = json_object_get(obj, "weight");
+  if (!weight_j) {
+    return ps_error(ps_decay_weight_missing_t{});
   }
-  if (!json_is_number(priority_j)) {
-    return ps_error(ps_decay_priority_invalid_t{});
+  if (!json_is_number(weight_j)) {
+    return ps_error(ps_decay_weight_invalid_t{});
   }
-  res.priority = json_number_value(priority_j);
+  res.weight = json_number_value(weight_j);
   return res;
 }
 
@@ -80,12 +80,12 @@ ps_result_t<ps_decay_t> ps_decay_from_string(const std::string &expr) {
     auto duration_str = token.substr(0, colon_pos);
     auto weight_str = token.substr(colon_pos + 1);
     int duration;
-    double priority;
+    double weight;
     if (!parse_int(duration_str, duration) ||
-        !parse_double(weight_str, priority)) {
+        !parse_double(weight_str, weight)) {
       return ps_error(ps_decay_string_parse_err_t{.expr = expr});
     }
-    res.push_back({.duration = duration, .priority = priority});
+    res.push_back({.duration = duration, .weight = weight});
   }
   if (res.empty()) {
     return ps_error(ps_decay_string_parse_err_t{.expr = expr});

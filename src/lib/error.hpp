@@ -98,8 +98,8 @@ struct ps_flux_kvs_txn_put_err_t {
 
 //// decay
 
-struct ps_decay_priority_missing_t {};
-struct ps_decay_priority_invalid_t {};
+struct ps_decay_weight_missing_t {};
+struct ps_decay_weight_invalid_t {};
 struct ps_decay_frame_duration_missing_t {};
 struct ps_decay_frame_duration_invalid_t {};
 struct ps_decay_duration_invalid_t {
@@ -225,7 +225,7 @@ using ps_error_kind_t = std::variant<
     ps_flux_kvs_lookup_get_dir_err_t, ps_flux_kvsitr_create_err_t,
     ps_flux_kvs_txn_put_err_t,
 
-    ps_decay_priority_missing_t, ps_decay_priority_invalid_t,
+    ps_decay_weight_missing_t, ps_decay_weight_invalid_t,
     ps_decay_frame_duration_missing_t, ps_decay_frame_duration_invalid_t,
     ps_decay_duration_invalid_t, ps_decay_string_parse_err_t,
 
@@ -376,7 +376,7 @@ std::string ps_error_message_kind(const ps_error_kind_t &error);
 /**
  * Returns the error message from an error result.
  *
- * @param error The error result.
+ * @param e The error result.
  * @return The error message.
  */
-std::string ps_error_message(const ps_error_t &);
+std::string ps_error_message(const ps_error_t &e);
