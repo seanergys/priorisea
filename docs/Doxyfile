@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
+#
+# SPDX-License-Identifier: MIT
+
+# Doxygen configuration for PrioriSea.
+# Generates the XML that Sphinx consumes through Breathe.
+
+PROJECT_NAME      = "PrioriSea"
+OUTPUT_DIRECTORY  = .
+
+INPUT               = ../src/lib
+RECURSIVE           = YES
+FILE_PATTERNS       = *.h *.hpp *.cpp
+
+EXTRACT_ALL         = YES
+EXTRACT_STATIC      = YES
+EXTRACT_PRIVATE     = NO
+
+GENERATE_HTML       = NO
+GENERATE_XML        = YES
+XML_OUTPUT          = doxygen/xml
+
+QUIET               = YES
+WARN_IF_UNDOCUMENTED = NO

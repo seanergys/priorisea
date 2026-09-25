@@ -19,6 +19,7 @@ RUN dnf install -y \
     make \
     jq \
     'dnf-command(config-manager)' \
+    python3-devel \
     epel-release
 
 RUN dnf config-manager --set-enabled crb || true
@@ -27,8 +28,9 @@ RUN dnf config-manager --set-enabled crb || true
 # devcontainer
 #
 RUN dnf install -y \
-    nano \
-    clang-tools-extra
+    clang-tools-extra \
+    doxygen
+RUN pip install sphinx breathe sphinx_rtd_theme
 
 ARG CI_JOB_TOKEN
 RUN if [ -n "$CI_JOB_TOKEN" ]; then \
@@ -49,7 +51,6 @@ RUN dnf install -y \
     libuuid-devel \
     munge-devel \
     pam-devel \
-    python3-devel \
     fmt-devel
 RUN wget https://github.com/flux-framework/flux-security/releases/download/v0.15.0/flux-security-0.15.0.tar.gz && \
     tar -xzf flux-security-0.15.0.tar.gz
