@@ -29,7 +29,8 @@ RUN dnf config-manager --set-enabled crb || true
 #
 RUN dnf install -y \
     clang-tools-extra \
-    doxygen
+    doxygen \
+    bash-completion
 RUN pip install sphinx breathe sphinx_rtd_theme
 
 ARG CI_JOB_TOKEN

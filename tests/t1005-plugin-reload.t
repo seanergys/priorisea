@@ -6,7 +6,7 @@ test_description="test flux plugin initial sync"
 SUBMIT_AS=${SHARNESS_TEST_SRCDIR}/scripts/submit_as.py
 USERID=1003
 SCORE_MULT=0.8
-PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+PRIORITY_PLUGIN=${SHARNESS_BUILD_DIRECTORY}/src/plugins/.libs/sea_priority.so
 
 export TEST_UNDER_FLUX_NO_JOB_EXEC=y
 export TEST_UNDER_FLUX_SCHED_SIMPLE_MODE="limited=1"

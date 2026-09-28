@@ -29,3 +29,12 @@ priorisea_LDADD = \
     $(JANSSON_LIBS) \
     $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)
+
+EXTRA_DIST = priorisea.bash
+
+install-data-local:
+	$(INSTALL) -d "$(DESTDIR)$(datadir)/bash-completion/completions"
+	$(INSTALL_DATA) "$(srcdir)/priorisea.bash" "$(DESTDIR)$(datadir)/bash-completion/completions/priorisea"
+
+uninstall-local:
+	rm -f "$(DESTDIR)$(datadir)/bash-completion/completions/priorisea"

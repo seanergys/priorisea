@@ -1,6 +1,7 @@
 SUBDIRS = scripts
 
 TESTS = \
+    t0000-cli-completion.t \
     t1000-basic.t \
     t1001-formula-cmd.t \
     t1002-timewin-cmd.t \
@@ -18,8 +19,7 @@ TESTS = \
 EXTRA_DIST = \
     $(TESTS) \
     sharness.sh \
-    sharness.d \
-    test-lib.sh
+    sharness.d
 
 TESTS_ENVIRONMENT = \
     SHARNESS_TEST_SRCDIR=$(abs_srcdir)
