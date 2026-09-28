@@ -27,10 +27,32 @@ json_t *ps_job_to_json(const ps_job_t &job) {
   return obj;
 }
 
-ps_job_t ps_job_from_json(json_t *obj) {
-  ps_job_t res{.jobid = 0, .t_inactive = 0, .score = 0};
-  json_unpack(obj, "{s:I, s:f, s:f}", "jobid", &res.jobid, "t_inactive",
-              &res.t_inactive, "score", &res.score);
+ps_result_t<ps_job_t> ps_job_from_json(json_t *obj) {
+  ps_job_t res;
+  json_t *jobid_j = json_object_get(obj, "jobid");
+  if (!jobid_j) {
+    return ps_error(ps_job_jobid_missing_t{});
+  }
+  if (!json_is_integer(jobid_j)) {
+    return ps_error(ps_job_jobid_invalid_t{});
+  }
+  res.jobid = (flux_jobid_t)json_integer_value(jobid_j);
+  json_t *t_inactive_j = json_object_get(obj, "t_inactive");
+  if (!t_inactive_j) {
+    return ps_error(ps_job_t_inactive_missing_t{});
+  }
+  if (!json_is_real(t_inactive_j)) {
+    return ps_error(ps_job_t_inactive_invalid_t{});
+  }
+  res.t_inactive = json_number_value(t_inactive_j);
+  json_t *score_j = json_object_get(obj, "score");
+  if (!score_j) {
+    return ps_error(ps_job_score_missing_t{});
+  }
+  if (!json_is_real(score_j)) {
+    return ps_error(ps_job_score_invalid_t{});
+  }
+  res.score = json_number_value(score_j);
   return res;
 }
 
@@ -83,9 +105,9 @@ ps_db_jobs_get(const std::vector<flux_jobid_t> &jobids) {
       continue;
     }
 
-    auto job = ps_job_from_json(json_job);
+    auto job_res = ps_job_from_json(json_job);
     json_decref(json_job);
-    res.push_back({.jobid = jobid, .result = job});
+    res.push_back({.jobid = jobid, .result = job_res});
   }
   return res;
 };
@@ -456,7 +478,7 @@ ps_result_t<ps_success_t> ps_db_users_update() {
 
           auto *curr_agg = &sum_aggs[userid][job_inf.decay_index];
           curr_agg->sum +=
-              get_job_value.score * decay[job_inf.decay_index].priority;
+              get_job_value.score * decay[job_inf.decay_index].weight;
           curr_agg->count++;
         }
         return (ps_result_t<ps_success_t>)ps_success_t{};

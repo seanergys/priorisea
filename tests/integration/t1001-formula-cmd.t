@@ -28,15 +28,17 @@ test_expect_success 'check default formulas' '
 priorisea formula get job_score job_priority --json >out &&
 
 jq -e "
-  .job_score.expr == \"${DEFAULT_JOB_SCORE_FORMULA}\" and
-  .job_score.defaults[\"var:duration_ratio\"] == ${DEFAULT_JOB_SCORE_VARS_DURATION_RATIO} and
-  .job_score.defaults[\"var:timewin_score\"] == ${DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE}
+  .[] | select(.name == \"job_score\") |
+  .expr == \"${DEFAULT_JOB_SCORE_FORMULA}\" and
+  .defaults[\"var:duration_ratio\"] == ${DEFAULT_JOB_SCORE_VARS_DURATION_RATIO} and
+  .defaults[\"var:timewin_score\"] == ${DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE}
 " out &&
 
 jq -e "
-  .job_priority.expr == \"${DEFAULT_JOB_PRIORITY_FORMULA}\" and
-  .job_priority.defaults[\"var:prev_priority\"] == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
-  .job_priority.defaults[\"var:user_score\"] == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
+  .[] | select(.name == \"job_priority\") |
+  .expr == \"${DEFAULT_JOB_PRIORITY_FORMULA}\" and
+  .defaults[\"var:prev_priority\"] == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
+  .defaults[\"var:user_score\"] == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
 " out
 '
 
@@ -54,13 +56,15 @@ priorisea formula set job_priority "$job_priority" \
 priorisea formula get job_score job_priority --json >out &&
 
 jq -e "
-  .job_score.expr == \"$job_score\"
+  .[] | select(.name == \"job_score\") |
+  .expr == \"$job_score\"
 " out &&
 
 jq -e "
-  .job_priority.expr == \"$job_priority\" and
-  .job_priority.defaults[\"var:prev_priority\"] == $job_priority_prev_priority and
-  .job_priority.defaults[\"var:user_score\"] == $job_priority_user_score
+  .[] | select(.name == \"job_priority\") |
+  .expr == \"$job_priority\" and
+  .defaults[\"var:prev_priority\"] == $job_priority_prev_priority and
+  .defaults[\"var:user_score\"] == $job_priority_user_score
 " out
 '
 
@@ -77,13 +81,15 @@ priorisea formula reset job_score job_priority &&
 priorisea formula get job_score job_priority --json >out &&
 
 jq -e "
-  .job_score.expr == \"${DEFAULT_JOB_SCORE_FORMULA}\"
+  .[] | select(.name == \"job_score\") |
+  .expr == \"${DEFAULT_JOB_SCORE_FORMULA}\"
 " out &&
 
 jq -e "
-  .job_priority.expr == \"${DEFAULT_JOB_PRIORITY_FORMULA}\" and
-  .job_priority.defaults[\"var:prev_priority\"] == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
-  .job_priority.defaults[\"var:user_score\"] == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
+  .[] | select(.name == \"job_priority\") |
+  .expr == \"${DEFAULT_JOB_PRIORITY_FORMULA}\" and
+  .defaults[\"var:prev_priority\"] == ${DEFAULT_JOB_PRIORITY_VARS_PREV_PRIORITY} and
+  .defaults[\"var:user_score\"] == ${DEFAULT_JOB_PRIORITY_VARS_USER_SCORE}
 " out
 '
 

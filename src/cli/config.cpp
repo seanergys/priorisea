@@ -31,17 +31,12 @@ static void register_get_command(CLI::App *app,
       json_decref(json);
     } else {
       auto config_vec = std::vector<ps_config_t>{config};
-      ps_print_table_h(config_vec,
-                       {
-                           {"Seanerbus IP",
-                            [](auto &value, auto index) -> auto {
-                              return value.seanerbus.ip;
-                            }},
-                           {"Seanerbus Port",
-                            [](auto &value, auto index) -> auto {
-                              return std::to_string(value.seanerbus.port);
-                            }},
-                       });
+      ps_print_table_h(config_vec, {
+                                       {"Seanerbus URL",
+                                        [](auto &value, auto index) -> auto {
+                                          return value.seanerbus;
+                                        }},
+                                   });
     }
   });
 }

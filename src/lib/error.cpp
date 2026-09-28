@@ -130,8 +130,20 @@ std::string ps_error_message_kind(const ps_flux_kvs_txn_put_err_t &err) {
 
 //// decay
 
-std::string ps_error_message_kind(const ps_decay_priority_missing_t &) {
-  return "decay priority missing";
+std::string ps_error_message_kind(const ps_decay_weight_missing_t &) {
+  return "decay weight missing";
+}
+
+std::string ps_error_message_kind(const ps_decay_weight_invalid_t &) {
+  return "decay weight invalid";
+}
+
+std::string ps_error_message_kind(const ps_decay_frame_duration_missing_t &) {
+  return "decay frame duration missing";
+}
+
+std::string ps_error_message_kind(const ps_decay_frame_duration_invalid_t &) {
+  return "decay frame duration invalid";
 }
 
 std::string ps_error_message_kind(const ps_decay_duration_invalid_t &err) {
@@ -145,7 +157,14 @@ std::string ps_error_message_kind(const ps_decay_string_parse_err_t &err) {
 //// formula
 
 std::string ps_error_message_kind(const ps_formula_expr_invalid_t &err) {
-  return "formula expression invalid: " + err.expr;
+  std::string msg = "formula expression invalid";
+  if (!err.name.empty()) {
+    msg += " for '" + err.name + "'";
+  }
+  if (!err.expr.empty()) {
+    msg += ": " + err.expr;
+  }
+  return msg;
 }
 
 std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
@@ -182,8 +201,16 @@ std::string ps_error_message_kind(const ps_formula_name_missing_t &) {
   return "formula name missing";
 }
 
+std::string ps_error_message_kind(const ps_formula_name_invalid_t &) {
+  return "formula name invalid";
+}
+
 std::string ps_error_message_kind(const ps_formula_expr_missing_t &err) {
   return "formula expression missing for: " + err.name;
+}
+
+std::string ps_error_message_kind(const ps_formula_defaults_missing_t &) {
+  return "formula defaults missing";
 }
 
 std::string ps_error_message_kind(const ps_formula_var_value_missing_t &err) {
@@ -196,16 +223,32 @@ std::string ps_error_message_kind(const ps_timewin_name_missing_t &) {
   return "time window name missing";
 }
 
+std::string ps_error_message_kind(const ps_timewin_name_invalid_t &) {
+  return "time window name invalid";
+}
+
 std::string ps_error_message_kind(const ps_timewin_duration_missing_t &) {
   return "time window duration missing";
+}
+
+std::string ps_error_message_kind(const ps_timewin_duration_invalid_t &) {
+  return "time window duration invalid";
 }
 
 std::string ps_error_message_kind(const ps_timewin_cron_missing_t &) {
   return "time window cron missing";
 }
 
+std::string ps_error_message_kind(const ps_timewin_cron_invalid_t &) {
+  return "time window cron invalid";
+}
+
 std::string ps_error_message_kind(const ps_timewin_score_missing_t &) {
   return "time window score missing";
+}
+
+std::string ps_error_message_kind(const ps_timewin_score_invalid_t &) {
+  return "time window score invalid";
 }
 
 std::string ps_error_message_kind(const ps_timewin_score_parse_err_t &) {
@@ -224,8 +267,52 @@ std::string ps_error_message_kind(const ps_timewin_neg_duration_t &err) {
   return "time window negative duration: " + std::to_string(err.duration);
 }
 
+//// job
+
+std::string ps_error_message_kind(const ps_job_jobid_missing_t &) {
+  return "job id missing";
+}
+
+std::string ps_error_message_kind(const ps_job_t_inactive_missing_t &) {
+  return "job t_inactive missing";
+}
+
+std::string ps_error_message_kind(const ps_job_score_missing_t &) {
+  return "job score missing";
+}
+
+std::string ps_error_message_kind(const ps_job_jobid_invalid_t &) {
+  return "job id invalid";
+}
+
+std::string ps_error_message_kind(const ps_job_t_inactive_invalid_t &) {
+  return "job t_inactive invalid";
+}
+
+std::string ps_error_message_kind(const ps_job_score_invalid_t &) {
+  return "job score invalid";
+}
+
+//// score map
+
+std::string ps_error_message_kind(const ps_score_map_invalid_t &) {
+  return "score map is not a JSON object";
+}
+
+std::string ps_error_message_kind(const ps_score_map_value_invalid_t &err) {
+  return "score map value invalid for user '" + err.userid + "'";
+}
+
 std::string ps_error_message_kind(const ps_config_err_t &err) {
   return "config error at " + err.path + ": " + err.msg;
+}
+
+std::string ps_error_message_kind(const ps_seanerbus_url_missing_t &) {
+  return "seanerbus url missing";
+}
+
+std::string ps_error_message_kind(const ps_seanerbus_url_invalid_t &) {
+  return "seanerbus url invalid";
 }
 
 std::string ps_error_message_kind(const ps_seanerbus_resolve_err_t &err) {
@@ -245,8 +332,7 @@ std::string ps_error_message_kind(const ps_seanerbus_decode_err_t &err) {
 }
 
 std::string ps_error_message_kind(const ps_seanerbus_connection_err_t &err) {
-  return "seanerbus (" + err.seanerbus.ip + ":" +
-         std::to_string(err.seanerbus.port) + ") connection error: " + err.msg;
+  return "seanerbus (" + err.seanerbus + ") connection error: " + err.msg;
 }
 
 std::string ps_error_message_kind(const ps_invalid_uuid_err_t &err) {

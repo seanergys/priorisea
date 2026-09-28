@@ -2,6 +2,7 @@ stages:
     - prebuild
     - build
     - test
+    - docs
 
 variables:
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
@@ -40,3 +41,23 @@ test:
     script:
         - cd /app
         - make check -j$(nproc)
+
+docs:docs:
+    stage: docs
+    image: $IMAGE_TAG
+    script:
+        - cd /app
+        - make docs
+
+docs:deploy:
+    stage: docs
+    image: $IMAGE_TAG
+    rules:
+        - if: $CI_COMMIT_BRANCH == "main"
+    script:
+        - cd /app
+        - make docs
+    pages: true
+    artifacts:
+        paths:
+          - public

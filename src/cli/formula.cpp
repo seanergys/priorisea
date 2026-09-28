@@ -16,10 +16,10 @@
 #include <vector>
 
 static void print_formula_json(const std::vector<ps_formula_t> &formulas) {
-  auto obj = json_object();
+  auto obj = json_array();
   for (const auto &formula : formulas) {
     auto *f_json = ps_formula_to_json(formula);
-    json_object_set_new(obj, formula.name.c_str(), f_json);
+    json_array_append_new(obj, f_json);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
   if (dump) {
@@ -155,8 +155,12 @@ static void register_set_command(CLI::App *app) {
       if (!json_formula) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->name}));
       }
-      formula = ps_formula_from_json(json_formula);
+      auto formula_res = ps_formula_from_json(json_formula);
       json_decref(json_formula);
+      if (!ps_is_ok(formula_res)) {
+        return cli_error(formula_res);
+      }
+      formula = ps_unwrap(formula_res);
     } else {
       formula = ps_formula_t{.name = opts->name, .expr = opts->expr};
       for (size_t i = 0; i < opts->defaults.size(); i += 2) {

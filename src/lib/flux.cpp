@@ -35,11 +35,15 @@ ps_result_t<ps_formula_t> ps_flux_plugin_get_formula() {
                     "the plugin loaded?");
   }
 
-  auto formula = ps_formula_from_json(json_formula);
+  auto formula_res = ps_formula_from_json(json_formula);
   json_decref(json_formula);
   flux_future_destroy(f);
   flux_close(h);
-  return formula;
+  if (!ps_is_ok(formula_res)) {
+    return ps_add_context(formula_res,
+                          "parsing formula from flux plugin response");
+  }
+  return ps_unwrap(formula_res);
 }
 
 ps_result_t<ps_success_t>
@@ -95,11 +99,15 @@ ps_flux_plugin_get_score(const std::vector<int> &userids) {
                     "plugin loaded?");
   }
 
-  auto score_map = score_map_from_json(scores);
+  auto score_map_res = score_map_from_json(scores);
   json_decref(scores);
   flux_future_destroy(f);
   flux_close(h);
-  return score_map;
+  if (!ps_is_ok(score_map_res)) {
+    return ps_add_context(score_map_res,
+                          "parsing score map from flux plugin response");
+  }
+  return ps_unwrap(score_map_res);
 }
 
 ps_result_t<ps_success_t>
@@ -473,30 +481,28 @@ ps_result_t<ps_seanerbus_t> ps_flux_plugin_get_seanerbus() {
                     "the plugin loaded?");
   }
 
-  auto seanerbus = ps_seanerbus_from_json(data);
+  auto seanerbus_res = ps_seanerbus_from_json(data);
   json_decref(data);
   flux_future_destroy(f);
   flux_close(h);
-  return seanerbus;
+  if (!ps_is_ok(seanerbus_res)) {
+    return ps_add_context(seanerbus_res,
+                          "parsing seanerbus from flux plugin response");
+  }
+  return ps_unwrap(seanerbus_res);
 }
 
 ////
 
 json_t *ps_seanerbus_to_json(const ps_seanerbus_t &seanerbus) {
-  auto *obj = json_object();
-  json_object_set_new(obj, "ip", json_string(seanerbus.ip.c_str()));
-  json_object_set_new(obj, "port", json_integer(seanerbus.port));
-  return obj;
+  return json_string(seanerbus.c_str());
 }
 
-ps_seanerbus_t ps_seanerbus_from_json(json_t *obj) {
-  ps_seanerbus_t res;
-  const char *ip = nullptr;
-  int port = 0;
-  json_unpack(obj, "{s:s, s:i}", "ip", &ip, "port", &port);
-  res.ip = ip ? ip : "";
-  res.port = port;
-  return res;
+ps_result_t<ps_seanerbus_t> ps_seanerbus_from_json(json_t *obj) {
+  if (!json_is_string(obj)) {
+    return ps_error(ps_seanerbus_url_invalid_t{});
+  }
+  return json_string_value(obj);
 }
 
 json_t *ps_flux_job_info_to_json(const ps_flux_job_info_t &info) {
@@ -535,8 +541,11 @@ json_t *score_map_to_json(const ps_score_map_t &scores) {
   return obj;
 }
 
-ps_score_map_t score_map_from_json(json_t *obj) {
+ps_result_t<ps_score_map_t> score_map_from_json(json_t *obj) {
   ps_score_map_t score_map;
+  if (!json_is_object(obj)) {
+    return ps_error(ps_score_map_invalid_t{});
+  }
   const char *userid_key;
   json_t *score_value;
   json_object_foreach(obj, userid_key, score_value) {
@@ -544,8 +553,10 @@ ps_score_map_t score_map_from_json(json_t *obj) {
     if (!parse_uid(std::string(userid_key), userid)) {
       continue;
     }
-    double score = json_real_value(score_value);
-    score_map[userid] = score;
+    if (!json_is_number(score_value)) {
+      return ps_error(ps_score_map_value_invalid_t{.userid = userid_key});
+    }
+    score_map[userid] = json_number_value(score_value);
   }
   return score_map;
 }

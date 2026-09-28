@@ -11,8 +11,9 @@
 #include <unistd.h>
 #include <vector>
 
-//// timewin
-
+/**
+ * Represents a time recurring window where jobs can be scheduled.
+ */
 struct ps_timewin_t {
   std::string name;
   std::string cron;
@@ -20,40 +21,53 @@ struct ps_timewin_t {
   double score;
 };
 
-//// formula
-
+/**
+ * Represents a formula that can be used to calculate a double.
+ */
 struct ps_formula_t {
   std::string name;
   std::string expr;
   std::map<std::string, double> defaults;
 };
 
-//// score
-
+/**
+ * Represents a job with its associated information.
+ */
 struct ps_job_t {
   flux_jobid_t jobid;
   double t_inactive;
   double score;
 };
 
+/**
+ * Represents a user with their associated information.
+ */
 struct ps_user_t {
   uid_t userid;
   double score;
 };
 
+/**
+ * Represents a mapping of user IDs to their corresponding scores.
+ */
 typedef std::map<uid_t, double> ps_score_map_t;
 
-//// decay
-
+/**
+ * Represents a decay frame with a duration and weight.
+ */
 struct ps_decay_frame_t {
   int duration;
-  double priority;
+  double weight;
 };
 
+/**
+ * Represents a decay configuration consisting of multiple decay frames.
+ */
 typedef std::vector<ps_decay_frame_t> ps_decay_t;
 
-//// flux
-
+/**
+ * Represents detailed information about a Flux job.
+ */
 struct ps_flux_job_info_t {
   flux_jobid_t id;
   int userid;
@@ -84,13 +98,14 @@ struct ps_flux_job_info_t {
   // int waitstatus;
 };
 
-// config
+/**
+ * Represents the configuration for the Seanerbus.
+ */
+typedef std::string ps_seanerbus_t;
 
-struct ps_seanerbus_t {
-  std::string ip;
-  int port;
-};
-
+/**
+ * Represents the overall configuration for the system.
+ */
 struct ps_config_t {
   ps_seanerbus_t seanerbus;
 };

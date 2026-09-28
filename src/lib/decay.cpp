@@ -11,9 +11,9 @@
 #include <sstream>
 
 static const ps_decay_t DEFAULT_DECAY = {
-    {.duration = 86400, .priority = 1},
-    {.duration = 604800, .priority = 0.5},
-    {.duration = 1209600, .priority = 0.25},
+    {.duration = 86400, .weight = 1},
+    {.duration = 604800, .weight = 0.5},
+    {.duration = 1209600, .weight = 0.25},
 };
 
 ////
@@ -21,17 +21,28 @@ static const ps_decay_t DEFAULT_DECAY = {
 json_t *ps_decay_frame_to_json(const ps_decay_frame_t &frame) {
   auto *obj = json_object();
   json_object_set_new(obj, "duration", json_integer(frame.duration));
-  json_object_set_new(obj, "priority", json_real(frame.priority));
+  json_object_set_new(obj, "weight", json_real(frame.weight));
   return obj;
 }
 
-ps_decay_frame_t ps_decay_frame_from_json(json_t *obj) {
+ps_result_t<ps_decay_frame_t> ps_decay_frame_from_json(json_t *obj) {
   ps_decay_frame_t res;
-  int duration = 0;
-  double priority = 0;
-  json_unpack(obj, "{s:i, s:f}", "duration", &duration, "priority", &priority);
-  res.duration = duration;
-  res.priority = priority;
+  json_t *duration_j = json_object_get(obj, "duration");
+  if (!duration_j) {
+    return ps_error(ps_decay_frame_duration_missing_t{});
+  }
+  if (!json_is_integer(duration_j)) {
+    return ps_error(ps_decay_frame_duration_invalid_t{});
+  }
+  res.duration = (int)json_integer_value(duration_j);
+  json_t *weight_j = json_object_get(obj, "weight");
+  if (!weight_j) {
+    return ps_error(ps_decay_weight_missing_t{});
+  }
+  if (!json_is_number(weight_j)) {
+    return ps_error(ps_decay_weight_invalid_t{});
+  }
+  res.weight = json_number_value(weight_j);
   return res;
 }
 
@@ -43,12 +54,16 @@ json_t *ps_decay_to_json(const ps_decay_t &decay) {
   return arr;
 }
 
-ps_decay_t ps_decay_from_json(json_t *obj) {
+ps_result_t<ps_decay_t> ps_decay_from_json(json_t *obj) {
   ps_decay_t res;
   size_t index;
   json_t *value;
   json_array_foreach(obj, index, value) {
-    res.push_back(ps_decay_frame_from_json(value));
+    auto frame_res = ps_decay_frame_from_json(value);
+    if (!ps_is_ok(frame_res)) {
+      return ps_forward_error<ps_decay_t>(frame_res, "parsing decay frame");
+    }
+    res.push_back(ps_unwrap(frame_res));
   }
   return res;
 }
@@ -65,12 +80,12 @@ ps_result_t<ps_decay_t> ps_decay_from_string(const std::string &expr) {
     auto duration_str = token.substr(0, colon_pos);
     auto weight_str = token.substr(colon_pos + 1);
     int duration;
-    double priority;
+    double weight;
     if (!parse_int(duration_str, duration) ||
-        !parse_double(weight_str, priority)) {
+        !parse_double(weight_str, weight)) {
       return ps_error(ps_decay_string_parse_err_t{.expr = expr});
     }
-    res.push_back({.duration = duration, .priority = priority});
+    res.push_back({.duration = duration, .weight = weight});
   }
   if (res.empty()) {
     return ps_error(ps_decay_string_parse_err_t{.expr = expr});
@@ -116,9 +131,12 @@ ps_result_t<ps_decay_t> ps_db_decay_get() {
                     "parsing stored decay value");
   }
 
-  auto decay = ps_decay_from_json(json_decay);
+  auto decay_res = ps_decay_from_json(json_decay);
   json_decref(json_decay);
-  return decay;
+  if (!ps_is_ok(decay_res)) {
+    return ps_add_context(decay_res, "parsing stored decay value");
+  }
+  return ps_unwrap(decay_res);
 }
 
 bool ps_db_is_decay() { return ps_is_ok(ps_db_decay_get()); }

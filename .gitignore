@@ -66,9 +66,15 @@ tests/integration/scripts/sb_response
 .env
 test-driver
 
+# docs
+docs/doxygen/
+docs/latex/
+docs/build/
+
 # misc
 ar-lib
 src/cli/priorisea
 install.tar.gz
 .vscode/
 .cache
+.DS_Store

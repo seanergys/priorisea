@@ -9,14 +9,11 @@ path = [
     "autogen.sh",
     "configure.ac",
     "Dockerfile",
-    "flake.lock",
-    "flake.nix",
     "Makefile.am",
     "README.md",
     "REUSE.toml",
-    "external/**",
+    "external/Makefile.am",
     "m4/**",
-    "nix/**",
     "tests/**"
    ]
 SPDX-FileCopyrightText = "2026 SEANERGYS Partners <https://seanergys.eu>"

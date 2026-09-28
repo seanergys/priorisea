@@ -16,10 +16,10 @@
 #include <vector>
 
 static void print_timewins_json(const std::vector<ps_timewin_t> &timewins) {
-  auto obj = json_object();
+  auto obj = json_array();
   for (const auto &timewin : timewins) {
     auto *json_timewin = ps_timewin_to_json(timewin);
-    json_object_set_new(obj, timewin.name.c_str(), json_timewin);
+    json_array_append_new(obj, json_timewin);
   }
   char *dump = json_dumps(obj, JSON_INDENT(2));
   if (dump) {
@@ -96,17 +96,12 @@ static void register_add_command(CLI::App *app) {
   auto opts = std::make_shared<options>();
   add_cmd->add_option("timewin", opts->arg, "Time window JSON or name")
       ->required();
-  add_cmd->add_option("-s,--score", opts->score, "Score of the time window")
-      ->required();
-  add_cmd
-      ->add_option("-c,--cron", opts->cron,
-                   "Cron expression for the time "
-                   "window")
-      ->required();
-  add_cmd
-      ->add_option("-d,--duration", opts->duration,
-                   "Duration of the time window")
-      ->required();
+  add_cmd->add_option("-s,--score", opts->score, "Score of the time window");
+  add_cmd->add_option("-c,--cron", opts->cron,
+                      "Cron expression for the time "
+                      "window");
+  add_cmd->add_option("-d,--duration", opts->duration,
+                      "Duration of the time window");
   add_cmd->add_flag("--json", opts->json, "Parse argument as JSON");
   add_cmd->callback([opts] {
     ps_timewin_t timewin;
@@ -116,8 +111,12 @@ static void register_add_command(CLI::App *app) {
       if (!json_timewin) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->arg}));
       }
-      timewin = ps_timewin_from_json(json_timewin);
+      auto timewin_res = ps_timewin_from_json(json_timewin);
       json_decref(json_timewin);
+      if (!ps_is_ok(timewin_res)) {
+        return cli_error(timewin_res);
+      }
+      timewin = ps_unwrap(timewin_res);
     } else {
       timewin.name = opts->arg;
       timewin.score = opts->score.value();
@@ -166,8 +165,12 @@ static void register_edit_command(CLI::App *app) {
       if (!json_timewin) {
         return cli_error(ps_error(ps_json_unpack_err_t{.dumps = opts->arg}));
       }
-      timewin = ps_timewin_from_json(json_timewin);
+      auto timewin_res = ps_timewin_from_json(json_timewin);
       json_decref(json_timewin);
+      if (!ps_is_ok(timewin_res)) {
+        return cli_error(timewin_res);
+      }
+      timewin = ps_unwrap(timewin_res);
     } else {
       auto get_res = ps_db_timewin_get(opts->arg);
       if (!ps_is_ok(get_res)) {
