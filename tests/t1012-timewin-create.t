@@ -3,7 +3,7 @@
 test_description="test the creation of time windows"
 
 . `dirname $0`/sharness.sh
-PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+PRIORITY_PLUGIN=${SHARNESS_BUILD_DIRECTORY}/src/plugins/.libs/sea_priority.so
 SUBMIT_AS=${SHARNESS_TEST_SRCDIR}/scripts/submit_as.py
 test_under_flux 1
 

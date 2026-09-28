@@ -46,8 +46,8 @@ AC_CONFIG_FILES([
  src/cli/Makefile
  src/lib/Makefile
  src/plugins/Makefile
- tests/integration/Makefile
- tests/integration/scripts/Makefile
+ tests/Makefile
+ tests/scripts/Makefile
 ])
 
 AC_OUTPUT

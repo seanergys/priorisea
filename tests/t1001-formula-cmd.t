@@ -4,7 +4,7 @@ test_description="test seanergys formula subcommand"
 
 . `dirname $0`/sharness.sh
 
-PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+PRIORITY_PLUGIN=${SHARNESS_BUILD_DIRECTORY}/src/plugins/.libs/sea_priority.so
 DEFAULT_JOB_SCORE_FORMULA="<var:duration_ratio> + <var:timewin_score>"
 DEFAULT_JOB_SCORE_VARS_DURATION_RATIO=0.0
 DEFAULT_JOB_SCORE_VARS_TIMEWIN_SCORE=0.0

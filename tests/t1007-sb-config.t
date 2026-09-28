@@ -3,7 +3,7 @@
 test_description="test flux seanerbus configuration"
 
 . `dirname $0`/sharness.sh
-PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+PRIORITY_PLUGIN=${SHARNESS_BUILD_DIRECTORY}/src/plugins/.libs/sea_priority.so
 XDG_CONFIG_HOME="$HOME/.config"
 PRIORISEA_CONFIG_FILE="$XDG_CONFIG_HOME/priorisea/config.json"
 DEFAULT_SB_URL="demobus://localhost:5398"

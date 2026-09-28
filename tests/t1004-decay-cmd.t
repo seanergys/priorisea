@@ -4,7 +4,7 @@ test_description="test seanergys decay subcommand"
 
 . `dirname $0`/sharness.sh
 
-PRIORITY_PLUGIN=${FLUX_BUILD_DIR}/src/plugins/.libs/sea_priority.so
+PRIORITY_PLUGIN=${SHARNESS_BUILD_DIRECTORY}/src/plugins/.libs/sea_priority.so
 DEFAULT_DURATIONS_0=86400
 DEFAULT_DURATIONS_1=604800
 DEFAULT_DURATIONS_2=1209600

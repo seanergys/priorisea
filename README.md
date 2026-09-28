@@ -45,7 +45,7 @@ The full documentation lives in [docs/](docs/):
 ## Tests
 
 The user-facing behaviour is covered by TAP tests using
-[sharness](tests/integration/sharness.sh):
+[sharness](tests/sharness.sh):
 
 ```sh
 make check

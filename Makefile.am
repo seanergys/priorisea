@@ -1,5 +1,5 @@
-SUBDIRS = external src tests/integration
-FORMAT_DIRS := src tests/integration/scripts
+SUBDIRS = external src tests
+FORMAT_DIRS := src tests/scripts
 
 .PHONY: format
 format:

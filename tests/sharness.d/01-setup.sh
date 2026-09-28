@@ -15,17 +15,17 @@ unset FLUX_CMBD_PATH
 #
 if test -z "$FLUX_BUILD_DIR"; then
     if test -z "${builddir}"; then
-        FLUX_BUILD_DIR="$(cd ../.. && pwd)"
+        FLUX_BUILD_DIR="$(cd .. && pwd)"
     else
-        FLUX_BUILD_DIR="$(cd ${builddir}/../.. && pwd))"
+        FLUX_BUILD_DIR="$(cd ${builddir}/.. && pwd))"
     fi
     export FLUX_BUILD_DIR
 fi
 if test -z "$FLUX_SOURCE_DIR"; then
     if test -z "${srcdir}"; then
-        FLUX_SOURCE_DIR="$(cd ${SHARNESS_TEST_SRCDIR}/../.. && pwd)"
+        FLUX_SOURCE_DIR="$(cd ${SHARNESS_TEST_SRCDIR}/.. && pwd)"
     else
-        FLUX_SOURCE_DIR="$(cd ${srcdir}/../.. && pwd)"
+        FLUX_SOURCE_DIR="$(cd ${srcdir}/.. && pwd)"
     fi
     export FLUX_SOURCE_DIR
 fi

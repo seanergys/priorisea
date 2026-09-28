@@ -21,10 +21,10 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = [
-    "tests/integration/sharness.d/01-setup.sh",
-    "tests/integration/sharness.d/flux-sharness.sh",
-    "tests/integration/scripts/run_timeout.py",
-    "tests/integration/scripts/submit_as.py"
+    "tests/sharness.d/01-setup.sh",
+    "tests/sharness.d/flux-sharness.sh",
+    "tests/scripts/run_timeout.py",
+    "tests/scripts/submit_as.py"
    ]
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright 2021 Lawrence Livermore National Security, LLC"
@@ -32,7 +32,7 @@ SPDX-License-Identifier = "LGPL-3.0-only"
 
 [[annotations]]
 path = [
-    "tests/integration/sharness.sh"
+    "tests/sharness.sh"
    ]
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) 2019-2023 Felipe Contreras"
