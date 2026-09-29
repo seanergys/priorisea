@@ -4,6 +4,7 @@
 
 #include "util.hpp"
 #include <cmath>
+#include <pwd.h>
 #include <stdexcept>
 
 bool parse_int(const std::string &s, int &out) {
@@ -53,4 +54,22 @@ bool parse_double(const std::string &s, double &out) {
   } catch (const std::out_of_range &) {
     return false;
   }
+}
+
+bool uid_from_username(const std::string &name, uid_t &out) {
+  struct passwd *pw = getpwnam(name.c_str());
+  if (!pw) {
+    return false;
+  }
+  out = pw->pw_uid;
+  return true;
+}
+
+bool username_from_uid(uid_t uid, std::string &out) {
+  struct passwd *pw = getpwuid(uid);
+  if (!pw) {
+    return false;
+  }
+  out = pw->pw_name;
+  return true;
 }

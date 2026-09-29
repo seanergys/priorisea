@@ -14,7 +14,8 @@ TESTS = \
     t1009-sb-nobus.t \
     t1010-list-empty.t \
     t1011-job-sorting.t \
-    t1012-timewin-create.t
+    t1012-timewin-create.t \
+    t1013-score-username.t
 
 EXTRA_DIST = \
     $(TESTS) \

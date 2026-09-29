@@ -23,9 +23,9 @@ test_expect_success 'jobs are sorted by t_inactive and count is limited' '
     dec1=$(flux job id ${jobid1}) &&
     dec2=$(flux job id ${jobid2}) &&
     dec3=$(flux job id ${jobid3}) &&
-    jq -e "has(\"${dec2}\")" jobs.json &&
-    jq -e "has(\"${dec3}\")" jobs.json &&
-    test_must_fail jq -e "has(\"${dec1}\")" jobs.json
+    jq -e "any(.[]; .jobid == ${dec2})" jobs.json &&
+    jq -e "any(.[]; .jobid == ${dec3})" jobs.json &&
+    test_must_fail jq -e "any(.[]; .jobid == ${dec1})" jobs.json
 '
 
 test_expect_success 'score job -n and --limit produce the same output' '

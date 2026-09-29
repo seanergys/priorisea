@@ -11,6 +11,7 @@
 #include "lib/score.hpp"
 #include "lib/timewin.hpp"
 #include "lib/types.hpp"
+#include "lib/util.hpp"
 #include "util.hpp"
 #include <climits>
 #include <cstdlib>
@@ -230,20 +231,20 @@ static void register_job_command(CLI::App *app) {
     }
 
     if (opts->json) {
-      auto obj = json_object();
-      for (const auto &f : jobs) {
-
-        if (opts->id_format == "dec") {
-          json_object_set_new(obj, std::to_string(f.jobid).c_str(),
-                              json_integer(f.score));
-          continue;
+      auto arr = json_array();
+      for (const auto &job : jobs) {
+        auto job_json = ps_job_to_json(job);
+        if (opts->id_format != "dec") {
+          char buf[256];
+          flux_job_id_encode(job.jobid, opts->id_format.c_str(), buf,
+                             sizeof(buf));
+          auto jobid_json = json_string(buf);
+          json_object_set(job_json, "jobid", jobid_json);
         }
-        char buf[256];
-        flux_job_id_encode(f.jobid, opts->id_format.c_str(), buf, sizeof(buf));
-        json_object_set_new(obj, buf, json_integer(f.score));
+        json_array_append_new(arr, job_json);
       }
-      std::cout << json_dumps(obj, JSON_INDENT(2)) << std::endl;
-      json_decref(obj);
+      std::cout << json_dumps(arr, JSON_INDENT(2)) << std::endl;
+      json_decref(arr);
     } else {
       ps_print_table_v(
           jobs, {{"Job Id",
@@ -275,14 +276,18 @@ static void register_user_command(CLI::App *app) {
   struct options {
     bool json;
     bool all;
-    std::vector<uid_t> userids;
+    std::vector<std::string> users;
   };
   auto opts = std::make_shared<options>();
   user_cmd->add_flag("--json", opts->json, "Output in JSON format");
   user_cmd->add_flag("--all", opts->all, "Output all users");
-  user_cmd->add_option("userids", opts->userids, "User IDs to retrieve");
+  user_cmd->add_option("userids", opts->users, "User names or IDs to retrieve");
   user_cmd->callback([opts] {
-    std::vector<ps_user_t> users;
+    typedef struct {
+      ps_user_t user;
+      std::string username;
+    } user_info_t;
+    std::vector<user_info_t> users;
     if (opts->all) {
       auto list_res = ps_db_users_list();
       if (!ps_is_ok(list_res)) {
@@ -293,10 +298,23 @@ static void register_user_command(CLI::App *app) {
         if (!ps_is_ok(user.result)) {
           return cli_error(user.result);
         }
-        users.push_back(ps_unwrap(user.result));
+        users.push_back({.user = ps_unwrap(user.result), .username = ""});
       }
     } else {
-      auto get_res = ps_db_users_get(opts->userids);
+      std::vector<uid_t> userids;
+      for (const auto &userid : opts->users) {
+        uid_t uid;
+        if (parse_uid(userid, uid)) {
+          userids.push_back(uid);
+          continue;
+        }
+        if (uid_from_username(userid, uid)) {
+          userids.push_back(uid);
+          continue;
+        }
+        return cli_error(ps_error(ps_user_not_found_err_t{userid}));
+      }
+      auto get_res = ps_db_users_get(userids);
       if (!ps_is_ok(get_res)) {
         return cli_error(get_res);
       }
@@ -306,29 +324,43 @@ static void register_user_command(CLI::App *app) {
           return cli_error(user.result);
         }
 
-        users.push_back(ps_unwrap(user.result));
+        users.push_back({.user = ps_unwrap(user.result), .username = ""});
+      }
+    }
+
+    for (auto &user : users) {
+      std::string username;
+      if (username_from_uid(user.user.userid, username)) {
+        user.username = username;
       }
     }
 
     if (opts->json) {
-      auto obj = json_object();
-      for (const auto &f : users) {
-        json_object_set_new(obj, std::to_string(f.userid).c_str(),
-                            json_integer(f.score));
+      auto arr = json_array();
+      for (const auto &user : users) {
+        auto user_json = json_object();
+        json_object_set_new(user_json, "user",
+                            json_string(user.username.c_str()));
+        json_object_update(user_json, ps_user_to_json(user.user));
+        json_array_append_new(arr, user_json);
       }
-      char *json_str = json_dumps(obj, JSON_INDENT(2));
+      char *json_str = json_dumps(arr, JSON_INDENT(2));
       if (json_str) {
         std::cout << json_str << std::endl;
         free(json_str);
       }
-      json_decref(obj);
+      json_decref(arr);
     } else {
-      ps_print_table_v(users, {{"UserId",
+      ps_print_table_v(users, {{"User",
                                 [](auto &value, auto index) -> auto {
-                                  return std::to_string(value.userid);
+                                  return value.username;
+                                }},
+                               {"UserId",
+                                [](auto &value, auto index) -> auto {
+                                  return std::to_string(value.user.userid);
                                 }},
                                {"Score", [](auto &value, auto index) -> auto {
-                                  return std::to_string(value.score);
+                                  return std::to_string(value.user.score);
                                 }}});
     }
   });
