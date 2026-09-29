@@ -66,6 +66,11 @@ tests/scripts/sb_response
 .env
 test-driver
 
+# code coverage (gcov/gcovr)
+*.gcno
+*.gcda
+coverage.xml
+
 # docs
 docs/doxygen/
 docs/latex/
