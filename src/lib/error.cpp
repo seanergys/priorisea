@@ -51,6 +51,10 @@ std::string ps_error_message_kind(const ps_no_file_err_t &err) {
   return "no such file: " + err.path;
 }
 
+std::string ps_error_message_kind(const ps_user_not_found_err_t &err) {
+  return "user not found: " + err.name;
+}
+
 //// flux
 
 std::string ps_error_message_kind(const ps_flux_open_err_t &err) {
@@ -291,6 +295,22 @@ std::string ps_error_message_kind(const ps_job_t_inactive_invalid_t &) {
 
 std::string ps_error_message_kind(const ps_job_score_invalid_t &) {
   return "job score invalid";
+}
+
+std::string ps_error_message_kind(const ps_user_userid_missing_t &) {
+  return "user id missing";
+}
+
+std::string ps_error_message_kind(const ps_user_userid_invalid_t &) {
+  return "user id invalid";
+}
+
+std::string ps_error_message_kind(const ps_user_score_missing_t &) {
+  return "user score missing";
+}
+
+std::string ps_error_message_kind(const ps_user_score_invalid_t &) {
+  return "user score invalid";
 }
 
 //// score map

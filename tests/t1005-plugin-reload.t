@@ -20,8 +20,8 @@ test_expect_success 'basic initialization' '
 test_expect_success 'submit a job' '
 job1=$(flux python ${SUBMIT_AS} ${USERID} hostname) &&
 priorisea score update ${job1} &&
-priorisea score user --json ${USERID} \
-    | jq -r --arg uid "$USERID" '.[$uid]' > user.score
+    priorisea score user --json ${USERID} \
+        | jq -r ".[] | select(.userid == $USERID) | .score" > user.score
 '
 
 test_expect_success 'edit job priority formula' '

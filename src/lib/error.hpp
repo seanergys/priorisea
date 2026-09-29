@@ -33,6 +33,9 @@ struct ps_unimplemented_err_t {};
 struct ps_no_file_err_t {
   std::string path;
 };
+struct ps_user_not_found_err_t {
+  std::string name;
+};
 
 //// flux
 
@@ -165,6 +168,10 @@ struct ps_job_t_inactive_missing_t {};
 struct ps_job_t_inactive_invalid_t {};
 struct ps_job_score_missing_t {};
 struct ps_job_score_invalid_t {};
+struct ps_user_userid_missing_t {};
+struct ps_user_userid_invalid_t {};
+struct ps_user_score_missing_t {};
+struct ps_user_score_invalid_t {};
 
 //// score map
 
@@ -214,7 +221,7 @@ struct ps_invalid_rpc_ns_err_t {
 using ps_error_kind_t = std::variant<
     ps_str_empty_t, ps_parse_int_err_t, ps_parse_uid_err_t,
     ps_parse_double_err_t, ps_json_unpack_err_t, ps_json_pack_err_t,
-    ps_unimplemented_err_t, ps_no_file_err_t,
+    ps_unimplemented_err_t, ps_no_file_err_t, ps_user_not_found_err_t,
 
     ps_flux_open_err_t, ps_flux_future_get_err_t, ps_flux_txn_create_err_t,
     ps_flux_kvs_commit_err_t, ps_flux_kvs_txn_create_err_t,
@@ -243,6 +250,8 @@ using ps_error_kind_t = std::variant<
 
     ps_job_jobid_missing_t, ps_job_jobid_invalid_t, ps_job_t_inactive_missing_t,
     ps_job_t_inactive_invalid_t, ps_job_score_missing_t, ps_job_score_invalid_t,
+    ps_user_userid_missing_t, ps_user_userid_invalid_t, ps_user_score_missing_t,
+    ps_user_score_invalid_t,
 
     ps_score_map_invalid_t, ps_score_map_value_invalid_t,
 

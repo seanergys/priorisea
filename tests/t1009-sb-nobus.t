@@ -7,9 +7,6 @@ PRIORITY_PLUGIN=${SHARNESS_BUILD_DIRECTORY}/src/plugins/.libs/sea_priority.so
 SUBMIT_AS=${SHARNESS_TEST_SRCDIR}/scripts/submit_as.py
 RPC_UUID="11111111-1111-1111-1111-111111111111"
 
-# the "no bus" path is deterministic and
-# independent of whatever may be bound to the default port 5398 (a leftover
-# demobus from another test, or a real naming server).
 export SEANERBUS_PORT=59013
 
 test_under_flux 1

@@ -56,6 +56,34 @@ ps_result_t<ps_job_t> ps_job_from_json(json_t *obj) {
   return res;
 }
 
+json_t *ps_user_to_json(const ps_user_t &user) {
+  auto *obj = json_object();
+  json_object_set_new(obj, "userid", json_integer((json_int_t)user.userid));
+  json_object_set_new(obj, "score", json_real(user.score));
+  return obj;
+}
+
+ps_result_t<ps_user_t> ps_user_from_json(json_t *obj) {
+  ps_user_t res;
+  json_t *userid_j = json_object_get(obj, "userid");
+  if (!userid_j) {
+    return ps_error(ps_user_userid_missing_t{});
+  }
+  if (!json_is_integer(userid_j)) {
+    return ps_error(ps_user_userid_invalid_t{});
+  }
+  res.userid = (flux_jobid_t)json_integer_value(userid_j);
+  json_t *score_j = json_object_get(obj, "score");
+  if (!score_j) {
+    return ps_error(ps_user_score_missing_t{});
+  }
+  if (!json_is_real(score_j)) {
+    return ps_error(ps_user_score_invalid_t{});
+  }
+  res.score = json_number_value(score_j);
+  return res;
+}
+
 ps_result_t<ps_db_jobs_get_t>
 ps_db_jobs_get(const std::vector<flux_jobid_t> &jobids) {
   ps_db_jobs_get_t res;
