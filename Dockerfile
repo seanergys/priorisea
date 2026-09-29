@@ -21,7 +21,7 @@ RUN dnf install -y \
     'dnf-command(config-manager)' \
     python3-devel \
     epel-release
-
+RUN pip install gcovr
 RUN dnf config-manager --set-enabled crb || true
 
 #
@@ -141,7 +141,7 @@ WORKDIR /app
 COPY . .
 RUN git submodule update --init --recursive
 RUN ./autogen.sh && \
-    ./configure --prefix=/usr/local && \
+    ./configure --enable-coverage --prefix=/usr/local && \
     make -j$(nproc) && \
     make install && \
     ldconfig

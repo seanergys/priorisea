@@ -15,6 +15,14 @@ LT_INIT
 
 # Compiler flags
 CXXFLAGS="$CXXFLAGS -O2 -g0 -fPIC"
+AC_ARG_ENABLE([coverage],
+  [AS_HELP_STRING([--enable-coverage], [enable code coverage instrumentation with gcov])],
+  [enable_coverage=$enableval],
+  [enable_coverage=no])
+if test "x$enable_coverage" = "xyes"; then
+  CXXFLAGS="$CXXFLAGS --coverage -O0 -g"
+  LDFLAGS="$LDFLAGS --coverage"
+fi
 
 PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([JANSSON], [jansson])

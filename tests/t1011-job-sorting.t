@@ -8,7 +8,7 @@ SUBMIT_AS=${SHARNESS_TEST_SRCDIR}/scripts/submit_as.py
 test_under_flux 1
 
 test_expect_success 'basic initialization' '
-    flux jobtap load ${PRIORITY_PLUGIN}
+    flux jobtap load ${PRIORITY_PLUGIN} &&
     priorisea init
 '
 
