@@ -16,7 +16,6 @@ priorisea_SOURCES = main.cpp \
 priorisea_CPPFLAGS = \
     -I$(top_srcdir)/external/tinyexpr \
     -I$(top_srcdir)/external/croncpp/include \
-    -I$(top_srcdir)/external/CLI11/include \
     -I$(top_srcdir)/src \
     -I$(top_srcdir)/src/cli/ \
     $(JANSSON_CFLAGS) \

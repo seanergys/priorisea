@@ -1,4 +1,4 @@
-FROM rockylinux/rockylinux:9.8-minimal
+FROM rockylinux/rockylinux:9.8-minimal AS base
 
 ENV TZ=Etc/UTC
 ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
@@ -9,6 +9,10 @@ ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
 RUN microdnf install -y \
     dnf && \
     microdnf clean all
+
+RUN dnf install -y 'dnf-command(config-manager)'
+RUN dnf config-manager --set-enabled crb || true
+
 RUN dnf install -y \
     wget \
     openssh-clients \
@@ -18,20 +22,13 @@ RUN dnf install -y \
     gcc-c++ \
     make \
     jq \
-    'dnf-command(config-manager)' \
     python3-devel \
-    epel-release
-RUN pip install gcovr
-RUN dnf config-manager --set-enabled crb || true
-
-#
-# devcontainer
-#
-RUN dnf install -y \
+    epel-release \
     clang-tools-extra \
     doxygen \
     bash-completion
-RUN pip install sphinx breathe sphinx_rtd_theme
+
+RUN pip install gcovr sphinx breathe sphinx_rtd_theme
 
 ARG CI_JOB_TOKEN
 RUN if [ -n "$CI_JOB_TOKEN" ]; then \
@@ -133,6 +130,15 @@ RUN rm /usr/local/lib64/pkgconfig/fmt.pc && \
     rm -r /usr/local/include/fmt && \
     echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
     ldconfig
+
+#
+# PrioriSea dependencies
+#
+RUN dnf install -y \
+    catch2-devel \
+    cli11-devel
+
+FROM base
 
 #
 # Build priorisea

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "score.hpp"
-#include "CLI/CLI.hpp"
 #include "lib/config.hpp"
 #include "lib/error.hpp"
 #include "lib/flux.hpp"
