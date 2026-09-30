@@ -152,3 +152,19 @@ ps_result_t<ps_db_jobs_get_t> ps_db_jobs_list_ranked(size_t limit);
  * @return A result indicating success or failure.
  */
 ps_result_t<ps_success_t> ps_db_users_update();
+
+/**
+ * Converts a score map to a JSON object.
+ *
+ * @param scores The score map to convert.
+ * @return A JSON object representing the score map.
+ */
+json_t *score_map_to_json(const ps_score_map_t &scores);
+
+/**
+ * Converts a JSON object to a score map.
+ *
+ * @param obj The JSON object to convert.
+ * @return The score map.
+ */
+ps_result_t<ps_score_map_t> score_map_from_json(json_t *obj);

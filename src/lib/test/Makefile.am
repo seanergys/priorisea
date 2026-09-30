@@ -15,7 +15,12 @@ AM_CPPFLAGS = \
     $(CATCH2_CPPFLAGS)
 
 check_PROGRAMS = \
-    test_util
+    config_test \
+    decay_test \
+    formula_test \
+    score_test \
+    timewin_test \
+    util_test
 
 TESTS = $(check_PROGRAMS)
 
@@ -27,4 +32,9 @@ LDADD = \
     $(SEANERBUS_LIBS) \
     $(FLUX_CORE_LIBS)
 
-test_util_SOURCES = util_test.cpp
+config_test_SOURCES = config.cpp
+decay_test_SOURCES = decay.cpp
+formula_test_SOURCES = formula.cpp
+score_test_SOURCES = score.cpp
+timewin_test_SOURCES = timewin.cpp
+util_test_SOURCES = util.cpp

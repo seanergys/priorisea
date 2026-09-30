@@ -68,8 +68,8 @@ AC_CONFIG_FILES([
  src/Makefile
  src/cli/Makefile
  src/lib/Makefile
+ src/lib/test/Makefile
  src/plugins/Makefile
- src/test/Makefile
  tests/Makefile
  tests/scripts/Makefile
 ])

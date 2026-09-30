@@ -4,7 +4,6 @@
 
 #include "config.hpp"
 #include "error.hpp"
-#include "flux.hpp"
 #include <cstdlib>
 #include <jansson.h>
 #include <optional>
@@ -76,4 +75,15 @@ json_t *ps_config_to_json(const ps_config_t &config) {
   auto *obj = json_object();
   json_object_set_new(obj, "seanerbus", ps_seanerbus_to_json(config.seanerbus));
   return obj;
+}
+
+json_t *ps_seanerbus_to_json(const ps_seanerbus_t &seanerbus) {
+  return json_string(seanerbus.c_str());
+}
+
+ps_result_t<ps_seanerbus_t> ps_seanerbus_from_json(json_t *obj) {
+  if (!json_is_string(obj)) {
+    return ps_error(ps_seanerbus_url_invalid_t{});
+  }
+  return json_string_value(obj);
 }

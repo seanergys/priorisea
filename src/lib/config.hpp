@@ -40,3 +40,19 @@ ps_result_t<ps_config_t> ps_config_load(const std::optional<std::string> &path);
  * @return A JSON object representing the configuration.
  */
 json_t *ps_config_to_json(const ps_config_t &config);
+
+/**
+ * Converts a Seanerbus configuration to a JSON object.
+ *
+ * @param seanerbus The Seanerbus configuration to convert.
+ * @return A JSON object representing the Seanerbus.
+ */
+json_t *ps_seanerbus_to_json(const ps_seanerbus_t &seanerbus);
+
+/**
+ * Converts a JSON object to a Seanerbus configuration.
+ *
+ * @param obj The JSON object to convert.
+ * @return A result containing the Seanerbus configuration.
+ */
+ps_result_t<ps_seanerbus_t> ps_seanerbus_from_json(json_t *obj);
