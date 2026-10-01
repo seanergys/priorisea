@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "plugin.hpp"
+#include "lib/config.hpp"
 #include "lib/flux.hpp"
 #include "util.hpp"
 #include <string>

@@ -10,7 +10,6 @@
 #include "plugin.hpp"
 #include "score.hpp"
 #include "timewin.hpp"
-#include <fmt/format.h>
 
 int main(int argc, char *argv[]) {
   CLI::App app{"Interact with Seanergys' flux priority plugin and database to "

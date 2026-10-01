@@ -100,14 +100,13 @@ ps_result_t<ps_success_t> ps_db_formulas_init();
 ps_result_t<ps_db_formulas_get_t> ps_db_formulas_list();
 
 /**
- * Resolves the variables in a formula.
+ * Resolves the variables in a formula through the seanerbus.
  *
  * @param formula The formula to resolve.
- * @param jobid The job ID to use for resolving.
- * @param seanerbus The seanerbus configuration to use for resolving.
+ * @param jobid The job ID to use.
+ * @param seanerbus The seanerbus configuration to use.
  * @return A result containing the resolved variables.
  */
 ps_result_t<std::map<std::string, ps_result_t<double>>>
-ps_resolve_seanerbus_vars(const ps_formula_t &formula,
-                          const flux_jobid_t &jobid,
-                          const ps_seanerbus_t &seanerbus);
+ps_sb_resolve_vars(const ps_formula_t &formula, const flux_jobid_t &jobid,
+                   const ps_seanerbus_t &seanerbus);

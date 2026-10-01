@@ -296,7 +296,7 @@ ps_db_job_update(ps_flux_job_info_t job_info, const ps_formula_t &formula,
     vars_over["var:duration_ratio"] = std::min(1.0, duration_ratio);
   }
 
-  auto sb_res = ps_resolve_seanerbus_vars(formula, job_info.id, seanerbus);
+  auto sb_res = ps_sb_resolve_vars(formula, job_info.id, seanerbus);
   if (!ps_is_ok(sb_res)) {
     return ps_forward_error<ps_success_t>(sb_res,
                                           "resolving seanerbus vars for job " +
@@ -531,4 +531,32 @@ ps_result_t<ps_success_t> ps_db_users_update() {
     }
   }
   return ps_flux_plugin_set_score(scores);
+}
+
+json_t *score_map_to_json(const ps_score_map_t &scores) {
+  auto *obj = json_object();
+  for (const auto &[user_id, score] : scores) {
+    json_object_set_new(obj, std::to_string(user_id).c_str(), json_real(score));
+  }
+  return obj;
+}
+
+ps_result_t<ps_score_map_t> score_map_from_json(json_t *obj) {
+  ps_score_map_t score_map;
+  if (!json_is_object(obj)) {
+    return ps_error(ps_score_map_invalid_t{});
+  }
+  const char *userid_key;
+  json_t *score_value;
+  json_object_foreach(obj, userid_key, score_value) {
+    uid_t userid;
+    if (!parse_uid(std::string(userid_key), userid)) {
+      continue;
+    }
+    if (!json_is_number(score_value)) {
+      return ps_error(ps_score_map_value_invalid_t{.userid = userid_key});
+    }
+    score_map[userid] = json_number_value(score_value);
+  }
+  return score_map;
 }

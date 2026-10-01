@@ -114,13 +114,6 @@ struct ps_decay_string_parse_err_t {
 
 //// formula
 
-struct ps_formula_expr_invalid_t {
-  std::string expr;
-  std::string name;
-};
-struct ps_formula_invalid_name_t {
-  std::string name;
-};
 struct ps_formula_eval_err_t {
   ps_formula_t formula;
   std::map<std::string, double> var_values;
@@ -132,13 +125,18 @@ struct ps_formula_eval_err_t {
   std::string compiled_expr;
 };
 struct ps_formula_name_missing_t {};
-struct ps_formula_name_invalid_t {};
-struct ps_formula_expr_missing_t {
+struct ps_formula_name_invalid_t {
   std::string name;
 };
-struct ps_formula_defaults_missing_t {};
-struct ps_formula_var_value_missing_t {
-  std::string name;
+struct ps_formula_expr_missing_t {};
+struct ps_formula_expr_invalid_t {
+  std::string expr;
+};
+struct ps_formula_defaults_invalid_t {
+  std::string dump;
+};
+struct ps_formula_defaults_value_invalid_t {
+  std::string dump;
 };
 
 //// timewin
@@ -236,10 +234,10 @@ using ps_error_kind_t = std::variant<
     ps_decay_frame_duration_missing_t, ps_decay_frame_duration_invalid_t,
     ps_decay_duration_invalid_t, ps_decay_string_parse_err_t,
 
-    ps_formula_expr_invalid_t, ps_formula_invalid_name_t,
-    ps_formula_name_missing_t, ps_formula_name_invalid_t,
-    ps_formula_expr_missing_t, ps_formula_defaults_missing_t,
-    ps_formula_var_value_missing_t, ps_formula_eval_err_t,
+    ps_formula_expr_invalid_t, ps_formula_name_missing_t,
+    ps_formula_name_invalid_t, ps_formula_expr_missing_t,
+    ps_formula_defaults_invalid_t, ps_formula_defaults_value_invalid_t,
+    ps_formula_eval_err_t,
 
     ps_timewin_name_missing_t, ps_timewin_name_invalid_t,
     ps_timewin_duration_missing_t, ps_timewin_duration_invalid_t,

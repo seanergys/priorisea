@@ -44,9 +44,12 @@ The full documentation lives in [docs/](docs/):
 
 ## Tests
 
-The user-facing behaviour is covered by TAP tests using
+Unit tests live under `src/test/` and are written with [Catch2](https://github.com/catchorg/Catch2).
+
+The user-facing behaviour tests live under `tests/` and are covered by TAP tests using
 [sharness](tests/sharness.sh):
 
+To run both the unit tests and the user-facing behaviour tests, run:
 ```sh
 make check
 ```

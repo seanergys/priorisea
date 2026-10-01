@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+SUBDIRS = test
+
 noinst_LTLIBRARIES = libpriorisea.la
 
 libpriorisea_la_CPPFLAGS= \
