@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "flux.hpp"
+#include "config.hpp"
 #include "error.hpp"
 #include "formula.hpp"
-#include "types.hpp"
-#include "config.hpp"
 #include "score.hpp"
+#include "types.hpp"
 #include <flux/core.h>
 #include <flux/core/future.h>
 #include <flux/core/job.h>

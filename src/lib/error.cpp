@@ -161,14 +161,7 @@ std::string ps_error_message_kind(const ps_decay_string_parse_err_t &err) {
 //// formula
 
 std::string ps_error_message_kind(const ps_formula_expr_invalid_t &err) {
-  std::string msg = "formula expression invalid";
-  if (!err.name.empty()) {
-    msg += " for '" + err.name + "'";
-  }
-  if (!err.expr.empty()) {
-    msg += ": " + err.expr;
-  }
-  return msg;
+  return "formula expression invalid: " + err.expr;
 }
 
 std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
@@ -197,28 +190,25 @@ std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
   return msg;
 }
 
-std::string ps_error_message_kind(const ps_formula_invalid_name_t &err) {
-  return "formula invalid name: " + err.name;
-}
-
 std::string ps_error_message_kind(const ps_formula_name_missing_t &) {
   return "formula name missing";
 }
 
-std::string ps_error_message_kind(const ps_formula_name_invalid_t &) {
-  return "formula name invalid";
+std::string ps_error_message_kind(const ps_formula_name_invalid_t &err) {
+  return "formula name invalid: " + err.name;
 }
 
 std::string ps_error_message_kind(const ps_formula_expr_missing_t &err) {
-  return "formula expression missing for: " + err.name;
+  return "formula expression";
 }
 
-std::string ps_error_message_kind(const ps_formula_defaults_missing_t &) {
-  return "formula defaults missing";
+std::string ps_error_message_kind(const ps_formula_defaults_invalid_t &err) {
+  return "formula defaults invalid: " + err.dump;
 }
 
-std::string ps_error_message_kind(const ps_formula_var_value_missing_t &err) {
-  return "formula variable value missing for: " + err.name;
+std::string
+ps_error_message_kind(const ps_formula_defaults_value_invalid_t &err) {
+  return "formula defaults invalid value: " + err.dump;
 }
 
 //// timewin

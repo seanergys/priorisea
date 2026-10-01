@@ -53,25 +53,24 @@ result
 .envrc
 .direnv
 
-# tests
-tests/test-results
-tests/trash-directory.*
-tests/*.log
-tests/*.trs
-
 # library unit tests
-src/test/test_*
-src/test/*.log
-src/test/*.trs
-src/test/test-results
-src/test/trash-directory.*
+*.log
+*.trs
+test-results
+trash-directory.*
+.gitlab-ci-local
+.env
+test-driver
+src/lib/test/config_test
+src/lib/test/decay_test
+src/lib/test/formula_test
+src/lib/test/score_test
+src/lib/test/timewin_test
+src/lib/test/util_test
 tests/scripts/sb_register
 tests/scripts/sb_request
 tests/scripts/sb_resolve
 tests/scripts/sb_response
-.gitlab-ci-local
-.env
-test-driver
 
 # code coverage (gcov/gcovr)
 *.gcno

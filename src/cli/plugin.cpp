@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "plugin.hpp"
+#include "lib/config.hpp"
 #include "lib/flux.hpp"
 #include "util.hpp"
-#include "lib/config.hpp"
 #include <string>
 
 static void register_seanerbus_get_command(CLI::App *app) {

@@ -108,6 +108,5 @@ ps_result_t<ps_db_formulas_get_t> ps_db_formulas_list();
  * @return A result containing the resolved variables.
  */
 ps_result_t<std::map<std::string, ps_result_t<double>>>
-ps_sb_resolve_vars(const ps_formula_t &formula,
-                          const flux_jobid_t &jobid,
-                          const ps_seanerbus_t &seanerbus);
+ps_sb_resolve_vars(const ps_formula_t &formula, const flux_jobid_t &jobid,
+                   const ps_seanerbus_t &seanerbus);

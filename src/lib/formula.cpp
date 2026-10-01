@@ -55,22 +55,35 @@ ps_result_t<ps_formula_t> ps_formula_from_json(json_t *obj) {
   res.name = json_string_value(name_j);
   json_t *expr_j = json_object_get(obj, "expr");
   if (!expr_j) {
-    return ps_error(ps_formula_expr_missing_t{.name = res.name});
+    return ps_error(ps_formula_expr_missing_t{});
   }
   if (!json_is_string(expr_j)) {
-    return ps_error(ps_formula_expr_invalid_t{.name = res.name});
+    char *dumped = json_dumps(expr_j, 0);
+    auto err = ps_formula_expr_invalid_t{.expr = dumped ? dumped : ""};
+    free(dumped);
+    return ps_error(err);
   }
   res.expr = json_string_value(expr_j);
   json_t *defaults_obj = json_object_get(obj, "defaults");
   if (!defaults_obj) {
-    return ps_error(ps_formula_defaults_missing_t{});
+    return res;
   }
-  if (json_is_object(defaults_obj)) {
-    const char *var_name;
-    json_t *value_j;
-    json_object_foreach(defaults_obj, var_name, value_j) {
-      res.defaults[var_name] = json_real_value(value_j);
+  if (!json_is_object(defaults_obj)) {
+    char *dumped = json_dumps(defaults_obj, 0);
+    auto err = ps_formula_defaults_invalid_t{.dump = dumped ? dumped : ""};
+    free(dumped);
+    return ps_error(err);
+  }
+  const char *var_name;
+  json_t *value_j;
+  json_object_foreach(defaults_obj, var_name, value_j) {
+    if (!json_is_real(value_j)) {
+      char *dumped = json_dumps(value_j, 0);
+      ps_formula_defaults_value_invalid_t err{.dump = dumped ? dumped : ""};
+      free(dumped);
+      return ps_error(err);
     }
+    res.defaults[var_name] = json_real_value(value_j);
   }
   return res;
 }
@@ -267,7 +280,7 @@ ps_db_formulas_reset(const std::vector<std::string> &names) {
     }
 
     if (!found) {
-      return ps_error(ps_formula_invalid_name_t{.name = name});
+      return ps_error(ps_formula_name_invalid_t{.name = name});
     }
 
     auto update_res = ps_db_formula_set(formula);
@@ -323,9 +336,8 @@ ps_result_t<std::vector<ps_db_formula_get_entry_t>> ps_db_formulas_list() {
 }
 
 ps_result_t<std::map<std::string, ps_result_t<double>>>
-ps_sb_resolve_vars(const ps_formula_t &formula,
-                          const flux_jobid_t &jobid,
-                          const ps_seanerbus_t &seanerbus) {
+ps_sb_resolve_vars(const ps_formula_t &formula, const flux_jobid_t &jobid,
+                   const ps_seanerbus_t &seanerbus) {
   std::map<std::string, ps_result_t<double>> sb_results;
 
   std::regex rpc_pattern(R"(<rpc:[^>]*>)");
