@@ -140,6 +140,8 @@ RUN dnf install -y \
 
 FROM base
 
+ARG ENABLE_COVERAGE=0
+
 #
 # Build priorisea
 #
@@ -147,7 +149,11 @@ WORKDIR /app
 COPY . .
 RUN git submodule update --init --recursive
 RUN ./autogen.sh && \
-    ./configure --enable-coverage --prefix=/usr/local && \
+    if [ "$ENABLE_COVERAGE" = "1" ] || [ "$ENABLE_COVERAGE" = "true" ]; then \
+        ./configure --enable-coverage --prefix=/usr/local; \
+    else \
+        ./configure --prefix=/usr/local; \
+    fi && \
     make -j$(nproc) && \
     make install && \
     ldconfig
