@@ -126,9 +126,8 @@ WORKDIR /opt/seanerbus-cpp/build
 RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON && \
     make -j$(nproc) && \
     make install
-RUN rm /usr/local/lib64/pkgconfig/fmt.pc && \
-    rm -r /usr/local/include/fmt && \
-    echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
+# Keep seanerbus-cpp's bundled fmt installed
+RUN echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
     ldconfig
 
 #
@@ -148,12 +147,15 @@ ARG ENABLE_COVERAGE=0
 WORKDIR /app
 COPY . .
 RUN git submodule update --init --recursive
-RUN ./autogen.sh && \
-    if [ "$ENABLE_COVERAGE" = "1" ] || [ "$ENABLE_COVERAGE" = "true" ]; then \
-        ./configure --enable-coverage --prefix=/usr/local; \
+RUN if [ "$ENABLE_COVERAGE" = "1" ] || [ "$ENABLE_COVERAGE" = "true" ]; then \
+        COVERAGE=ON; \
     else \
-        ./configure --prefix=/usr/local; \
+        COVERAGE=OFF; \
     fi && \
-    make -j$(nproc) && \
-    make install && \
+    cmake -S . -B build \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_COVERAGE=$COVERAGE
+RUN cmake --build build -j$(nproc)
+RUN cmake --install build && \
     ldconfig

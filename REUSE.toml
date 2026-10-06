@@ -7,14 +7,10 @@ path = [
     ".gitignore",
     ".gitlab-ci.yml",
     ".gitmodules",
-    "autogen.sh",
-    "configure.ac",
     "Dockerfile",
-    "Makefile.am",
+    "extended.Dockerfile",
     "README.md",
     "REUSE.toml",
-    "external/Makefile.am",
-    "m4/**",
     "tests/**"
    ]
 SPDX-FileCopyrightText = "2026 SEANERGYS Partners <https://seanergys.eu>"

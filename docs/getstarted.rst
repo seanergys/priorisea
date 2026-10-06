@@ -10,8 +10,7 @@ Build and install
 
 To build the software from source, the following dependencies are required:
 
-- autoconf
-- automake
+- cmake
 - jansson
 - libfmt
 - seanerbus
@@ -28,11 +27,10 @@ The software can then be built by running:
 .. code-block:: bash
 
     git submodule update --init --recursive
-    ./autogen.sh
-    ./configure --prefix=/your/install/path
-    make -j
-    make check
-    make install
+    cmake -S . -B build
+    cmake --build build -j
+    ctest --test-dir build
+    cmake --install build --prefix=/your/install/path
 
 A ``Dockerfile`` is also available to build the software in a container.
 

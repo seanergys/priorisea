@@ -51,5 +51,5 @@ The user-facing behaviour tests live under `tests/` and are covered by TAP tests
 
 To run both the unit tests and the user-facing behaviour tests, run:
 ```sh
-make check
+cmake -S . -B build && ctest --test-dir build
 ```
