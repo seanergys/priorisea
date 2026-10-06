@@ -40,7 +40,7 @@ coverage:
     image: $IMAGE_TAG
     script:
         - cd /app
-        - make check
+        - ctest --test-dir build --output-on-failure
         - |
           gcovr \
               --print-summary \
@@ -68,7 +68,7 @@ docs:docs:
     image: $IMAGE_TAG
     script:
         - cd /app
-        - make docs
+        - cmake --build build --target docs
 
 docs:deploy:
     stage: docs
@@ -77,7 +77,7 @@ docs:deploy:
         - if: $CI_COMMIT_BRANCH == "main"
     script:
         - cd /app
-        - make docs
+        - cmake --build build --target docs
         - mv docs/build "$CI_PROJECT_DIR/public"
     pages: true
     artifacts:

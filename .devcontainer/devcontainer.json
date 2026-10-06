@@ -1,0 +1,11 @@
+{
+  "name": "PrioriSea Developer Environment",
+  "dockerFile": "../Dockerfile",
+  "context": "..",
+  "target": "base",
+  "postCreateCommand": "git submodule update --init --recursive",
+  "remoteEnv": {
+    "CPATH": "${containerWorkspaceFolder}/external/tinyexpr:${containerWorkspaceFolder}/external/croncpp/include",
+    "CPLUS_INCLUDE_PATH": "${containerWorkspaceFolder}/external/tinyexpr:${containerWorkspaceFolder}/external/croncpp/include"
+  }
+}
