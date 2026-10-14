@@ -65,9 +65,7 @@ ps_db_sqlite_formulas_get(sqlite3 *db, const std::vector<std::string> &names) {
     std::string var =
         reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
     auto value = sqlite3_column_double(stmt, 3);
-    // The formula is in the map, safely unwrap it
-    auto defaults = ps_unwrap(res[name]).defaults;
-    defaults[var] = value;
+    std::get<ps_formula_t>(res[name]).defaults[var] = value;
   }
 
   // Add errors for formulas that were not found

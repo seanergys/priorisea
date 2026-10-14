@@ -18,5 +18,18 @@ void print_formula(const ps_formula_t &formula, bool json) {
   }
   ps_print_table_v(std::vector<ps_formula_t>{formula},
                    {{"Name", [](auto &f, auto) { return f.name; }},
-                    {"Expression", [](auto &f, auto) { return f.expr; }}});
+                    {"Expression", [](auto &f, auto) { return f.expr; }},
+                    {"Defaults", [](auto &value, auto index) -> auto {
+                       std::stringstream ss;
+                       bool first = true;
+                       for (const auto &[name, value] : value.defaults) {
+                         if (!first) {
+                           ss << ", ";
+                         } else {
+                           first = false;
+                         }
+                         ss << name << "=" << value;
+                       }
+                       return ss.str();
+                     }}});
 }

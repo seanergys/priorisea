@@ -30,7 +30,20 @@ static void print_formulas(const std::vector<ps_formula_t> &formulas,
   }
   ps_print_table_v(formulas,
                    {{"Name", [](auto &f, auto) { return f.name; }},
-                    {"Expression", [](auto &f, auto) { return f.expr; }}});
+                    {"Expression", [](auto &f, auto) { return f.expr; }},
+                    {"Defaults", [](auto &value, auto index) -> auto {
+                       std::stringstream ss;
+                       bool first = true;
+                       for (const auto &[name, value] : value.defaults) {
+                         if (!first) {
+                           ss << ", ";
+                         } else {
+                           first = false;
+                         }
+                         ss << name << "=" << value;
+                       }
+                       return ss.str();
+                     }}});
 }
 
 static void register_get_command(CLI::App *app) {
