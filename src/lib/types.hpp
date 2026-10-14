@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <flux/core/job.h>
+#include <flux/core.h>
 #include <map>
 #include <string>
 #include <sys/types.h>
@@ -35,6 +35,7 @@ struct ps_formula_t {
  */
 struct ps_job_t {
   flux_jobid_t jobid;
+  uid_t userid;
   double t_inactive;
   double score;
 };
@@ -43,14 +44,10 @@ struct ps_job_t {
  * Represents a user with their associated information.
  */
 struct ps_user_t {
+  std::string username;
   uid_t userid;
   double score;
 };
-
-/**
- * Represents a mapping of user IDs to their corresponding scores.
- */
-typedef std::map<uid_t, double> ps_score_map_t;
 
 /**
  * Represents a decay frame with a duration and weight.
@@ -98,14 +95,7 @@ struct ps_flux_job_info_t {
   // int waitstatus;
 };
 
-/**
- * Represents the configuration for the Seanerbus.
- */
-typedef std::string ps_seanerbus_t;
-
-/**
- * Represents the overall configuration for the system.
- */
-struct ps_config_t {
-  ps_seanerbus_t seanerbus;
+struct ps_daemon_config_t {
+  std::string database_path;
+  std::string seanerbus_path;
 };

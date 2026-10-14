@@ -113,6 +113,7 @@ RUN git clone --recurse-submodules --revision 44893ce72181079f81b26f6140ca8d1c80
     git@gitlab.seanergys.fz-juelich.de:software/seanerbus-naming-service.git
 WORKDIR /opt/seanerbus-naming-service
 RUN cargo install --path . --root /usr/local
+RUN printf '%s\n' /usr/local/lib /usr/local/lib64 > /etc/ld.so.conf.d/local.conf
 
 #
 # Build seanerbus cpp
@@ -126,9 +127,6 @@ WORKDIR /opt/seanerbus-cpp/build
 RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON && \
     make -j$(nproc) && \
     make install
-# Keep seanerbus-cpp's bundled fmt installed
-RUN echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
-    ldconfig
 
 #
 # PrioriSea dependencies
@@ -146,7 +144,9 @@ ARG ENABLE_COVERAGE=0
 #
 WORKDIR /app
 COPY . .
-RUN git submodule update --init --recursive
+RUN if [ -d .git ]; then \
+      git submodule update --init --recursive; \
+    fi
 RUN if [ "$ENABLE_COVERAGE" = "1" ] || [ "$ENABLE_COVERAGE" = "true" ]; then \
         COVERAGE=ON; \
     else \

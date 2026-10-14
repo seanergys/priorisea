@@ -2,38 +2,33 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "timewin.hpp"
-#include "croncpp.h"
-#include "error.hpp"
-#include "flux.hpp"
+#include "src/lib/timewin.hpp"
+#include "src/lib/error.hpp"
 #include <cerrno>
+#include <croncpp.h>
 #include <flux/core.h>
 #include <jansson.h>
-#include <sstream>
-#include <string.h>
-#include <string>
-#include <variant>
-#include <vector>
 
 ps_result_t<ps_success_t> ps_validate_cron(const std::string &expr) {
   try {
     cron::make_cron(expr);
     return ps_success_t{};
   } catch (cron::bad_cronexpr const &ex) {
-    return ps_error(ps_cron_parse_err_t{.cron = ex.what()});
+    return ps_error(ps_string_parse_err_t{.msg = ex.what()});
   }
 }
 
 ps_result_t<ps_success_t> ps_validate_timewin(const ps_timewin_t &timewin) {
   if (timewin.name.empty()) {
-    return ps_error(ps_str_empty_t{});
+    return ps_error(ps_field_missing_t{.field = "name"});
   }
   auto cron_res = ps_validate_cron(timewin.cron);
   if (!ps_is_ok(cron_res)) {
     return cron_res;
   }
   if (timewin.duration < 0) {
-    return ps_error(ps_timewin_neg_duration_t{.duration = timewin.duration});
+    return ps_error(ps_field_type_mismatch_t{.field = "duration",
+                                             .expected = "positive integer"});
   }
   return ps_success_t{};
 }
@@ -51,170 +46,42 @@ ps_result_t<ps_timewin_t> ps_timewin_from_json(json_t *obj) {
   ps_timewin_t res;
   json_t *name_j = json_object_get(obj, "name");
   if (!name_j) {
-    return ps_error(ps_timewin_name_missing_t{});
+    return ps_error(ps_field_missing_t{.field = "name"});
   }
   if (!json_is_string(name_j)) {
-    return ps_error(ps_timewin_name_invalid_t{});
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "name", .expected = "string"});
   }
   res.name = json_string_value(name_j);
 
   json_t *cron_j = json_object_get(obj, "cron");
   if (!cron_j) {
-    return ps_error(ps_timewin_cron_missing_t{});
+    return ps_error(ps_field_missing_t{.field = "cron"});
   }
   if (!json_is_string(cron_j)) {
-    return ps_error(ps_timewin_cron_invalid_t{});
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "cron", .expected = "string"});
   }
   res.cron = json_string_value(cron_j);
 
   json_t *duration_j = json_object_get(obj, "duration");
   if (!duration_j) {
-    return ps_error(ps_timewin_duration_missing_t{});
+    return ps_error(ps_field_missing_t{.field = "duration"});
   }
   if (!json_is_integer(duration_j)) {
-    return ps_error(ps_timewin_duration_invalid_t{});
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "duration", .expected = "integer"});
   }
-  res.duration = (int)json_number_value(duration_j);
+  res.duration = static_cast<int>(json_integer_value(duration_j));
 
   json_t *score_j = json_object_get(obj, "score");
   if (!score_j) {
-    return ps_error(ps_timewin_score_missing_t{});
+    return ps_error(ps_field_missing_t{.field = "score"});
   }
   if (!json_is_real(score_j)) {
-    return ps_error(ps_timewin_score_invalid_t{});
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "score", .expected = "double"});
   }
   res.score = json_number_value(score_j);
   return res;
-}
-
-ps_result_t<ps_success_t> ps_db_timewin_set(const ps_timewin_t &timewin) {
-  auto *json_timewin = ps_timewin_to_json(timewin);
-  char *timewin_str = json_dumps(json_timewin, 0);
-  json_decref(json_timewin);
-  if (!timewin_str) {
-    return ps_error(ps_json_pack_err_t{});
-  }
-
-  flux_kvs_txn_t *txn;
-  if (!(txn = flux_kvs_txn_create())) {
-    free(timewin_str);
-    return ps_error(ps_flux_txn_create_err_t{.msg = strerror(errno)});
-  }
-  auto key = "priorisea.timewin." + timewin.name;
-  if (flux_kvs_txn_put(txn, 0, key.c_str(), timewin_str) < 0) {
-    free(timewin_str);
-    return ps_error(ps_flux_kvs_txn_put_err_t{
-        .key = key, .value = timewin_str, .msg = strerror(errno)});
-  }
-  free(timewin_str);
-  return ps_flux_kvs_commit(txn);
-}
-
-ps_result_t<ps_db_timewins_get_t>
-ps_db_timewins_get(const std::vector<std::string> &names) {
-  std::vector<std::string> keys;
-  for (auto timewin_name : names) {
-    keys.push_back("priorisea.timewin." + timewin_name);
-  }
-
-  auto lookup_res = ps_flux_kvs_lookup(keys);
-  if (!ps_is_ok(lookup_res)) {
-    std::stringstream ss;
-    ss << "looking up timewin keys in flux kvs: ";
-    for (const auto timewin_name : names) {
-      ss << timewin_name << " ";
-    }
-    return ps_forward_error<ps_db_timewins_get_t>(lookup_res, ss.str());
-  }
-
-  ps_db_timewins_get_t res;
-  for (const auto &lookup_key_res : ps_unwrap(lookup_res)) {
-    size_t pos = lookup_key_res.key.rfind('.');
-    std::string timewin_name = (pos == std::string::npos)
-                                   ? lookup_key_res.key
-                                   : lookup_key_res.key.substr(pos + 1);
-
-    if (!ps_is_ok(lookup_key_res.value)) {
-      res.push_back(
-          {.name = timewin_name,
-           .result = ps_forward_error<ps_timewin_t>(
-               lookup_key_res.value,
-               "getting timewin '" + timewin_name + "' from flux kvs")});
-      continue;
-    }
-
-    auto lkv = lookup_key_res.value;
-    auto lookup_key_value = ps_unwrap(lkv);
-
-    json_error_t json_err;
-    auto *json_timewin = json_loads(lookup_key_value.c_str(), 0, &json_err);
-    if (!json_timewin) {
-      res.push_back({.name = timewin_name,
-                     .result = ps_error(
-                         ps_json_unpack_err_t{.dumps = lookup_key_value})});
-      continue;
-    }
-
-    auto timewin_res = ps_timewin_from_json(json_timewin);
-    json_decref(json_timewin);
-    res.push_back({.name = timewin_name, .result = timewin_res});
-  }
-
-  return res;
-}
-
-ps_result_t<ps_timewin_t> ps_db_timewin_get(const std::string &name) {
-  auto get_res = ps_db_timewins_get({name});
-  if (!ps_is_ok(get_res)) {
-    return ps_forward_error<ps_timewin_t>(get_res, "getting timewin '" + name +
-                                                       "' from database");
-  }
-  return ps_unwrap(get_res)[0].result;
-}
-
-ps_result_t<ps_db_timewins_del_t>
-ps_db_timewins_del(const std::vector<std::string> &names) {
-  std::vector<std::string> keys;
-  for (auto name : names) {
-    keys.push_back("priorisea.timewin." + name);
-  }
-  auto remove_res = ps_flux_kvs_remove(keys);
-  if (!ps_is_ok(remove_res)) {
-    std::stringstream ss;
-    ss << "removing timewin keys from flux kvs: ";
-    for (const auto timewin_name : names) {
-      ss << timewin_name << " ";
-    }
-    return ps_forward_error<ps_db_timewins_del_t>(remove_res, ss.str());
-  }
-  ps_db_timewins_del_t res;
-  for (const auto &kv : ps_unwrap(remove_res)) {
-    size_t pos = kv.key.rfind('.');
-    std::string timewin_name =
-        (pos == std::string::npos) ? kv.key : kv.key.substr(pos + 1);
-    res.push_back({.name = timewin_name, .result = kv.result});
-  }
-  return res;
-}
-
-ps_result_t<ps_success_t> ps_db_timewin_del(const std::string &name) {
-  auto del_res = ps_db_timewins_del({name});
-  if (!ps_is_ok(del_res)) {
-    return ps_forward_error<ps_success_t>(del_res, "deleting timewin '" + name +
-                                                       "' from database");
-  }
-  return ps_success_t{};
-}
-
-ps_result_t<ps_db_timewins_get_t> ps_db_timewins_list() {
-  auto ls_res = ps_flux_kvs_ls_dir("priorisea.timewin");
-  // return empty result if directory not found
-  if (ps_is_error_type<ps_flux_kvs_lookup_get_dir_err_t>(ls_res)) {
-    return {};
-  }
-  if (!ps_is_ok(ls_res)) {
-    return ps_forward_error<ps_db_timewins_get_t>(
-        ls_res, "listing timewins from flux kvs");
-  }
-  return ps_db_timewins_get(ps_unwrap(ls_res));
 }

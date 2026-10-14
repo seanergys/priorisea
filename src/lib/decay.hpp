@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include "error.hpp"
-#include "types.hpp"
+#include "src/lib/error.hpp"
+#include "src/lib/types.hpp"
 #include <jansson.h>
 #include <string>
 
@@ -47,39 +47,3 @@ ps_result_t<ps_decay_t> ps_decay_from_json(json_t *obj);
  * @return A result containing the converted decay.
  */
 ps_result_t<ps_decay_t> ps_decay_from_string(const std::string &expr);
-
-/**
- * Sets the decay in the database.
- *
- * @param decay The decay to set.
- * @return A result indicating success or failure.
- */
-ps_result_t<ps_success_t> ps_db_decay_set(const ps_decay_t &decay);
-
-/**
- * Gets the decay from the database.
- *
- * @return A result containing the decay.
- */
-ps_result_t<ps_decay_t> ps_db_decay_get();
-
-/**
- * Checks if a decay is stored in the database.
- *
- * @return True if a decay is stored, false otherwise.
- */
-bool ps_db_is_decay();
-
-/**
- * Resets the decay in the database.
- *
- * @return A result indicating success or failure.
- */
-ps_result_t<ps_success_t> ps_db_decay_reset();
-
-/**
- * Initializes the decay in the database.
- *
- * @return A result indicating success or failure.
- */
-ps_result_t<ps_success_t> ps_db_decay_init();

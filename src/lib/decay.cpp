@@ -2,21 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "decay.hpp"
-#include "error.hpp"
-#include "flux.hpp"
-#include "util.hpp"
+#include "src/lib/decay.hpp"
+#include "src/lib/error.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
 #include <jansson.h>
 #include <sstream>
-
-static const ps_decay_t DEFAULT_DECAY = {
-    {.duration = 86400, .weight = 1},
-    {.duration = 604800, .weight = 0.5},
-    {.duration = 1209600, .weight = 0.25},
-};
-
-////
 
 json_t *ps_decay_frame_to_json(const ps_decay_frame_t &frame) {
   auto *obj = json_object();
@@ -29,20 +20,22 @@ ps_result_t<ps_decay_frame_t> ps_decay_frame_from_json(json_t *obj) {
   ps_decay_frame_t res;
   json_t *duration_j = json_object_get(obj, "duration");
   if (!duration_j) {
-    return ps_error(ps_decay_frame_duration_missing_t{});
+    return ps_error(ps_field_missing_t{.field = "duration"});
   }
   if (!json_is_integer(duration_j)) {
-    return ps_error(ps_decay_frame_duration_invalid_t{});
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "duration", .expected = "integer"});
   }
   res.duration = (int)json_integer_value(duration_j);
   json_t *weight_j = json_object_get(obj, "weight");
   if (!weight_j) {
-    return ps_error(ps_decay_weight_missing_t{});
+    return ps_error(ps_field_missing_t{.field = "weight"});
   }
-  if (!json_is_number(weight_j)) {
-    return ps_error(ps_decay_weight_invalid_t{});
+  if (!json_is_real(weight_j)) {
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "weight", .expected = "double"});
   }
-  res.weight = json_number_value(weight_j);
+  res.weight = json_real_value(weight_j);
   return res;
 }
 
@@ -75,79 +68,22 @@ ps_result_t<ps_decay_t> ps_decay_from_string(const std::string &expr) {
   while (std::getline(stream, token, ',')) {
     auto colon_pos = token.find(':');
     if (colon_pos == std::string::npos) {
-      return ps_error(ps_decay_string_parse_err_t{.expr = expr});
+      return ps_error(
+          ps_string_parse_err_t{.msg = "expected \":\" after \",\""});
     }
     auto duration_str = token.substr(0, colon_pos);
     auto weight_str = token.substr(colon_pos + 1);
     int duration;
     double weight;
-    if (!parse_int(duration_str, duration) ||
-        !parse_double(weight_str, weight)) {
-      return ps_error(ps_decay_string_parse_err_t{.expr = expr});
+    if (!parse_int(duration_str, duration)) {
+      return ps_error(
+          ps_field_type_mismatch_t{.field = "duration", .expected = "integer"});
+    }
+    if (!parse_double(weight_str, weight)) {
+      return ps_error(
+          ps_field_type_mismatch_t{.field = "weight", .expected = "double"});
     }
     res.push_back({.duration = duration, .weight = weight});
   }
-  if (res.empty()) {
-    return ps_error(ps_decay_string_parse_err_t{.expr = expr});
-  }
   return res;
-}
-
-ps_result_t<ps_success_t> ps_db_decay_set(const ps_decay_t &decay) {
-  auto *json_decay = ps_decay_to_json(decay);
-  char *decay_str = json_dumps(json_decay, 0);
-  json_decref(json_decay);
-  if (!decay_str) {
-    return ps_error(ps_json_pack_err_t{});
-  }
-
-  auto txn = flux_kvs_txn_create();
-  if (!txn) {
-    free(decay_str);
-    return ps_error(ps_flux_kvs_txn_create_err_t{.msg = strerror(errno)});
-  }
-  auto key = "priorisea.decay";
-  if (flux_kvs_txn_put(txn, 0, key, decay_str) < 0) {
-    free(decay_str);
-    return ps_error(ps_flux_kvs_txn_put_err_t{
-        .key = key, .value = decay_str, .msg = strerror(errno)});
-  }
-  free(decay_str);
-  return ps_flux_kvs_commit(txn);
-}
-
-ps_result_t<ps_decay_t> ps_db_decay_get() {
-  auto lookup_res = ps_flux_kvs_lookup("priorisea.decay");
-  if (!ps_is_ok(lookup_res)) {
-    return ps_forward_error<ps_decay_t>(
-        lookup_res, "No decay value stored. Did you run `priorisea init`?");
-  }
-  auto decay_str = ps_unwrap(lookup_res);
-
-  json_error_t json_err;
-  auto *json_decay = json_loads(decay_str.c_str(), 0, &json_err);
-  if (!json_decay) {
-    return ps_error(ps_json_unpack_err_t{.dumps = decay_str},
-                    "parsing stored decay value");
-  }
-
-  auto decay_res = ps_decay_from_json(json_decay);
-  json_decref(json_decay);
-  if (!ps_is_ok(decay_res)) {
-    return ps_add_context(decay_res, "parsing stored decay value");
-  }
-  return ps_unwrap(decay_res);
-}
-
-bool ps_db_is_decay() { return ps_is_ok(ps_db_decay_get()); }
-
-ps_result_t<ps_success_t> ps_db_decay_reset() {
-  return ps_db_decay_set(DEFAULT_DECAY);
-}
-
-ps_result_t<ps_success_t> ps_db_decay_init() {
-  if (!ps_db_is_decay()) {
-    return ps_db_decay_reset();
-  }
-  return ps_success_t{};
 }

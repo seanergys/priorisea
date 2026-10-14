@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include <cstdint>
 #include <cxxabi.h>
 #include <memory>
 #include <string>
@@ -48,6 +49,15 @@ bool parse_uid(const std::string &s, uid_t &out);
  * @return True if parsing was successful, false otherwise.
  */
 bool parse_double(const std::string &s, double &out);
+
+/**
+ * Parse a string into a uint64_t
+ *
+ * @param s The string to parse.
+ * @param out The output uint64_t variable to store the parsed value.
+ * @return True if parsing was successful, false otherwise.
+ */
+bool parse_uint64(const std::string &s, uint64_t &out);
 
 /**
  * Convert a username into a uid_t

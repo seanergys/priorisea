@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "util.hpp"
+#include "src/lib/util.hpp"
 #include <cmath>
 #include <pwd.h>
 #include <stdexcept>
@@ -48,6 +48,22 @@ bool parse_double(const std::string &s, double &out) {
       return false;
     }
     out = value;
+    return true;
+  } catch (const std::invalid_argument &) {
+    return false;
+  } catch (const std::out_of_range &) {
+    return false;
+  }
+}
+
+bool parse_uint64(const std::string &s, uint64_t &out) {
+  try {
+    size_t pos = 0;
+    unsigned long long value = std::stoull(s, &pos);
+    if (pos != s.size()) {
+      return false;
+    }
+    out = static_cast<uint64_t>(value);
     return true;
   } catch (const std::invalid_argument &) {
     return false;

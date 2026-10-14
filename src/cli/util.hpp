@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include "lib/error.hpp"
+#include "src/lib/types.hpp"
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -115,19 +115,4 @@ void ps_print_table_h(const std::vector<T> &rows,
   std::cout << std::endl;
 }
 
-/**
- * Prints an error message to the console.
- *
- * @param err The error to print.
- */
-void cli_error(const ps_error_t &err);
-
-/**
- * Prints an error message to the console.
- *
- * @param res The result to print.
- */
-template <typename T> void cli_error(const ps_result_t<T> &res) {
-  auto err = ps_unwrap_error(res);
-  cli_error(err);
-}
+void print_formula(const ps_formula_t &formula, bool json);

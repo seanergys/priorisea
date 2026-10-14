@@ -3,116 +3,45 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include "types.hpp"
-#include "util.hpp"
+#include "src/cli/endpoint/error.hpp"
+#include "src/daemon/endpoint/error.hpp"
+#include "src/database/error.hpp"
+#include "src/lib/types.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
 #include <iostream>
-#include <map>
 #include <string>
 #include <variant>
 #include <vector>
 
-//// generic
-
 using ps_success_t = std::monostate;
-struct ps_str_empty_t {};
-struct ps_parse_int_err_t {
-  std::string int_str;
-};
-struct ps_parse_uid_err_t {
-  std::string uid_str;
-};
-struct ps_parse_double_err_t {
-  std::string double_str;
-};
-struct ps_json_unpack_err_t {
-  std::string dumps;
-};
-struct ps_json_pack_err_t {};
-struct ps_unimplemented_err_t {};
-struct ps_no_file_err_t {
-  std::string path;
-};
-struct ps_user_not_found_err_t {
-  std::string name;
+
+struct ps_unexpected_err_t {
+  std::string msg;
 };
 
-//// flux
+struct ps_permissions_err_t {
+  std::string msg;
+};
 
 struct ps_flux_open_err_t {
-  std::string msg;
-};
-struct ps_flux_txn_create_err_t {
-  std::string msg;
-};
-struct ps_flux_future_get_err_t {
-  std::string msg;
-};
-struct ps_flux_kvs_commit_err_t {
-  std::string msg;
-};
-struct ps_flux_kvs_txn_create_err_t {
-  std::string msg;
-};
-struct ps_flux_kvs_txn_unlink_err_t {
-  std::string key;
-  std::string msg;
-};
-struct ps_flux_kvs_get_err_t {
-  std::string msg;
-};
-struct ps_flux_kvs_lookup_err_t {
-  std::string key;
-  std::string msg;
-};
-struct ps_flux_kvs_lookup_get_err_t {
-  std::string key;
-};
-struct ps_flux_rpc_get_unpack_err_t {
-  std::string msg;
+  std::string strerror;
 };
 struct ps_flux_rpc_err_t {
-  std::string msg;
-};
-struct ps_flux_rpc_pack_err_t {
-  std::string msg;
-};
-struct ps_flux_jobid_parse_err_t {
-  std::string jobid;
-  std::string msg;
-};
-struct ps_flux_job_list_id_err_t {
-  flux_jobid_t jobid;
-  std::string msg;
-};
-struct ps_flux_kvs_lookup_get_dir_err_t {
-  std::string key;
-  std::string msg;
-};
-struct ps_flux_kvsitr_create_err_t {
-  std::string key;
-  std::string msg;
-};
-struct ps_flux_kvs_txn_put_err_t {
-  std::string key;
-  std::string value;
-  std::string msg;
+  std::string strerror;
 };
 
-//// decay
-
-struct ps_decay_weight_missing_t {};
-struct ps_decay_weight_invalid_t {};
-struct ps_decay_frame_duration_missing_t {};
-struct ps_decay_frame_duration_invalid_t {};
-struct ps_decay_duration_invalid_t {
-  int value;
+struct ps_field_missing_t {
+  std::string field;
 };
-struct ps_decay_string_parse_err_t {
-  std::string expr;
+struct ps_field_type_mismatch_t {
+  std::string field;
+  std::string expected;
 };
 
-//// formula
+struct ps_string_parse_err_t {
+  std::string msg;
+};
 
 struct ps_formula_eval_err_t {
   ps_formula_t formula;
@@ -121,145 +50,32 @@ struct ps_formula_eval_err_t {
   // <= 0 means tinyexpr gave no usable position.
   int error_pos = 0;
   // The expression actually handed to tinyexpr, after variable substitution.
-  // error_pos indexes this string, not formula.expr.
+  // error_pos indexes this string.
   std::string compiled_expr;
 };
-struct ps_formula_name_missing_t {};
-struct ps_formula_name_invalid_t {
-  std::string name;
-};
-struct ps_formula_expr_missing_t {};
-struct ps_formula_expr_invalid_t {
-  std::string expr;
-};
-struct ps_formula_defaults_invalid_t {
-  std::string dump;
-};
-struct ps_formula_defaults_value_invalid_t {
-  std::string dump;
+
+struct ps_flux_jobid_parse_err_t {
+  std::string jobid;
+  std::string strerror;
 };
 
-//// timewin
-
-struct ps_timewin_name_missing_t {};
-struct ps_timewin_name_invalid_t {};
-struct ps_timewin_duration_missing_t {};
-struct ps_timewin_duration_invalid_t {};
-struct ps_timewin_cron_missing_t {};
-struct ps_timewin_cron_invalid_t {};
-struct ps_timewin_score_missing_t {};
-struct ps_timewin_score_invalid_t {};
-struct ps_timewin_score_parse_err_t {};
-struct ps_timewin_duration_parse_err_t {};
-struct ps_cron_parse_err_t {
-  std::string cron;
-};
-struct ps_timewin_neg_duration_t {
-  int duration;
-};
-
-//// job
-
-struct ps_job_jobid_missing_t {};
-struct ps_job_jobid_invalid_t {};
-struct ps_job_t_inactive_missing_t {};
-struct ps_job_t_inactive_invalid_t {};
-struct ps_job_score_missing_t {};
-struct ps_job_score_invalid_t {};
-struct ps_user_userid_missing_t {};
-struct ps_user_userid_invalid_t {};
-struct ps_user_score_missing_t {};
-struct ps_user_score_invalid_t {};
-
-//// score map
-
-struct ps_score_map_invalid_t {};
-struct ps_score_map_value_invalid_t {
-  std::string userid;
-};
-
-//// config
-
-struct ps_config_err_t {
-  std::string path;
-  std::string msg;
-};
-
-//// seanerbus
-
-struct ps_seanerbus_url_missing_t {};
-struct ps_seanerbus_url_invalid_t {};
-struct ps_seanerbus_resolve_err_t {
-  std::string service;
-};
-struct ps_seanerbus_err_t {
-  std::string service;
-  std::string msg;
-};
-struct ps_seanerbus_wrong_payload_err_t {
-  std::string service;
-};
-struct ps_seanerbus_decode_err_t {
-  std::string service;
-  std::string msg;
-};
-struct ps_seanerbus_connection_err_t {
-  ps_seanerbus_t seanerbus;
-  std::string msg;
-};
-struct ps_invalid_uuid_err_t {
-  std::string uuid;
-};
-struct ps_invalid_rpc_ns_err_t {
-  std::string expr;
+struct ps_access_denied_t {
+  std::string key;
 };
 
 ////
 
-using ps_error_kind_t = std::variant<
-    ps_str_empty_t, ps_parse_int_err_t, ps_parse_uid_err_t,
-    ps_parse_double_err_t, ps_json_unpack_err_t, ps_json_pack_err_t,
-    ps_unimplemented_err_t, ps_no_file_err_t, ps_user_not_found_err_t,
+using ps_error_kind_t =
+    std::variant<ps_unexpected_err_t, ps_permissions_err_t, ps_access_denied_t,
+                 ps_field_missing_t, ps_field_type_mismatch_t,
+                 ps_string_parse_err_t, ps_formula_eval_err_t,
+                 ps_flux_open_err_t, ps_flux_rpc_err_t,
+                 ps_flux_jobid_parse_err_t,
 
-    ps_flux_open_err_t, ps_flux_future_get_err_t, ps_flux_txn_create_err_t,
-    ps_flux_kvs_commit_err_t, ps_flux_kvs_txn_create_err_t,
-    ps_flux_kvs_txn_unlink_err_t, ps_flux_kvs_get_err_t,
-    ps_flux_kvs_lookup_err_t, ps_flux_kvs_lookup_get_err_t,
-    ps_flux_rpc_get_unpack_err_t, ps_flux_rpc_pack_err_t, ps_flux_rpc_err_t,
-    ps_flux_jobid_parse_err_t, ps_flux_job_list_id_err_t,
-    ps_flux_kvs_lookup_get_dir_err_t, ps_flux_kvsitr_create_err_t,
-    ps_flux_kvs_txn_put_err_t,
+                 ps_daemon_err_t, ps_plugin_err_t,
 
-    ps_decay_weight_missing_t, ps_decay_weight_invalid_t,
-    ps_decay_frame_duration_missing_t, ps_decay_frame_duration_invalid_t,
-    ps_decay_duration_invalid_t, ps_decay_string_parse_err_t,
-
-    ps_formula_expr_invalid_t, ps_formula_name_missing_t,
-    ps_formula_name_invalid_t, ps_formula_expr_missing_t,
-    ps_formula_defaults_invalid_t, ps_formula_defaults_value_invalid_t,
-    ps_formula_eval_err_t,
-
-    ps_timewin_name_missing_t, ps_timewin_name_invalid_t,
-    ps_timewin_duration_missing_t, ps_timewin_duration_invalid_t,
-    ps_timewin_cron_missing_t, ps_timewin_cron_invalid_t,
-    ps_timewin_score_missing_t, ps_timewin_score_invalid_t,
-    ps_timewin_score_parse_err_t, ps_timewin_duration_parse_err_t,
-    ps_cron_parse_err_t, ps_timewin_neg_duration_t,
-
-    ps_job_jobid_missing_t, ps_job_jobid_invalid_t, ps_job_t_inactive_missing_t,
-    ps_job_t_inactive_invalid_t, ps_job_score_missing_t, ps_job_score_invalid_t,
-    ps_user_userid_missing_t, ps_user_userid_invalid_t, ps_user_score_missing_t,
-    ps_user_score_invalid_t,
-
-    ps_score_map_invalid_t, ps_score_map_value_invalid_t,
-
-    ps_config_err_t,
-
-    ps_seanerbus_url_missing_t, ps_seanerbus_url_invalid_t,
-    ps_seanerbus_resolve_err_t, ps_seanerbus_err_t,
-    ps_seanerbus_wrong_payload_err_t, ps_seanerbus_decode_err_t,
-    ps_seanerbus_connection_err_t, ps_invalid_uuid_err_t,
-    ps_invalid_rpc_ns_err_t>;
+                 ps_db_not_found_t, ps_db_already_exist_err_t, ps_db_open_err_t,
+                 ps_db_version_mismatch_t, ps_db_query_err_t>;
 
 struct ps_error_t {
   std::vector<std::string> context;
@@ -363,6 +179,10 @@ template <typename T> std::string ps_error_message(const ps_result_t<T> &r) {
   return ps_error_message(err);
 }
 
+template <typename T> std::string ps_exit_error(const ps_result_t<T> &r) {
+  ps_exit_error(ps_unwrap_error(r));
+}
+
 /**
  * Creates an error result from an error kind and optional context.
  *
@@ -373,12 +193,29 @@ template <typename T> std::string ps_error_message(const ps_result_t<T> &r) {
 ps_error_t ps_error(ps_error_kind_t kind, std::string ctx = "");
 
 /**
+ * Returns the error message for each error kind.
+ *
+ * These overloads are declared here (not merely defined in error.cpp) so that
+ * call sites resolve to the specific message rather than implicitly widening
+ * the argument to the ps_error_kind_t variant overload.
+ */
+std::string ps_error_message(const ps_unexpected_err_t &err);
+std::string ps_error_message(const ps_access_denied_t &err);
+std::string ps_error_message(const ps_field_missing_t &err);
+std::string ps_error_message(const ps_field_type_mismatch_t &err);
+std::string ps_error_message(const ps_string_parse_err_t &err);
+std::string ps_error_message(const ps_formula_eval_err_t &err);
+std::string ps_error_message(const ps_flux_open_err_t &err);
+std::string ps_error_message(const ps_flux_rpc_err_t &err);
+std::string ps_error_message(const ps_flux_jobid_parse_err_t &err);
+
+/**
  * Returns the error message from an error kind.
  *
  * @param error The error kind.
  * @return The error message.
  */
-std::string ps_error_message_kind(const ps_error_kind_t &error);
+std::string ps_error_message(const ps_error_kind_t &error);
 
 /**
  * Returns the error message from an error result.
@@ -387,3 +224,5 @@ std::string ps_error_message_kind(const ps_error_kind_t &error);
  * @return The error message.
  */
 std::string ps_error_message(const ps_error_t &e);
+
+void ps_exit_error(const ps_error_t &e);
