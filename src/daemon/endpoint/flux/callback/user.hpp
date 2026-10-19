@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include <flux/core.h>
-#include <sqlite3.h>
-void ps_daemon_endpoint_flux_user_get(flux_t *h, const flux_msg_t *msg,
-                                      sqlite3 *db);
-void ps_daemon_endpoint_flux_user_list(flux_t *h, const flux_msg_t *msg,
-                                       sqlite3 *db);
-void ps_daemon_endpoint_flux_user_update(flux_t *h, const flux_msg_t *msg,
-                                         sqlite3 *db);
+#include "src/daemon/endpoint/flux/endpoint.hpp"
+
+int ps_daemon_endpoint_flux_user_get(
+    const ps_daemon_endpoint_flux_callback_args_t &args);
+int ps_daemon_endpoint_flux_user_list(
+    const ps_daemon_endpoint_flux_callback_args_t &args);
+int ps_daemon_endpoint_flux_user_update(
+    const ps_daemon_endpoint_flux_callback_args_t &args);

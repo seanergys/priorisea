@@ -21,7 +21,7 @@ void ps_daemon_run(const ps_daemon_config_t &config) {
   if (!ps_is_ok(verify_res)) {
     ps_exit_error(verify_res);
   }
-  auto run_res = ps_daemon_endpoint_flux_run(db, config.seanerbus_path);
+  auto run_res = ps_daemon_endpoint_flux_run(db, config.seanerbus_url);
   if (!ps_is_ok(run_res)) {
     ps_exit_error(run_res);
   }

@@ -62,40 +62,7 @@ struct ps_decay_frame_t {
  */
 typedef std::vector<ps_decay_frame_t> ps_decay_t;
 
-/**
- * Represents detailed information about a Flux job.
- */
-struct ps_flux_job_info_t {
-  flux_jobid_t id;
-  int userid;
-  int urgency;
-  int priority;
-  double t_submit;
-  double t_depend;
-  double t_run;
-  double t_cleanup;
-  double t_inactive;
-  int state;
-  std::string name;
-  std::string cwd;
-  int ntasks;
-  int ncores;
-  double duration;
-  int nnodes;
-  std::string ranks;
-  std::string nodelist;
-  bool success;
-  bool exception_occured;
-  // std::string exception_type;
-  // int exception_severity;
-  // std::string exception_note;
-  int result;
-  double expiration;
-  // json_t annotations;
-  // int waitstatus;
-};
-
 struct ps_daemon_config_t {
   std::string database_path;
-  std::string seanerbus_path;
+  std::string seanerbus_url;
 };

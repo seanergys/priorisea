@@ -94,11 +94,21 @@ static void register_list_command(CLI::App *app) {
   list_cmd->set_help_flag("-h,--help", "Show help for list command");
   struct options {
     std::vector<std::string> jobids;
+    std::string format;
+    int limit;
     bool json;
   };
   auto opts = std::make_shared<options>();
   list_cmd->add_option("jobids", opts->jobids, "Job IDs (optional)");
   list_cmd->add_flag("-j,--json", opts->json, "Output JSON");
+  list_cmd->add_option("-f,--format", opts->format, "Job IDs output format")
+      ->check(CLI::IsMember(
+          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}))
+      ->default_val("f58");
+  list_cmd
+      ->add_option("-n,--limit", opts->limit,
+                   "Limit the output to N items")
+      ->default_val(0);
   list_cmd->callback([opts] {
     auto list_res = ps_cli_endpoint_flux_job_list(opts->jobids);
     if (!ps_is_ok(list_res)) {
@@ -108,10 +118,29 @@ static void register_list_command(CLI::App *app) {
   });
 }
 
+static void register_update_command(CLI::App *app) {
+  auto *update_cmd = app->add_subcommand("update", "Update jobs");
+  update_cmd->set_help_flag("-h,--help", "Show help for list command");
+  struct options {
+    std::vector<std::string> jobids;
+    bool _new;
+  };
+  auto opts = std::make_shared<options>();
+  update_cmd->add_option("jobids", opts->jobids, "Job IDs (optional)");
+  update_cmd->add_flag("-n,--new", opts->_new, "Update new jobs");
+  update_cmd->callback([opts] {
+    auto update_res = ps_cli_endpoint_flux_job_update(opts->jobids, opts->_new);
+    if (!ps_is_ok(update_res)) {
+      ps_exit_error(update_res);
+    }
+  });
+}
+
 void register_job_commands(CLI::App *app) {
   auto *job_cmd = app->add_subcommand("job", "Manage jobs");
   job_cmd->require_subcommand(true);
   job_cmd->set_help_flag("-h,--help", "Show help for job commands");
   register_get_command(job_cmd);
   register_list_command(job_cmd);
+  register_update_command(job_cmd);
 }

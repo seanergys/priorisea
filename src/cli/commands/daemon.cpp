@@ -21,7 +21,7 @@ static void register_start_command(CLI::App *app) {
   start_cmd->add_option("path", opts->config.database_path, "Path to database")
       ->default_val(DATABASE_PATH_DEFAULT);
   start_cmd
-      ->add_option("-s,--seanerbus", opts->config.seanerbus_path,
+      ->add_option("-s,--seanerbus", opts->config.seanerbus_url,
                    "SeanerBUS endpoint")
       ->default_str(SEANERBUS_ENDPOINT_DEFAULT);
   start_cmd->add_flag("-b,--background", opts->background, "Run in background");

@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#include <flux/core.h>
-#include <sqlite3.h>
-void ps_daemon_endpoint_flux_timewin_get(flux_t *h, const flux_msg_t *msg,
-                                         sqlite3 *db);
-void ps_daemon_endpoint_flux_timewin_list(flux_t *h, const flux_msg_t *msg,
-                                          sqlite3 *db);
-void ps_daemon_endpoint_flux_timewin_update(flux_t *h, const flux_msg_t *msg,
-                                            sqlite3 *db);
-void ps_daemon_endpoint_flux_timewin_create(flux_t *h, const flux_msg_t *msg,
-                                            sqlite3 *db);
-void ps_daemon_endpoint_flux_timewin_delete(flux_t *h, const flux_msg_t *msg,
-                                            sqlite3 *db);
+#include "src/daemon/endpoint/flux/endpoint.hpp"
+
+int ps_daemon_endpoint_flux_timewin_get(
+    const ps_daemon_endpoint_flux_callback_args_t &args);
+int ps_daemon_endpoint_flux_timewin_list(
+    const ps_daemon_endpoint_flux_callback_args_t &args);
+int ps_daemon_endpoint_flux_timewin_update(
+    const ps_daemon_endpoint_flux_callback_args_t &args);
+int ps_daemon_endpoint_flux_timewin_create(
+    const ps_daemon_endpoint_flux_callback_args_t &args);
+int ps_daemon_endpoint_flux_timewin_delete(
+    const ps_daemon_endpoint_flux_callback_args_t &args);

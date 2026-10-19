@@ -28,6 +28,13 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, std::string username);
 ps_result_t<ps_success_t>
 ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs);
 
+// Atomically stores the job scores and advances the t_inactive cursor in a
+// single transaction: either both commit or both roll back, so the jobs table
+// and the cursor can never diverge.
+ps_result_t<ps_success_t>
+ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
+                      double t_inactive);
+
 ps_result_t<ps_success_t> ps_db_sqlite_job_set(sqlite3 *db,
                                                const ps_job_t &job);
 

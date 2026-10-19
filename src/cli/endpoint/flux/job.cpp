@@ -86,3 +86,39 @@ ps_cli_endpoint_flux_job_list(const std::vector<std::string> &jobids) {
   flux_close(h);
   return jobs;
 }
+
+ps_result_t<ps_success_t>
+ps_cli_endpoint_flux_job_update(const std::vector<std::string> &jobids,
+                                bool _new) {
+  auto h = flux_open(NULL, 0);
+  if (!h) {
+    return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
+  }
+
+  flux_future_t *f;
+  if (jobids.empty()) {
+    f = flux_rpc_pack(h, "priorisea.daemon.job.update", FLUX_NODEID_ANY, 0,
+                      "{s:{s:b}}", "data", "new", _new);
+  } else {
+    json_t *data = json_array();
+    for (const auto &jobid : jobids) {
+      json_array_append_new(data, json_string(jobid.c_str()));
+    }
+    f = flux_rpc_pack(h, "priorisea.daemon.job.update", FLUX_NODEID_ANY, 0,
+                      "{s:{s:b s:O}}", "data", "new", _new, "jobids", data);
+    json_decref(data);
+  }
+  if (!f) {
+    flux_close(h);
+    return ps_error(ps_flux_rpc_err_t{.strerror = strerror(errno)});
+  }
+
+  if (flux_rpc_get(f, NULL) < 0) {
+    auto err = ps_cli_endpoint_unpack_err(f);
+    flux_future_destroy(f);
+    flux_close(h);
+    return ps_error(err);
+  }
+
+  return ps_success_t{};
+}

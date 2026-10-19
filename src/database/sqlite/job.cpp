@@ -257,6 +257,82 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
   return ps_success_t{};
 }
 
+ps_result_t<ps_success_t>
+ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
+                      double t_inactive) {
+  auto rollback = [&] {
+    sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+  };
+
+  if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
+    return ps_error(
+        ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+  }
+
+  auto sql = "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score) "
+             "VALUES (?, ?, ?, ?);";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    rollback();
+    return ps_error(
+        ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+  }
+  for (const auto &job : jobs) {
+    if (sqlite3_bind_text(stmt, 1, std::to_string(job.jobid).c_str(), -1,
+                          SQLITE_TRANSIENT) != SQLITE_OK ||
+        sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
+        sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
+        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
+      sqlite3_finalize(stmt);
+      rollback();
+      return ps_error(
+          ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+    }
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+      sqlite3_finalize(stmt);
+      rollback();
+      return ps_error(
+          ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+    }
+    sqlite3_clear_bindings(stmt);
+    sqlite3_reset(stmt);
+  }
+  sqlite3_finalize(stmt);
+
+  // Advance the t_inactive cursor in the same transaction as the jobs, so the
+  // two can never diverge: if the cursor write fails the job writes roll back,
+  // and if a job write fails the cursor is never advanced.
+  auto info_sql = "INSERT OR REPLACE INTO database_info (id, t_inactive) "
+                  "VALUES (1, ?);";
+  sqlite3_stmt *info_stmt = nullptr;
+  if (sqlite3_prepare_v2(db, info_sql, -1, &info_stmt, nullptr) != SQLITE_OK) {
+    rollback();
+    return ps_error(ps_db_query_err_t{.query = info_sql,
+                                      .message = sqlite3_errmsg(db)});
+  }
+  if (sqlite3_bind_double(info_stmt, 1, t_inactive) != SQLITE_OK) {
+    sqlite3_finalize(info_stmt);
+    rollback();
+    return ps_error(ps_db_query_err_t{.query = info_sql,
+                                      .message = sqlite3_errmsg(db)});
+  }
+  if (sqlite3_step(info_stmt) != SQLITE_DONE) {
+    sqlite3_finalize(info_stmt);
+    rollback();
+    return ps_error(ps_db_query_err_t{.query = info_sql,
+                                      .message = sqlite3_errmsg(db)});
+  }
+  sqlite3_finalize(info_stmt);
+
+  if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+    rollback();
+    return ps_error(
+        ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+  }
+
+  return ps_success_t{};
+}
+
 ps_result_t<ps_success_t> ps_db_sqlite_job_set(sqlite3 *db,
                                                const ps_job_t &job) {
   return ps_db_sqlite_jobs_set(db, {job});

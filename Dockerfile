@@ -134,19 +134,18 @@ RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON && \
 RUN dnf install -y \
     catch2-devel \
     cli11-devel
-
-FROM base
-
-ARG ENABLE_COVERAGE=0
-
-#
-# Build priorisea
-#
 WORKDIR /app
 COPY . .
 RUN if [ -d .git ]; then \
       git submodule update --init --recursive; \
     fi
+
+FROM base
+ARG ENABLE_COVERAGE=0
+
+#
+# Build priorisea
+#
 RUN if [ "$ENABLE_COVERAGE" = "1" ] || [ "$ENABLE_COVERAGE" = "true" ]; then \
         COVERAGE=ON; \
     else \

@@ -17,12 +17,13 @@
 
 struct ps_daemon_endpoint_flux_t {
   const char *topic;
-  void (*handle)(flux_t *h, const flux_msg_t *msg, sqlite3 *db);
+  int (*handle)(const ps_daemon_endpoint_flux_callback_args_t &);
 };
 
-struct ps_daemon_endpoint_flux_arg_t {
-  void (*handle)(flux_t *h, const flux_msg_t *msg, sqlite3 *db);
+struct ps_daemon_endpoint_flux_args_t {
+  int (*handle)(const ps_daemon_endpoint_flux_callback_args_t &);
   sqlite3 *db;
+  std::string seanerbus_url;
 };
 
 static const std::vector<ps_daemon_endpoint_flux_t> endpoints = {
@@ -67,21 +68,23 @@ static void ps_daemon_endpoint_flux_dispatch_cb(flux_t *h,
   (void)mh;
   const char *topic = nullptr;
   flux_msg_get_topic(msg, &topic);
-  const auto *ep = static_cast<const ps_daemon_endpoint_flux_arg_t *>(arg);
-  ep->handle(h, msg, ep->db);
+  const auto *ep = static_cast<const ps_daemon_endpoint_flux_args_t *>(arg);
+  auto args = ps_daemon_endpoint_flux_callback_args_t{
+      .h = h, .msg = msg, .db = ep->db, .seanerbus_url = ep->seanerbus_url};
+  ep->handle(args);
 }
 
 static std::vector<flux_msg_handler_t *>
 ps_daemon_endpoint_flux_create_handlers(
     flux_t *handle, const std::vector<ps_daemon_endpoint_flux_t> &endpoints,
     bool priviledged, sqlite3 *db) {
-  static std::deque<ps_daemon_endpoint_flux_arg_t> args;
+  static std::deque<ps_daemon_endpoint_flux_args_t> args;
   std::vector<flux_msg_handler_t *> res;
   for (const auto &ep : endpoints) {
     auto match =
         flux_match_init(FLUX_MSGTYPE_REQUEST, FLUX_MATCHTAG_NONE, ep.topic);
     args.push_back(
-        ps_daemon_endpoint_flux_arg_t{.handle = ep.handle, .db = db});
+        ps_daemon_endpoint_flux_args_t{.handle = ep.handle, .db = db});
     auto *mh = flux_msg_handler_create(
         handle, match, ps_daemon_endpoint_flux_dispatch_cb, &args.back());
     if (!mh) {
@@ -105,11 +108,6 @@ ps_result_t<ps_success_t> ps_daemon_endpoint_flux_run(sqlite3 *db,
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
   }
 
-  // The broker only routes client RPCs to this handle once the service is
-  // registered; without it every request is answered ENOSYS regardless of the
-  // message handlers below. Flux service names are a single topic word (no
-  // dots) and routing matches the first word of the topic, so register the
-  // leading "priorisea" shared by every "priorisea.daemon.*" handler topic.
   auto *f = flux_service_register(h, "priorisea");
   if (!f) {
     auto err = "flux service register failed: " + std::string(strerror(errno));
