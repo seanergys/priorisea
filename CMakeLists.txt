@@ -116,6 +116,7 @@ add_executable(priorisea
   src/cli/endpoint/util.cpp
   src/cli/endpoint/flux/decay.cpp
   src/cli/endpoint/flux/formula.cpp
+  src/cli/endpoint/flux/info.cpp
   src/cli/endpoint/flux/job.cpp
   src/cli/endpoint/flux/plugin.cpp
   src/cli/endpoint/flux/timewin.cpp
@@ -126,6 +127,7 @@ add_executable(priorisea
   src/daemon/endpoint/flux/endpoint.cpp
   src/daemon/endpoint/flux/callback/decay.cpp
   src/daemon/endpoint/flux/callback/formula.cpp
+  src/daemon/endpoint/flux/callback/info.cpp
   src/daemon/endpoint/flux/callback/job.cpp
   src/daemon/endpoint/flux/callback/plugin.cpp
   src/daemon/endpoint/flux/callback/timewin.cpp

@@ -51,7 +51,7 @@ static void register_sync_command(CLI::App *app) {
 }
 
 static void register_debug_command(CLI::App *app) {
-  auto *debug_cmd = app->add_subcommand("debug", "Debug help for plugin");
+  auto *debug_cmd = app->add_subcommand("debug", "Debug print for plugin");
   debug_cmd->set_help_flag("-h,--help", "Show help for debug command");
   bool json;
   debug_cmd->add_flag("-j,--json", json, "Output JSON");

@@ -34,7 +34,7 @@ struct ps_formula_t {
  * Represents a job with its associated information.
  */
 struct ps_job_t {
-  flux_jobid_t jobid;
+  std::string jobid;
   uid_t userid;
   double t_inactive;
   double score;

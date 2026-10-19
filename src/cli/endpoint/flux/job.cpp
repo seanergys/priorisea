@@ -10,13 +10,16 @@
 #include <jansson.h>
 #include <string>
 
-ps_result_t<ps_job_t> ps_cli_endpoint_flux_job_get(const std::string &jobid) {
+ps_result_t<ps_job_t> ps_cli_endpoint_flux_job_get(const std::string &jobid,
+                                                   const std::string &format) {
   auto h = flux_open(NULL, 0);
   if (!h) {
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
   }
+  // The requested job-id format is always forwarded to the daemon.
   auto *f = flux_rpc_pack(h, "priorisea.daemon.job.get", FLUX_NODEID_ANY, 0,
-                          "{s:s}", "data", jobid.c_str());
+                          "{s:s s:s}", "data", jobid.c_str(), "format",
+                          format.c_str());
   if (!f) {
     flux_close(h);
     return ps_error(ps_flux_rpc_err_t{.strerror = strerror(errno)});
@@ -36,7 +39,8 @@ ps_result_t<ps_job_t> ps_cli_endpoint_flux_job_get(const std::string &jobid) {
 }
 
 ps_result_t<std::vector<ps_job_t>>
-ps_cli_endpoint_flux_job_list(const std::vector<std::string> &jobids) {
+ps_cli_endpoint_flux_job_list(const std::vector<std::string> &jobids,
+                              const std::string &format, int limit) {
   auto h = flux_open(NULL, 0);
   if (!h) {
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
@@ -45,15 +49,16 @@ ps_cli_endpoint_flux_job_list(const std::vector<std::string> &jobids) {
   flux_future_t *f;
   if (jobids.empty()) {
     // No parameter: request the entire list
-    // An empty object is sent
-    f = flux_rpc_pack(h, "priorisea.daemon.job.list", FLUX_NODEID_ANY, 0, "{}");
+    f = flux_rpc_pack(h, "priorisea.daemon.job.list", FLUX_NODEID_ANY, 0,
+                      "{s:s s:i}", "format", format.c_str(), "limit", limit);
   } else {
     json_t *data = json_array();
     for (const auto &jobid : jobids) {
       json_array_append_new(data, json_string(jobid.c_str()));
     }
     f = flux_rpc_pack(h, "priorisea.daemon.job.list", FLUX_NODEID_ANY, 0,
-                      "{s:O}", "data", data);
+                      "{s:O s:s s:i}", "data", data, "format", format.c_str(),
+                      "limit", limit);
     json_decref(data);
   }
   if (!f) {

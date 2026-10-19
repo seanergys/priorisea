@@ -54,6 +54,17 @@ struct ps_flux_job_t {
   // int waitstatus;
 };
 
+static ps_result_t<bool> ps_flux_job_ok(json_t *job_json) {
+  bool exception_occurred;
+  if (json_unpack(job_json, "{s:b}", "exception_occurred",
+                  &exception_occurred) < 0) {
+    return ps_error(
+        ps_unexpected_err_t{.msg = "Failed to unpack exception_occurred: " +
+                                   std::string(json_dumps(job_json, 0))});
+  }
+  return !exception_occurred;
+}
+
 static ps_result_t<ps_flux_job_t> ps_flux_job_unpack(json_t *job_json) {
   ps_flux_job_t job;
   const char *name, *cwd, *ranks, *nodelist;
@@ -126,6 +137,15 @@ ps_flux_list_inactive_jobs(double since) {
     size_t index;
     json_t *value;
     json_array_foreach(jobs, index, value) {
+      auto ok_res = ps_flux_job_ok(value);
+      if (!ps_is_ok(ok_res)) {
+        return ps_forward_error<ps_flux_list_inactive_jobs_t>(ok_res);
+      }
+      auto ok = ps_unwrap(ok_res);
+      if (!ok) {
+        continue;
+      }
+
       auto job_res = ps_flux_job_unpack(value);
       if (!ps_is_ok(job_res)) {
         return ps_forward_error<ps_flux_list_inactive_jobs_t>(job_res);
@@ -167,6 +187,16 @@ ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids) {
       flux_future_destroy(f);
       return ps_error(ps_flux_rpc_err_t{.strerror = strerror(errno)});
     }
+
+    auto ok_res = ps_flux_job_ok(value);
+    if (!ps_is_ok(ok_res)) {
+      return ps_forward_error<std::vector<ps_flux_job_t>>(ok_res);
+    }
+    auto ok = ps_unwrap(ok_res);
+    if (!ok) {
+      continue;
+    }
+
     auto job_res = ps_flux_job_unpack(value);
     if (!ps_is_ok(job_res)) {
       return ps_forward_error<std::vector<ps_flux_job_t>>(job_res);
@@ -357,11 +387,29 @@ static ps_result_t<double> ps_job_score_compute(
   return ps_unwrap(eval_res);
 }
 
+static ps_result_t<std::string>
+ps_flux_jobid_format(const std::string &jobid_str, const std::string &format) {
+  flux_jobid_t id;
+  if (flux_job_id_parse(jobid_str.c_str(), &id) != 0) {
+    return ps_error(ps_flux_jobid_parse_err_t{.jobid = jobid_str,
+                                              .strerror = strerror(errno)});
+  }
+  char buf[256];
+  if (flux_job_id_encode(id, format.c_str(), buf, sizeof(buf)) != 0) {
+    return ps_error(ps_unexpected_err_t{.msg = "Failed to format job id '" +
+                                               jobid_str + "' as '" + format +
+                                               "': " + strerror(errno)});
+  }
+  return std::string(buf);
+}
+
 int ps_daemon_endpoint_flux_job_get(
     const ps_daemon_endpoint_flux_callback_args_t &args) {
-  // Retrieve the job id from the payload
+  // Retrieve the job id and the requested id format from the payload.
   const char *jobid_str;
-  if (flux_request_unpack(args.msg, NULL, "{s:s}", "data", &jobid_str) < 0) {
+  const char *format;
+  if (flux_request_unpack(args.msg, NULL, "{s:s s:s}", "data", &jobid_str,
+                          "format", &format) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
@@ -400,6 +448,14 @@ int ps_daemon_endpoint_flux_job_get(
                               ps_error_message(err).c_str());
   }
 
+  // Render the id in the requested format before returning.
+  auto fmt_res = ps_flux_jobid_format(job.jobid, format);
+  if (!ps_is_ok(fmt_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(fmt_res).c_str());
+  }
+  job.jobid = ps_unwrap(fmt_res);
+
   return flux_respond_pack(args.h, args.msg, "{s:o}", "data",
                            ps_job_to_json(job));
 }
@@ -417,9 +473,13 @@ int ps_daemon_endpoint_flux_job_list(
   }
   auto is_owner = (rolemask & FLUX_ROLE_OWNER) != 0;
 
-  // Retrieve the optional array of job ids from the payload
+  // Retrieve the array of job ids (optional: empty means list all), the
+  // requested id format, and the row limit from the payload.
   json_t *data_json = nullptr;
-  if (flux_request_unpack(args.msg, NULL, "{s?o}", "data", &data_json) < 0) {
+  const char *format;
+  int limit;
+  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i}", "data", &data_json,
+                          "format", &format, "limit", &limit) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
@@ -427,13 +487,15 @@ int ps_daemon_endpoint_flux_job_list(
 
   std::vector<ps_job_t> jobs;
   if (data_json == nullptr) {
-    // No parameter: return the authorized list
+    // No parameter: return the authorized list, capped at `limit` rows
+    // (limit <= 0 means no cap).
+    size_t limit_entries = limit > 0 ? static_cast<size_t>(limit) : SIZE_MAX;
     ps_result_t<std::vector<ps_job_t>> list_res;
     if (is_owner) {
-      list_res = ps_db_sqlite_jobs_list(args.db, SIZE_MAX);
+      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries);
     } else {
       // Non-owners only see their own jobs
-      list_res = ps_db_sqlite_jobs_list(args.db, SIZE_MAX, userid);
+      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, userid);
     }
     if (!ps_is_ok(list_res)) {
       return flux_respond_error(args.h, args.msg, 0,
@@ -489,13 +551,22 @@ int ps_daemon_endpoint_flux_job_list(
       auto job = ps_unwrap(job_res);
       // Non-owners can only see their own jobs
       if (!is_owner && job.userid != static_cast<uid_t>(userid)) {
-        auto err =
-            ps_access_denied_t{.key = "job." + std::to_string(job.jobid)};
+        auto err = ps_access_denied_t{.key = "job." + job.jobid};
         return flux_respond_error(args.h, args.msg, 0,
                                   ps_error_message(err).c_str());
       }
       jobs.push_back(job);
     }
+  }
+
+  // Render every job id in the requested format before returning
+  for (auto &job : jobs) {
+    auto fmt_res = ps_flux_jobid_format(job.jobid, format);
+    if (!ps_is_ok(fmt_res)) {
+      return flux_respond_error(args.h, args.msg, 0,
+                                ps_error_message(fmt_res).c_str());
+    }
+    job.jobid = ps_unwrap(fmt_res);
   }
 
   // Return as an array of jobs
@@ -613,7 +684,7 @@ int ps_daemon_endpoint_flux_job_update(
                                 ps_error_message(score_res).c_str());
     }
     auto uid = static_cast<uid_t>(job.userid);
-    _jobs.push_back({.jobid = jobid,
+    _jobs.push_back({.jobid = std::to_string(jobid),
                      .userid = uid,
                      .t_inactive = job.t_inactive,
                      .score = ps_unwrap(score_res)});

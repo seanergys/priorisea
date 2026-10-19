@@ -29,10 +29,7 @@ static void print_job(const ps_job_t &job, bool json) {
   }
   ps_print_table_v(
       std::vector<ps_job_t>{job},
-      {{"Job ID",
-        [](auto &j, auto) {
-          return std::to_string(static_cast<uint64_t>(j.jobid));
-        }},
+      {{"Job ID", [](auto &j, auto) { return j.jobid; }},
        {"User ID",
         [](auto &j, auto) {
           return std::to_string(static_cast<uint64_t>(j.userid));
@@ -57,10 +54,7 @@ static void print_jobs(const std::vector<ps_job_t> &jobs, bool json) {
     return;
   }
   ps_print_table_v(
-      jobs, {{"Job ID",
-              [](auto &j, auto) {
-                return std::to_string(static_cast<uint64_t>(j.jobid));
-              }},
+      jobs, {{"Job ID", [](auto &j, auto) { return j.jobid; }},
              {"User ID",
               [](auto &j, auto) {
                 return std::to_string(static_cast<uint64_t>(j.userid));
@@ -75,13 +69,18 @@ static void register_get_command(CLI::App *app) {
   get_cmd->set_help_flag("-h,--help", "Show help for get command");
   struct options {
     std::string jobid;
+    std::string format;
     bool json;
   };
   auto opts = std::make_shared<options>();
   get_cmd->add_option("jobid", opts->jobid, "Job ID")->required(true);
   get_cmd->add_flag("-j,--json", opts->json, "Output JSON");
+  get_cmd->add_option("-f,--format", opts->format, "Job ID output format")
+      ->required(true)
+      ->check(CLI::IsMember(
+          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}));
   get_cmd->callback([opts] {
-    auto get_res = ps_cli_endpoint_flux_job_get(opts->jobid);
+    auto get_res = ps_cli_endpoint_flux_job_get(opts->jobid, opts->format);
     if (!ps_is_ok(get_res)) {
       ps_exit_error(get_res);
     }
@@ -102,15 +101,14 @@ static void register_list_command(CLI::App *app) {
   list_cmd->add_option("jobids", opts->jobids, "Job IDs (optional)");
   list_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   list_cmd->add_option("-f,--format", opts->format, "Job IDs output format")
+      ->required(true)
       ->check(CLI::IsMember(
-          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}))
-      ->default_val("f58");
-  list_cmd
-      ->add_option("-n,--limit", opts->limit,
-                   "Limit the output to N items")
-      ->default_val(0);
+          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}));
+  list_cmd->add_option("-n,--limit", opts->limit, "Limit the output to N items")
+      ->required(true);
   list_cmd->callback([opts] {
-    auto list_res = ps_cli_endpoint_flux_job_list(opts->jobids);
+    auto list_res =
+        ps_cli_endpoint_flux_job_list(opts->jobids, opts->format, opts->limit);
     if (!ps_is_ok(list_res)) {
       ps_exit_error(list_res);
     }

@@ -5,6 +5,7 @@
 #include "src/daemon/endpoint/flux/endpoint.hpp"
 #include "src/daemon/endpoint/flux/callback/decay.hpp"
 #include "src/daemon/endpoint/flux/callback/formula.hpp"
+#include "src/daemon/endpoint/flux/callback/info.hpp"
 #include "src/daemon/endpoint/flux/callback/job.hpp"
 #include "src/daemon/endpoint/flux/callback/plugin.hpp"
 #include "src/daemon/endpoint/flux/callback/timewin.hpp"
@@ -42,6 +43,7 @@ static const std::vector<ps_daemon_endpoint_flux_t> endpoints_priviledged = {
     {"priorisea.daemon.decay.reset", ps_daemon_endpoint_flux_decay_reset},
     {"priorisea.daemon.formula.update", ps_daemon_endpoint_flux_formula_update},
     {"priorisea.daemon.formula.reset", ps_daemon_endpoint_flux_formula_reset},
+    {"priorisea.daemon.info.get", ps_daemon_endpoint_flux_info_get},
     {"priorisea.daemon.job.update", ps_daemon_endpoint_flux_job_update},
     {"priorisea.daemon.plugin.sync", ps_daemon_endpoint_flux_plugin_sync},
     {"priorisea.daemon.plugin.debug", ps_daemon_endpoint_flux_plugin_debug},

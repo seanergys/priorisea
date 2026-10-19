@@ -62,7 +62,7 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids) {
       continue;
     }
     res[id] =
-        ps_job_t{.jobid = id,
+        ps_job_t{.jobid = id_str,
                  .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
                  .t_inactive = sqlite3_column_double(stmt, 2),
                  .score = sqlite3_column_double(stmt, 3)};
@@ -103,13 +103,8 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
   std::vector<ps_job_t> res;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-    uint64_t id;
-    if (!parse_uint64(id_str, id)) {
-      // If the id cannot be parsed, skip this row
-      continue;
-    }
     res.push_back(ps_job_t{
-        .jobid = id,
+        .jobid = id_str ? id_str : "",
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
@@ -144,13 +139,8 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid) {
   std::vector<ps_job_t> res;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-    uint64_t id;
-    if (!parse_uint64(id_str, id)) {
-      // If the id cannot be parsed, skip this row
-      continue;
-    }
     res.push_back(ps_job_t{
-        .jobid = id,
+        .jobid = id_str ? id_str : "",
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
@@ -187,13 +177,8 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, std::string username) {
   std::vector<ps_job_t> res;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-    uint64_t id;
-    if (!parse_uint64(id_str, id)) {
-      // If the id cannot be parsed, skip this row
-      continue;
-    }
     res.push_back(ps_job_t{
-        .jobid = id,
+        .jobid = id_str ? id_str : "",
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
@@ -227,8 +212,8 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    if (sqlite3_bind_text(stmt, 1, std::to_string(job.jobid).c_str(), -1,
-                          SQLITE_TRANSIENT) != SQLITE_OK ||
+    if (sqlite3_bind_text(stmt, 1, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
+            SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
@@ -278,8 +263,8 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    if (sqlite3_bind_text(stmt, 1, std::to_string(job.jobid).c_str(), -1,
-                          SQLITE_TRANSIENT) != SQLITE_OK ||
+    if (sqlite3_bind_text(stmt, 1, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
+            SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
@@ -307,20 +292,20 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
   sqlite3_stmt *info_stmt = nullptr;
   if (sqlite3_prepare_v2(db, info_sql, -1, &info_stmt, nullptr) != SQLITE_OK) {
     rollback();
-    return ps_error(ps_db_query_err_t{.query = info_sql,
-                                      .message = sqlite3_errmsg(db)});
+    return ps_error(
+        ps_db_query_err_t{.query = info_sql, .message = sqlite3_errmsg(db)});
   }
   if (sqlite3_bind_double(info_stmt, 1, t_inactive) != SQLITE_OK) {
     sqlite3_finalize(info_stmt);
     rollback();
-    return ps_error(ps_db_query_err_t{.query = info_sql,
-                                      .message = sqlite3_errmsg(db)});
+    return ps_error(
+        ps_db_query_err_t{.query = info_sql, .message = sqlite3_errmsg(db)});
   }
   if (sqlite3_step(info_stmt) != SQLITE_DONE) {
     sqlite3_finalize(info_stmt);
     rollback();
-    return ps_error(ps_db_query_err_t{.query = info_sql,
-                                      .message = sqlite3_errmsg(db)});
+    return ps_error(
+        ps_db_query_err_t{.query = info_sql, .message = sqlite3_errmsg(db)});
   }
   sqlite3_finalize(info_stmt);
 
@@ -362,8 +347,8 @@ ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    if (sqlite3_bind_text(stmt, 1, std::to_string(job.jobid).c_str(), -1,
-                          SQLITE_TRANSIENT) != SQLITE_OK ||
+    if (sqlite3_bind_text(stmt, 1, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
+            SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
@@ -376,8 +361,7 @@ ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
       sqlite3_finalize(stmt);
       rollback();
       if (ps_db_sqlite_is_constraint(db)) {
-        return ps_error(ps_db_already_exist_err_t{
-            .key = "job." + std::to_string(job.jobid)});
+        return ps_error(ps_db_already_exist_err_t{.key = "job." + job.jobid});
       }
       return ps_error(
           ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
@@ -428,8 +412,8 @@ ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
     if (sqlite3_bind_int(stmt, 1, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 2, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.score) != SQLITE_OK ||
-        sqlite3_bind_text(stmt, 4, std::to_string(job.jobid).c_str(), -1,
-                          SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_bind_text(stmt, 4, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
+            SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
       return ps_error(
@@ -444,8 +428,7 @@ ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
     if (sqlite3_changes(db) == 0) {
       sqlite3_finalize(stmt);
       rollback();
-      return ps_error(
-          ps_db_not_found_t{.key = "job." + std::to_string(job.jobid)});
+      return ps_error(ps_db_not_found_t{.key = "job." + job.jobid});
     }
     sqlite3_clear_bindings(stmt);
     sqlite3_reset(stmt);
