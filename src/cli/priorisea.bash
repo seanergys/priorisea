@@ -19,7 +19,7 @@ _priorisea() {
     esac
 
     if [ "$cword" -eq 1 ]; then
-        COMPREPLY=( $(compgen -W "daemon database decay formula job plugin timewin user --help" -- "$cur") )
+        COMPREPLY=( $(compgen -W "daemon database formula job plugin timewin user --help" -- "$cur") )
         return 0
     fi
 
@@ -38,17 +38,6 @@ _priorisea() {
                 return 0
             fi
             COMPREPLY=( $(compgen -W "--help" -- "$cur") )
-            return 0
-            ;;
-        decay)
-            if [ "$cword" -eq 2 ]; then
-                COMPREPLY=( $(compgen -W "get reset --help" -- "$cur") )
-                return 0
-            fi
-            case "$cmd2" in
-                reset) COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
-                *)     COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
-            esac
             return 0
             ;;
         formula)

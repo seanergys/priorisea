@@ -4,7 +4,9 @@
 
 #pragma once
 
+#include "src/lib/types.hpp"
+
 struct ps_cli_endpoint_info_get_t {
   int version;
-  double t_inactive;
+  ps_db_info_t info;
 };

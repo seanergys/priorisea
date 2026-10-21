@@ -10,11 +10,10 @@
 #include <sqlite3.h>
 #include <vector>
 
-ps_result_t<ps_user_t> ps_db_sqlite_user_get(sqlite3 *db,
-                                             const std::string &username);
+ps_result_t<ps_user_t> ps_db_sqlite_user_get(sqlite3 *db, uid_t userid);
 
 ps_result_t<ps_db_sqlite_users_get_t>
-ps_db_sqlite_users_get(sqlite3 *db, const std::vector<std::string> &usernames);
+ps_db_sqlite_users_get(sqlite3 *db, const std::vector<uid_t> &userids);
 
 ps_result_t<std::vector<ps_user_t>> ps_db_sqlite_users_list(sqlite3 *db);
 

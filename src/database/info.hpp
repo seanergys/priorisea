@@ -9,14 +9,15 @@
 /**
  * Resets the info in the database.
  *
- * @param names The names of the formulas to reset.
+ * @param user_period The default user_period
  * @return A result indicating the success of the operation.
  */
-ps_result_t<ps_success_t> ps_db_info_reset(sqlite3 *db);
+ps_result_t<ps_success_t> ps_db_info_reset(sqlite3 *db, double user_period);
 
 /**
  * Initializes the info in the database.
  *
+ * @param user_period The default user_period
  * @return A result indicating the success of the operation.
  */
-ps_result_t<ps_success_t> ps_db_info_init(sqlite3 *db);
+ps_result_t<ps_success_t> ps_db_info_init(sqlite3 *db, double user_period);

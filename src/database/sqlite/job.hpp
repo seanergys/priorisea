@@ -23,7 +23,13 @@ ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid);
 
 ps_result_t<std::vector<ps_job_t>>
-ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, std::string username);
+ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive);
+
+// Returns the jobs with t_inactive >= min_t_inactive whose owner is one of the
+// given user ids, most recent first (higher t_inactive sorts earlier).
+ps_result_t<std::vector<ps_job_t>>
+ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
+                       const std::vector<uid_t> &userids);
 
 ps_result_t<ps_success_t>
 ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs);

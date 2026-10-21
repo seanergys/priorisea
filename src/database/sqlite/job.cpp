@@ -7,6 +7,7 @@
 #include "src/database/sqlite/sqlite.hpp"
 #include "src/lib/util.hpp"
 #include <cstdint>
+#include <src/daemon/endpoint/flux/endpoint.hpp>
 #include <string>
 #include <sys/types.h>
 
@@ -151,30 +152,84 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid) {
 }
 
 ps_result_t<std::vector<ps_job_t>>
-ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, std::string username) {
+ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive) {
   // Most recent first: higher t_inactive sorts earlier.
-  auto sql = "SELECT j.id, j.userid, j.t_inactive, j.score "
-             "FROM jobs j "
-             "JOIN users u ON j.userid = u.userid "
-             "WHERE u.username = ? "
-             "ORDER BY j.t_inactive DESC "
-             "LIMIT ?;";
+  auto sql = "SELECT id, userid, t_inactive, score "
+             "FROM jobs "
+             "WHERE t_inactive >= ? "
+             "ORDER BY t_inactive DESC;";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     return ps_error(
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
-  // Bind the parameters
-  if (sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT) !=
-          SQLITE_OK ||
-      sqlite3_bind_int64(stmt, 2, static_cast<sqlite3_int64>(limit)) !=
-          SQLITE_OK) {
+  // Bind t_inactive
+  if (sqlite3_bind_double(stmt, 1, min_t_inactive) != SQLITE_OK) {
     sqlite3_finalize(stmt);
     return ps_error(
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
 
   std::vector<ps_job_t> res;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+    res.push_back(ps_job_t{
+        .jobid = id_str ? id_str : "",
+        .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
+        .t_inactive = sqlite3_column_double(stmt, 2),
+        .score = sqlite3_column_double(stmt, 3),
+    });
+  }
+  sqlite3_finalize(stmt);
+  return res;
+}
+
+ps_result_t<std::vector<ps_job_t>>
+ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
+                       const std::vector<uid_t> &userids) {
+  // Most recent first: higher t_inactive sorts earlier.
+  std::vector<ps_job_t> res;
+
+  // An empty user list can never match any job; skip building an invalid
+  // "userid IN ()" clause.
+  if (userids.empty()) {
+    return res;
+  }
+
+  std::string placeholders;
+  for (size_t i = 0; i < userids.size(); ++i) {
+    if (i > 0)
+      placeholders += ", ";
+    placeholders += "?";
+  }
+  auto sql = "SELECT id, userid, t_inactive, score "
+             "FROM jobs "
+             "WHERE t_inactive >= ? AND userid IN (" +
+             placeholders +
+             ") "
+             "ORDER BY t_inactive DESC;";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    return ps_error(
+        ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+  }
+
+  // Bind t_inactive first (param 1), then each user id (params 2..n+1).
+  if (sqlite3_bind_double(stmt, 1, min_t_inactive) != SQLITE_OK) {
+    sqlite3_finalize(stmt);
+    return ps_error(
+        ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+  }
+  for (size_t i = 0; i < userids.size(); i++) {
+    if (sqlite3_bind_int(stmt, static_cast<int>(i + 2), userids[i]) !=
+        SQLITE_OK) {
+      sqlite3_finalize(stmt);
+      return ps_error(
+          ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+    }
+  }
+
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
     res.push_back(ps_job_t{
@@ -286,9 +341,9 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
 
   // Advance the t_inactive cursor in the same transaction as the jobs, so the
   // two can never diverge: if the cursor write fails the job writes roll back,
-  // and if a job write fails the cursor is never advanced.
-  auto info_sql = "INSERT OR REPLACE INTO database_info (id, t_inactive) "
-                  "VALUES (1, ?);";
+  // and if a job write fails the cursor is never advanced. The UPDATE touches
+  // only t_inactive, leaving the NOT NULL user_period untouched.
+  auto info_sql = "UPDATE database_info SET t_inactive = ? WHERE id = 1;";
   sqlite3_stmt *info_stmt = nullptr;
   if (sqlite3_prepare_v2(db, info_sql, -1, &info_stmt, nullptr) != SQLITE_OK) {
     rollback();

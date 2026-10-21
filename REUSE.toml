@@ -3,11 +3,12 @@ version = 1
 [[annotations]]
 path = [
     ".devcontainer/**",
+    "scripts/**",
     ".clang-format",
+    ".dockerignore",
     ".gitignore",
     ".gitlab-ci.yml",
     ".gitmodules",
-    "scripts/**",
     "Dockerfile",
     "README.md",
     "REUSE.toml",

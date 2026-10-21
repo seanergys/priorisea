@@ -3,41 +3,34 @@
 // SPDX-License-Identifier: MIT
 
 #include "src/cli/commands/database.hpp"
-#include "src/database/decay.hpp"
-#include "src/database/formula.hpp"
-#include "src/database/info.hpp"
-#include "src/database/sqlite/sqlite.hpp"
+#include "src/database/database.hpp"
 #include "src/lib/error.hpp"
 #include <memory>
 #include <string>
+
+static inline double USER_PERIOD_DEFAULT = 90 * 24 * 60 * 60;
 
 static void register_create_command(CLI::App *app) {
   auto *create_cmd = app->add_subcommand("create", "Create database");
   create_cmd->set_help_flag("-h,--help", "Show help for create command");
   struct options {
     std::string path;
+    double user_period;
   };
   auto opts = std::make_shared<options>();
   create_cmd->add_option("path", opts->path, "Path to database")
       ->default_val(DATABASE_PATH_DEFAULT);
+  create_cmd
+      ->add_option("user_period", opts->user_period,
+                   "Max. age (seconds) of jobs when computing users score")
+      ->default_val(USER_PERIOD_DEFAULT);
   create_cmd->callback([opts] {
-    auto db_res = ps_db_sqlite_create(opts->path);
+    auto db_res = ps_db_database_create(opts->path, opts->user_period);
     if (!ps_is_ok(db_res)) {
       ps_exit_error(db_res);
     }
     auto db = ps_unwrap(db_res);
-    auto decay_res = ps_db_decay_init(db);
-    if (!ps_is_ok(decay_res)) {
-      ps_exit_error(decay_res);
-    }
-    auto formulas_res = ps_db_formulas_init(db);
-    if (!ps_is_ok(formulas_res)) {
-      ps_exit_error(formulas_res);
-    }
-    auto info_res = ps_db_info_init(db);
-    if (!ps_is_ok(info_res)) {
-      ps_exit_error(info_res);
-    }
+    sqlite3_close(db);
   });
 }
 

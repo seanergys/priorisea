@@ -70,26 +70,22 @@ ps_result_t<sqlite3 *> ps_db_sqlite_create(const std::string &path) {
   if (!ps_is_ok(mkdir_res)) {
     return ps_forward_error<sqlite3 *>(mkdir_res);
   }
-  auto open_res = ps_db_sqlite_open(path);
-  if (!ps_is_ok(open_res)) {
-    return ps_forward_error<sqlite3 *>(open_res);
-  }
-  auto db = ps_unwrap(open_res);
+  return ps_db_sqlite_open(path);
+}
 
+ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
   // job id is stored as TEXT because its type is uint64_t in Flux
   auto sql = "PRAGMA user_version = " + std::to_string(SQLITE_DB_VERSION) +
              ";" +
              R"(
-    PRAGMA foreign_keys = ON;
-
     CREATE TABLE IF NOT EXISTS database_info (
         id INTEGER PRIMARY KEY CHECK(id = 1),
-        t_inactive REAL
+        t_inactive REAL,
+        user_period REAL NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        userid INTEGER NOT NULL,
+        userid INTEGER PRIMARY KEY,
         score REAL NOT NULL
     );
 
@@ -127,11 +123,7 @@ ps_result_t<sqlite3 *> ps_db_sqlite_create(const std::string &path) {
     );
     )";
 
-  auto exec_res = ps_db_sqlite_execute(db, sql);
-  if (!ps_is_ok(exec_res)) {
-    return ps_forward_error<sqlite3 *>(exec_res);
-  }
-  return db;
+  return ps_db_sqlite_execute(db, sql);
 }
 
 ps_result_t<int> ps_db_sqlite_get_user_version(sqlite3 *db) {

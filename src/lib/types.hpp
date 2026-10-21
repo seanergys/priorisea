@@ -44,9 +44,19 @@ struct ps_job_t {
  * Represents a user with their associated information.
  */
 struct ps_user_t {
-  std::string username;
   uid_t userid;
   double score;
+};
+
+/**
+ * Represents the database's info row: the t_inactive cursor and the default
+ * user_period. The two fields are always read and written together as a single
+ * unit, so the row can never be left half-written (for example with a NULL
+ * user_period, which the schema forbids).
+ */
+struct ps_db_info_t {
+  double t_inactive;
+  double user_period;
 };
 
 /**

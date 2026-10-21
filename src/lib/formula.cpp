@@ -5,6 +5,7 @@
 #include "src/lib/formula.hpp"
 #include "external/tinyexpr/tinyexpr.h"
 #include "src/lib/error.hpp"
+#include <math.h>
 #include <regex>
 #include <utility>
 
@@ -61,8 +62,10 @@ ps_result_t<ps_formula_t> ps_formula_from_json(json_t *obj) {
   return res;
 }
 
-static double min(double a, double b) { return a < b ? a : b; }
-static double max(double a, double b) { return a > b ? a : b; }
+static double _min(double a, double b) { return a < b ? a : b; }
+static double _max(double a, double b) { return a > b ? a : b; }
+static double _pow(double a, double b) { return pow(a, b); }
+static double _exp(double v) { return exp(v); }
 
 ps_result_t<double>
 ps_eval_formula(const ps_formula_t &formula,
@@ -78,8 +81,9 @@ ps_eval_formula(const ps_formula_t &formula,
   std::vector<std::string> var_ids;
   var_ids.reserve(vars_merged.size());
 
+  // Number of variables + number of functions
   auto *te_vars =
-      (te_variable *)malloc((vars_merged.size() + 2) * sizeof(te_variable));
+      (te_variable *)malloc((vars_merged.size() + 4) * sizeof(te_variable));
   int i = 0;
 
   std::unordered_map<std::string, std::size_t> next_index;
@@ -107,8 +111,10 @@ ps_eval_formula(const ps_formula_t &formula,
 
     te_vars[i++] = {var_ids.back().c_str(), &value};
   }
-  te_vars[i++] = {"min", (void *)min, TE_FUNCTION2};
-  te_vars[i++] = {"max", (void *)max, TE_FUNCTION2};
+  te_vars[i++] = {"exp", (void *)_exp, TE_FUNCTION1};
+  te_vars[i++] = {"min", (void *)_min, TE_FUNCTION2};
+  te_vars[i++] = {"max", (void *)_max, TE_FUNCTION2};
+  te_vars[i++] = {"pow", (void *)_pow, TE_FUNCTION2};
 
   int err = 0;
   te_expr *compiled = te_compile(transformed_expr.c_str(), te_vars, i, &err);

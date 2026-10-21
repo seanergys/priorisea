@@ -32,7 +32,8 @@ ps_db_sqlite_formulas_get(sqlite3 *db, const std::vector<std::string> &names) {
     placeholders += "?";
   }
   auto sql = "SELECT f.name, f.expression, d.var, d.value "
-             "FROM formulas f JOIN formula_defaults d ON f.name = d.formula "
+             "FROM formulas f LEFT JOIN formula_defaults d ON f.name = "
+             "d.formula "
              "WHERE f.name IN (" +
              placeholders + ");";
 
@@ -62,6 +63,10 @@ ps_db_sqlite_formulas_get(sqlite3 *db, const std::vector<std::string> &names) {
           .expr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1)),
           .defaults = {}};
     }
+    // A LEFT JOIN yields NULL var/value for a formula with no defaults.
+    if (sqlite3_column_type(stmt, 2) == SQLITE_NULL) {
+      continue;
+    }
     std::string var =
         reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
     auto value = sqlite3_column_double(stmt, 3);
@@ -80,7 +85,8 @@ ps_db_sqlite_formulas_get(sqlite3 *db, const std::vector<std::string> &names) {
 
 ps_result_t<std::vector<ps_formula_t>> ps_db_sqlite_formulas_list(sqlite3 *db) {
   auto sql = "SELECT f.name, f.expression, d.var, d.value "
-             "FROM formulas f JOIN formula_defaults d ON f.name = d.formula;";
+             "FROM formulas f LEFT JOIN formula_defaults d ON f.name = "
+             "d.formula;";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     return ps_error(
@@ -96,6 +102,10 @@ ps_result_t<std::vector<ps_formula_t>> ps_db_sqlite_formulas_list(sqlite3 *db) {
           .name = name,
           .expr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1)),
           .defaults = {}};
+    }
+    // A LEFT JOIN yields NULL var/value for a formula with no defaults.
+    if (sqlite3_column_type(stmt, 2) == SQLITE_NULL) {
+      continue;
     }
     auto var = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
     auto value = sqlite3_column_double(stmt, 3);
@@ -118,13 +128,20 @@ ps_db_sqlite_formulas_set(sqlite3 *db,
     return ps_success_t{};
   }
 
+  // If a transaction is already open, let the caller own it and skip our own
+  // BEGIN/COMMIT/ROLLBACK.
+  bool outer_txn = sqlite3_get_autocommit(db) == 0;
+
   auto rollback = [&] {
-    sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+    if (!outer_txn)
+      sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
   };
 
-  if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
-    return ps_error(
-        ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+  if (!outer_txn) {
+    if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
+      return ps_error(
+          ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+    }
   }
 
   // Add to formulas table
@@ -197,10 +214,12 @@ ps_db_sqlite_formulas_set(sqlite3 *db,
   sqlite3_finalize(stmt_defaults);
   sqlite3_finalize(stmt);
 
-  if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
-    rollback();
-    return ps_error(
-        ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+  if (!outer_txn) {
+    if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+      rollback();
+      return ps_error(
+          ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+    }
   }
 
   return ps_success_t{};
@@ -218,13 +237,20 @@ ps_db_sqlite_formulas_insert(sqlite3 *db,
     return ps_success_t{};
   }
 
+  // If a transaction is already open, let the caller own it and skip our own
+  // BEGIN/COMMIT/ROLLBACK.
+  bool outer_txn = sqlite3_get_autocommit(db) == 0;
+
   auto rollback = [&] {
-    sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+    if (!outer_txn)
+      sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
   };
 
-  if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
-    return ps_error(
-        ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+  if (!outer_txn) {
+    if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
+      return ps_error(
+          ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+    }
   }
 
   // Add to formulas table. A plain insert fails if the formula already exists.
@@ -299,10 +325,12 @@ ps_db_sqlite_formulas_insert(sqlite3 *db,
   sqlite3_finalize(stmt_defaults);
   sqlite3_finalize(stmt);
 
-  if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
-    rollback();
-    return ps_error(
-        ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+  if (!outer_txn) {
+    if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+      rollback();
+      return ps_error(
+          ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+    }
   }
 
   return ps_success_t{};
@@ -320,13 +348,20 @@ ps_db_sqlite_formulas_update(sqlite3 *db,
     return ps_success_t{};
   }
 
+  // If a transaction is already open, let the caller own it and skip our own
+  // BEGIN/COMMIT/ROLLBACK.
+  bool outer_txn = sqlite3_get_autocommit(db) == 0;
+
   auto rollback = [&] {
-    sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
+    if (!outer_txn)
+      sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, nullptr);
   };
 
-  if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
-    return ps_error(
-        ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+  if (!outer_txn) {
+    if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
+      return ps_error(
+          ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
+    }
   }
 
   // Update the formulas row. If no row is affected the formula is absent.
@@ -403,10 +438,12 @@ ps_db_sqlite_formulas_update(sqlite3 *db,
   sqlite3_finalize(stmt_defaults);
   sqlite3_finalize(stmt);
 
-  if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
-    rollback();
-    return ps_error(
-        ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+  if (!outer_txn) {
+    if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+      rollback();
+      return ps_error(
+          ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
+    }
   }
 
   return ps_success_t{};

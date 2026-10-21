@@ -58,8 +58,12 @@ static void register_debug_command(CLI::App *app) {
                             [](auto &value, auto index) -> auto {
                               return std::to_string(value.version);
                             }},
-                           {"t_inactive", [](auto &value, auto index) -> auto {
-                              return std::to_string(value.t_inactive);
+                           {"t_inactive",
+                            [](auto &value, auto index) -> auto {
+                              return std::to_string(value.info.t_inactive);
+                            }},
+                           {"user_period", [](auto &value, auto index) -> auto {
+                              return std::to_string(value.info.user_period);
                             }}});
   });
 }

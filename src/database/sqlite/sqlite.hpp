@@ -7,7 +7,7 @@
 #include <sqlite3.h>
 #include <string>
 
-inline constexpr int SQLITE_DB_VERSION = 1;
+inline constexpr int SQLITE_DB_VERSION = 2;
 
 /**
  * Executes an SQL statement on the given SQLite database.
@@ -20,12 +20,24 @@ ps_result_t<ps_success_t> ps_db_sqlite_execute(sqlite3 *db,
                                                const std::string &sql);
 
 /**
- * Creates a SQLite database at the specified path.
+ * Creates a new database file at the specified path (fails if it already
+ * exists) and opens it. The schema is not created here; call
+ * ps_db_sqlite_create_schema inside a transaction to initialize it.
  *
  * @param path The path to the database file.
- * @return A success if the database was created successfully.
+ * @return The opened database if successful.
  */
 ps_result_t<sqlite3 *> ps_db_sqlite_create(const std::string &path);
+
+/**
+ * Creates the database schema (user_version and tables) on an open database.
+ * Designed to run inside a transaction so it can be committed atomically with
+ * the seed data.
+ *
+ * @param db The open SQLite database.
+ * @return A success if the schema was created successfully.
+ */
+ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db);
 
 /**
  * Opens a SQLite database at the specified path.

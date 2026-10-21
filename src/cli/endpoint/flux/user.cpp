@@ -6,18 +6,27 @@
 #include "src/cli/endpoint/util.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/user.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
 #include <jansson.h>
 #include <string>
+#include <sys/types.h>
 
 ps_result_t<ps_user_t>
 ps_cli_endpoint_flux_user_get(const std::string &username) {
+  // Resolve the username to a user id locally (getpwnam). The daemon keys
+  // purely on the userid, so only the id is sent over the wire.
+  uid_t userid;
+  if (!uid_from_username(username, userid)) {
+    return ps_error(ps_db_not_found_t{.key = "user." + username});
+  }
+
   auto h = flux_open(NULL, 0);
   if (!h) {
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
   }
   auto *f = flux_rpc_pack(h, "priorisea.daemon.user.get", FLUX_NODEID_ANY, 0,
-                          "{s:s}", "data", username.c_str());
+                          "{s:i}", "data", static_cast<int>(userid));
   if (!f) {
     flux_close(h);
     return ps_error(ps_flux_rpc_err_t{.strerror = strerror(errno)});
@@ -43,16 +52,28 @@ ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames) {
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
   }
 
+  // Resolve every username to a user id locally before sending.
+  std::vector<uid_t> userids;
+  for (const auto &username : usernames) {
+    uid_t userid;
+    if (!uid_from_username(username, userid)) {
+      flux_close(h);
+      return ps_error(ps_db_not_found_t{.key = "user." + username});
+    }
+    userids.push_back(userid);
+  }
+
   flux_future_t *f;
-  if (usernames.empty()) {
+  if (userids.empty()) {
     // No parameter: request the entire list
     // An empty object is sent
     f = flux_rpc_pack(h, "priorisea.daemon.user.list", FLUX_NODEID_ANY, 0,
                       "{}");
   } else {
     json_t *data = json_array();
-    for (const auto &username : usernames) {
-      json_array_append_new(data, json_string(username.c_str()));
+    for (const auto &userid : userids) {
+      json_array_append_new(data,
+                            json_integer(static_cast<json_int_t>(userid)));
     }
     f = flux_rpc_pack(h, "priorisea.daemon.user.list", FLUX_NODEID_ANY, 0,
                       "{s:O}", "data", data);
@@ -87,4 +108,54 @@ ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames) {
   flux_future_destroy(f);
   flux_close(h);
   return users;
+}
+
+ps_result_t<ps_success_t>
+ps_cli_endpoint_flux_user_update(const std::vector<std::string> &usernames,
+                                 bool all) {
+  auto h = flux_open(NULL, 0);
+  if (!h) {
+    return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
+  }
+
+  // Resolve every username to a user id locally before sending.
+  std::vector<uid_t> userids;
+  for (const auto &username : usernames) {
+    uid_t userid;
+    if (!uid_from_username(username, userid)) {
+      flux_close(h);
+      return ps_error(ps_db_not_found_t{.key = "user." + username});
+    }
+    userids.push_back(userid);
+  }
+
+  flux_future_t *f;
+  if (userids.empty() && all) {
+    // An empty object is sent
+    f = flux_rpc_pack(h, "priorisea.daemon.user.update", FLUX_NODEID_ANY, 0,
+                      "{}");
+  } else {
+    json_t *data = json_array();
+    for (const auto &userid : userids) {
+      json_array_append_new(data,
+                            json_integer(static_cast<json_int_t>(userid)));
+    }
+    f = flux_rpc_pack(h, "priorisea.daemon.user.update", FLUX_NODEID_ANY, 0,
+                      "{s:O}", "data", data);
+    json_decref(data);
+  }
+  if (!f) {
+    flux_close(h);
+    return ps_error(ps_flux_rpc_err_t{.strerror = strerror(errno)});
+  }
+
+  if (flux_rpc_get(f, NULL) < 0) {
+    auto err = std::string(flux_future_error_string(f));
+    flux_future_destroy(f);
+    flux_close(h);
+    return ps_error(ps_daemon_err_t{.err = err});
+  }
+  flux_future_destroy(f);
+  flux_close(h);
+  return ps_success_t{};
 }

@@ -8,18 +8,23 @@
 #include "src/lib/error.hpp"
 #include "src/lib/types.hpp"
 
-static const ps_formula_t DEFAULT_JOB_PRIORITY = {
+static const ps_formula_t JOB_PRIORITY_DEFAULT = {
     .name = "job_priority",
     .expr = "<var:prev_priority> * 0.5 + <var:user_score> * 0.5",
     .defaults = {{"var:prev_priority", 16}, {"var:user_score", 16}}};
 
-static const ps_formula_t DEFAULT_JOB_SCORE = {
+static const ps_formula_t JOB_SCORE_DEFAULT = {
     .name = "job_score",
     .expr = "<var:duration_ratio> + <var:timewin_score>",
-    .defaults = {{"var:timewin_score", 0}, {"var:duration_ratio", 0}}};
+    .defaults = {{"var:duration_ratio", 0}}};
 
-static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {DEFAULT_JOB_PRIORITY,
-                                                           DEFAULT_JOB_SCORE};
+static const ps_formula_t JOB_WEIGHT_DEFAULT = {
+    .name = "job_weight",
+    .expr = "max(0, 1 - <var:age_days> / 90)",
+    .defaults = {}};
+
+static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {
+    JOB_PRIORITY_DEFAULT, JOB_SCORE_DEFAULT, JOB_WEIGHT_DEFAULT};
 
 ps_result_t<ps_success_t>
 ps_db_formulas_reset(sqlite3 *db, const std::vector<std::string> &names) {

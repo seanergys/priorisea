@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "src/daemon/endpoint/flux/endpoint.hpp"
-#include "src/daemon/endpoint/flux/callback/decay.hpp"
 #include "src/daemon/endpoint/flux/callback/formula.hpp"
 #include "src/daemon/endpoint/flux/callback/info.hpp"
 #include "src/daemon/endpoint/flux/callback/job.hpp"
@@ -28,7 +27,6 @@ struct ps_daemon_endpoint_flux_args_t {
 };
 
 static const std::vector<ps_daemon_endpoint_flux_t> endpoints = {
-    {"priorisea.daemon.decay.get", ps_daemon_endpoint_flux_decay_get},
     {"priorisea.daemon.formula.get", ps_daemon_endpoint_flux_formula_get},
     {"priorisea.daemon.formula.list", ps_daemon_endpoint_flux_formula_list},
     {"priorisea.daemon.job.get", ps_daemon_endpoint_flux_job_get},
@@ -39,8 +37,6 @@ static const std::vector<ps_daemon_endpoint_flux_t> endpoints = {
 };
 
 static const std::vector<ps_daemon_endpoint_flux_t> endpoints_priviledged = {
-    {"priorisea.daemon.decay.update", ps_daemon_endpoint_flux_decay_update},
-    {"priorisea.daemon.decay.reset", ps_daemon_endpoint_flux_decay_reset},
     {"priorisea.daemon.formula.update", ps_daemon_endpoint_flux_formula_update},
     {"priorisea.daemon.formula.reset", ps_daemon_endpoint_flux_formula_reset},
     {"priorisea.daemon.info.get", ps_daemon_endpoint_flux_info_get},

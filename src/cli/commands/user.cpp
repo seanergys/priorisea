@@ -7,11 +7,21 @@
 #include "src/cli/util.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/user.hpp"
+#include "src/lib/util.hpp"
 #include <jansson.h>
 #include <memory>
 #include <string>
 #include <sys/types.h>
 #include <vector>
+
+// Human-facing display name for a user
+static std::string display_username(const ps_user_t &user) {
+  std::string name;
+  if (username_from_uid(user.userid, name)) {
+    return name;
+  }
+  return std::to_string(static_cast<uint64_t>(user.userid));
+}
 
 static void print_user(const ps_user_t &user, bool json) {
   if (json) {
@@ -26,7 +36,7 @@ static void print_user(const ps_user_t &user, bool json) {
   }
   ps_print_table_v(
       std::vector<ps_user_t>{user},
-      {{"Username", [](auto &u, auto) { return u.username; }},
+      {{"Username", [](auto &u, auto) { return display_username(u); }},
        {"User ID",
         [](auto &u, auto) {
           return std::to_string(static_cast<uint64_t>(u.userid));
@@ -50,7 +60,7 @@ static void print_users(const std::vector<ps_user_t> &users, bool json) {
   }
   ps_print_table_v(
       users,
-      {{"Username", [](auto &u, auto) { return u.username; }},
+      {{"Username", [](auto &u, auto) { return display_username(u); }},
        {"User ID",
         [](auto &u, auto) {
           return std::to_string(static_cast<uint64_t>(u.userid));
@@ -96,10 +106,29 @@ static void register_list_command(CLI::App *app) {
   });
 }
 
+static void register_update_command(CLI::App *app) {
+  auto *update_cmd = app->add_subcommand("update", "Update users score");
+  update_cmd->set_help_flag("-h,--help", "Show help for update command");
+  struct options {
+    std::vector<std::string> usernames;
+    bool all;
+  };
+  auto opts = std::make_shared<options>();
+  update_cmd->add_option("usernames", opts->usernames, "Usernames (optional)");
+  update_cmd->add_flag("-a,--all", opts->all, "Update all users");
+  update_cmd->callback([opts] {
+    auto res = ps_cli_endpoint_flux_user_update(opts->usernames, opts->all);
+    if (!ps_is_ok(res)) {
+      ps_exit_error(res);
+    }
+  });
+}
+
 void register_user_commands(CLI::App *app) {
   auto *user_cmd = app->add_subcommand("user", "Manage users");
   user_cmd->require_subcommand(true);
   user_cmd->set_help_flag("-h,--help", "Show help for user commands");
   register_get_command(user_cmd);
   register_list_command(user_cmd);
+  register_update_command(user_cmd);
 }

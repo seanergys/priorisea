@@ -4,7 +4,6 @@
 
 #include "src/cli/commands/daemon.hpp"
 #include "src/cli/commands/database.hpp"
-#include "src/cli/commands/decay.hpp"
 #include "src/cli/commands/formula.hpp"
 #include "src/cli/commands/job.hpp"
 #include "src/cli/commands/plugin.hpp"
@@ -21,7 +20,6 @@ int main(int argc, char *argv[]) {
 
   register_daemon_commands(&app);
   register_database_commands(&app);
-  register_decay_commands(&app);
   register_formula_commands(&app);
   register_job_commands(&app);
   register_plugin_commands(&app);

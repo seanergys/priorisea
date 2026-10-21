@@ -119,10 +119,10 @@ ps_cli_endpoint_flux_job_update(const std::vector<std::string> &jobids,
   }
 
   if (flux_rpc_get(f, NULL) < 0) {
-    auto err = ps_cli_endpoint_unpack_err(f);
+    auto err = std::string(flux_future_error_string(f));
     flux_future_destroy(f);
     flux_close(h);
-    return ps_error(err);
+    return ps_error(ps_daemon_err_t{.err = err});
   }
 
   return ps_success_t{};

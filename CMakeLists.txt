@@ -98,14 +98,13 @@ set(PRIORISEA_EXT_INCLUDES
 # Single executable bundling the whole new src/ tree. The layers are tightly
 # cross-referential (lib/error.hpp reaches into daemon/ and cli/ headers), so
 # everything is compiled into one target to avoid static-archive link-order
-# issues. It exposes the daemon, database (db) and decay subcommands.
+# issues.
 add_executable(priorisea
   # CLI commands
   src/cli/main.cpp
   src/cli/util.cpp
   src/cli/commands/daemon.cpp
   src/cli/commands/database.cpp
-  src/cli/commands/decay.cpp
   src/cli/commands/formula.cpp
   src/cli/commands/job.cpp
   src/cli/commands/plugin.cpp
@@ -114,7 +113,6 @@ add_executable(priorisea
   # CLI flux endpoint
   src/cli/endpoint/error.cpp
   src/cli/endpoint/util.cpp
-  src/cli/endpoint/flux/decay.cpp
   src/cli/endpoint/flux/formula.cpp
   src/cli/endpoint/flux/info.cpp
   src/cli/endpoint/flux/job.cpp
@@ -125,7 +123,6 @@ add_executable(priorisea
   src/daemon/daemon.cpp
   src/daemon/endpoint/error.cpp
   src/daemon/endpoint/flux/endpoint.cpp
-  src/daemon/endpoint/flux/callback/decay.cpp
   src/daemon/endpoint/flux/callback/formula.cpp
   src/daemon/endpoint/flux/callback/info.cpp
   src/daemon/endpoint/flux/callback/job.cpp
@@ -133,11 +130,10 @@ add_executable(priorisea
   src/daemon/endpoint/flux/callback/timewin.cpp
   src/daemon/endpoint/flux/callback/user.cpp
   # Database core + sqlite endpoint
-  src/database/decay.cpp
+  src/database/database.cpp
   src/database/error.cpp
   src/database/formula.cpp
   src/database/info.cpp
-  src/database/sqlite/decay.cpp
   src/database/sqlite/formula.cpp
   src/database/sqlite/info.cpp
   src/database/sqlite/job.cpp
@@ -146,9 +142,9 @@ add_executable(priorisea
   src/database/sqlite/timewin.cpp
   src/database/sqlite/user.cpp
   # Shared library core
-  src/lib/decay.cpp
   src/lib/error.cpp
   src/lib/formula.cpp
+  src/lib/info.cpp
   src/lib/job.cpp
   src/lib/timewin.cpp
   src/lib/user.cpp
@@ -229,7 +225,7 @@ install(TARGETS sea_priority LIBRARY DESTINATION lib/flux/job-manager/plugins)
 #   ${PRIORISEA_INCLUDE_ROOTS} ${PRIORISEA_EXT_INCLUDES} ${CATCH2_INCLUDE_DIR})
 # target_link_libraries(catchmain PUBLIC priorisea_lib Catch2::Catch2)
 #
-# foreach(topic config decay formula score timewin util)
+# foreach(topic config formula score timewin util)
 #   add_executable(${topic}_test src/lib/test/${topic}.cpp)
 #   target_link_libraries(${topic}_test PRIVATE
 #     catchmain priorisea_lib tinyexpr

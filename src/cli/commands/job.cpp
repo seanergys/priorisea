@@ -8,6 +8,7 @@
 #include "src/lib/error.hpp"
 #include "src/lib/job.hpp"
 #include <cerrno>
+#include <climits>
 #include <cstdint>
 #include <flux/core.h>
 #include <jansson.h>
@@ -76,7 +77,7 @@ static void register_get_command(CLI::App *app) {
   get_cmd->add_option("jobid", opts->jobid, "Job ID")->required(true);
   get_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   get_cmd->add_option("-f,--format", opts->format, "Job ID output format")
-      ->required(true)
+      ->default_val("f58")
       ->check(CLI::IsMember(
           {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}));
   get_cmd->callback([opts] {
@@ -101,11 +102,11 @@ static void register_list_command(CLI::App *app) {
   list_cmd->add_option("jobids", opts->jobids, "Job IDs (optional)");
   list_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   list_cmd->add_option("-f,--format", opts->format, "Job IDs output format")
-      ->required(true)
+      ->default_val("f58")
       ->check(CLI::IsMember(
           {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}));
   list_cmd->add_option("-n,--limit", opts->limit, "Limit the output to N items")
-      ->required(true);
+      ->default_val(INT_MAX);
   list_cmd->callback([opts] {
     auto list_res =
         ps_cli_endpoint_flux_job_list(opts->jobids, opts->format, opts->limit);

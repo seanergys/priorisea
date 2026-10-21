@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "src/daemon/endpoint/flux/callback/info.hpp"
+#include "src/lib/info.hpp"
 #include <src/database/sqlite/info.hpp>
 #include <src/database/sqlite/sqlite.hpp>
 #include <src/lib/error.hpp>
@@ -16,12 +17,13 @@ int ps_daemon_endpoint_flux_info_get(
                               ps_error_message(version_res).c_str());
   }
   auto version = ps_unwrap(version_res);
-  auto t_inactive_res = ps_db_sqlite_t_inactive_get(args.db);
-  if (!ps_is_ok(t_inactive_res)) {
+  auto info_res = ps_db_sqlite_info_get(args.db);
+  if (!ps_is_ok(info_res)) {
     return flux_respond_error(args.h, args.msg, 0,
-                              ps_error_message(t_inactive_res).c_str());
+                              ps_error_message(info_res).c_str());
   }
-  auto t_inactive = ps_unwrap(t_inactive_res);
-  return flux_respond_pack(args.h, args.msg, "{s:{s:i s:f}}", "data", "version",
-                           version, "t_inactive", t_inactive);
+  auto info = ps_unwrap(info_res);
+  auto *info_json = ps_db_info_to_json(info);
+  return flux_respond_pack(args.h, args.msg, "{s:{s:i s:o}}", "data", "version",
+                           version, "info", info_json);
 }

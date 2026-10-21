@@ -636,13 +636,13 @@ int ps_daemon_endpoint_flux_job_update(
 
   if (_new) {
     // Retrieve the new inactive jobs
-    auto t_inactive_res = ps_db_sqlite_t_inactive_get(args.db);
-    if (!ps_is_ok(t_inactive_res)) {
+    auto info_res = ps_db_sqlite_info_get(args.db);
+    if (!ps_is_ok(info_res)) {
       return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(t_inactive_res).c_str());
+                                ps_error_message(info_res).c_str());
     }
     // `since` is the current cursor; the scan returns the new (advanced) one.
-    auto since = ps_unwrap(t_inactive_res);
+    auto since = ps_unwrap(info_res).t_inactive;
     auto jobs_res = ps_flux_list_inactive_jobs(since);
     if (!ps_is_ok(jobs_res)) {
       return flux_respond_error(args.h, args.msg, 0,
@@ -692,10 +692,7 @@ int ps_daemon_endpoint_flux_job_update(
 
   // Store the scored jobs and, when scanning newly inactive jobs, advance the
   // t_inactive cursor in a single transaction. Both writes commit or roll back
-  // together, so the jobs table and the cursor can never diverge (previously
-  // the jobs could be written while the cursor update failed). The cursor is
-  // only advanced for the inactive-scan path; explicit job-id scoring must not
-  // move the watermark.
+  // together.
   ps_result_t<ps_success_t> set_res =
       _new ? ps_db_sqlite_jobs_set(args.db, _jobs, t_inactive)
            : ps_db_sqlite_jobs_set(args.db, _jobs);

@@ -4,6 +4,8 @@
 
 #include "src/cli/endpoint/flux/info.hpp"
 #include "src/cli/endpoint/util.hpp"
+#include "src/lib/info.hpp"
+#include <src/lib/error.hpp>
 
 ps_result_t<ps_cli_endpoint_info_get_t> ps_cli_endpoint_info_get() {
   auto h = flux_open(NULL, 0);
@@ -17,16 +19,20 @@ ps_result_t<ps_cli_endpoint_info_get_t> ps_cli_endpoint_info_get() {
   }
 
   int version;
-  double t_inactive;
-  if (flux_rpc_get_unpack(f, "{s:{s:i s:f}}", "data", "version", &version,
-                          "t_inactive", &t_inactive) < 0) {
+  json_t *info_json = nullptr;
+  if (flux_rpc_get_unpack(f, "{s:{s:i s:o}}", "data", "version", &version,
+                          "info", &info_json) < 0) {
     auto err = ps_cli_endpoint_unpack_err(f);
     flux_future_destroy(f);
     flux_close(h);
     return ps_error(err);
   }
+  auto info_res = ps_db_info_from_json(info_json);
   flux_future_destroy(f);
   flux_close(h);
+  if (!ps_is_ok(info_res)) {
+    return ps_forward_error<ps_cli_endpoint_info_get_t>(info_res);
+  }
   return ps_cli_endpoint_info_get_t{.version = version,
-                                    .t_inactive = t_inactive};
+                                    .info = ps_unwrap(info_res)};
 }

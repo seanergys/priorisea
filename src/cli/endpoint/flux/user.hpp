@@ -13,3 +13,7 @@ ps_cli_endpoint_flux_user_get(const std::string &username);
 
 ps_result_t<std::vector<ps_user_t>>
 ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames = {});
+
+ps_result_t<ps_success_t>
+ps_cli_endpoint_flux_user_update(const std::vector<std::string> &usernames,
+                                 bool all);
