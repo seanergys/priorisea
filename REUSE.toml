@@ -2,35 +2,25 @@ version = 1
 
 [[annotations]]
 path = [
-    ".devcontainer/**",
-    "scripts/**",
-    ".clang-format",
-    ".dockerignore",
-    ".gitignore",
-    ".gitlab-ci.yml",
-    ".gitmodules",
-    "Dockerfile",
-    "README.md",
-    "REUSE.toml",
+    "**",
    ]
 SPDX-FileCopyrightText = "2026 SEANERGYS Partners <https://seanergys.eu>"
-SPDX-License-Identifier = "MIT"
+SPDX-License-Identifier = "GPL-3.0-or-later"
 
-#[[annotations]]
-#path = [
-#    "tests/sharness.d/01-setup.sh",
-#    "tests/sharness.d/flux-sharness.sh",
-#    "tests/scripts/run_timeout.py",
-#    "tests/scripts/submit_as.py"
-#   ]
-#precedence = "override"
-#SPDX-FileCopyrightText = "Copyright 2021 Lawrence Livermore National Security, LLC"
-#SPDX-License-Identifier = "LGPL-3.0-only"
-#
-#[[annotations]]
-#path = [
-#    "tests/sharness.sh"
-#   ]
-#precedence = "override"
-#SPDX-FileCopyrightText = "Copyright (c) 2019-2023 Felipe Contreras"
-#SPDX-License-Identifier = "GPL-2.0-or-later"
+[[annotations]]
+path = [
+    "test/sharness.d/01-setup.sh",
+    "test/sharness.d/flux-sharness.sh",
+    "test/scripts/submit_as.py"
+   ]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright 2021 Lawrence Livermore National Security, LLC"
+SPDX-License-Identifier = "LGPL-3.0-only"
+
+[[annotations]]
+path = [
+    "test/sharness.sh"
+   ]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) 2019-2023 Felipe Contreras"
+SPDX-License-Identifier = "GPL-2.0-or-later"

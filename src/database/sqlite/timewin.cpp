@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/database/sqlite/timewin.hpp"
 #include "src/database/error.hpp"
 #include "src/database/sqlite/sqlite.hpp"

@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/daemon/endpoint/flux/callback/user.hpp"
 #include "src/database/sqlite/formula.hpp"
 #include "src/database/sqlite/info.hpp"
@@ -24,9 +20,11 @@ static constexpr double USER_SCORE_DEFAULT = 0;
 // Builds the list of users described by a request payload. When data_json is
 // null the entire user list is returned; otherwise data_json must be a JSON
 // array of user ids (integers) and the matching users are returned in request
-// order.
-static ps_result_t<std::vector<ps_user_t>> ps_collect_users(sqlite3 *db,
-                                                            json_t *data_json) {
+// order. When create_missing is true, user ids that are not yet stored in the
+// database are returned as freshly created users (with the default score)
+// instead of failing the request.
+static ps_result_t<std::vector<ps_user_t>>
+ps_collect_users(sqlite3 *db, json_t *data_json, bool create_missing = false) {
   std::vector<ps_user_t> users;
 
   if (data_json == nullptr) {
@@ -67,7 +65,13 @@ static ps_result_t<std::vector<ps_user_t>> ps_collect_users(sqlite3 *db,
       // The user is guaranteed to be in the map
       auto &user_res = users_map[userid];
       if (!ps_is_ok(user_res)) {
-        return ps_forward_error<std::vector<ps_user_t>>(user_res);
+        // A requested user may not exist yet: create it with the default score
+        // when allowed, otherwise fail the request
+        if (!create_missing) {
+          return ps_forward_error<std::vector<ps_user_t>>(user_res);
+        }
+        users.push_back({.userid = userid, .score = USER_SCORE_DEFAULT});
+        continue;
       }
       users.push_back(ps_unwrap(user_res));
     }
@@ -166,12 +170,56 @@ int ps_daemon_endpoint_flux_user_list(
                               ps_error_message(err).c_str());
   }
 
-  auto users_res = ps_collect_users(args.db, data_json);
-  if (!ps_is_ok(users_res)) {
-    return flux_respond_error(args.h, args.msg, 0,
-                              ps_error_message(users_res).c_str());
+  std::vector<ps_user_t> users;
+  if (data_json == nullptr) {
+    // No parameter: return the entire list
+    auto list_res = ps_db_sqlite_users_list(args.db);
+    if (!ps_is_ok(list_res)) {
+      return flux_respond_error(args.h, args.msg, 0,
+                                ps_error_message(list_res).c_str());
+    }
+    users = ps_unwrap(list_res);
+  } else {
+    if (!json_is_array(data_json)) {
+      auto err = ps_field_type_mismatch_t{.field = "data", .expected = "array"};
+      return flux_respond_error(args.h, args.msg, 0,
+                                ps_error_message(err).c_str());
+    }
+
+    // Build the list of user ids
+    std::vector<uid_t> userids;
+    size_t index;
+    json_t *value;
+    json_array_foreach(data_json, index, value) {
+      if (!json_is_integer(value)) {
+        auto err = ps_field_type_mismatch_t{
+            .field = "data[" + std::to_string(index) + "]",
+            .expected = "integer"};
+        return flux_respond_error(args.h, args.msg, 0,
+                                  ps_error_message(err).c_str());
+      }
+      userids.push_back(static_cast<uid_t>(json_integer_value(value)));
+    }
+
+    // Retrieve the users from the database
+    auto get_res = ps_db_sqlite_users_get(args.db, userids);
+    if (!ps_is_ok(get_res)) {
+      return flux_respond_error(args.h, args.msg, 0,
+                                ps_error_message(get_res).c_str());
+    }
+    auto users_map = ps_unwrap(get_res);
+
+    // Build the list of users, preserving the request order
+    for (const auto &userid : userids) {
+      // The user is guaranteed to be in the map
+      auto &user_res = users_map[userid];
+      if (!ps_is_ok(user_res)) {
+        return flux_respond_error(args.h, args.msg, 0,
+                                  ps_error_message(user_res).c_str());
+      }
+      users.push_back(ps_unwrap(user_res));
+    }
   }
-  auto users = ps_unwrap(users_res);
 
   // Return as an array of users
   json_t *users_json = json_array();
@@ -251,22 +299,29 @@ int ps_daemon_endpoint_flux_user_update(
                                 ps_error_message(update_res).c_str());
     }
   } else {
-    // Retrieve jobs of users
-    // Set all users that appear in the users
-    auto users_res = ps_collect_users(args.db, data_json);
-    if (!ps_is_ok(users_res)) {
+    if (!json_is_array(data_json)) {
+      auto err = ps_field_type_mismatch_t{.field = "data", .expected = "array"};
       return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(users_res).c_str());
+                                ps_error_message(err).c_str());
     }
-    auto users = ps_unwrap(users_res);
 
-    std::vector<uid_t> users_id;
-    for (const auto &user : users) {
-      users_id.push_back(user.userid);
+    // Build the list of user ids
+    std::vector<uid_t> userids;
+    size_t index;
+    json_t *value;
+    json_array_foreach(data_json, index, value) {
+      if (!json_is_integer(value)) {
+        auto err = ps_field_type_mismatch_t{
+            .field = "data[" + std::to_string(index) + "]",
+            .expected = "integer"};
+        return flux_respond_error(args.h, args.msg, 0,
+                                  ps_error_message(err).c_str());
+      }
+      userids.push_back(static_cast<uid_t>(json_integer_value(value)));
     }
 
     // Retrieve the jobs of users passed as arguments
-    auto jobs_res = ps_db_sqlite_jobs_list(args.db, t_inactive_min, users_id);
+    auto jobs_res = ps_db_sqlite_jobs_list(args.db, t_inactive_min, userids);
     if (!ps_is_ok(jobs_res)) {
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(jobs_res).c_str());
@@ -282,13 +337,14 @@ int ps_daemon_endpoint_flux_user_update(
 
     // A user may not appear in the list of jobs
     // Their score is set to the default value
-    for (auto &user : users) {
+    std::vector<ps_user_t> users;
+    for (auto &userid : userids) {
       auto score = USER_SCORE_DEFAULT;
-      auto it = scores.find(user.userid);
+      auto it = scores.find(userid);
       if (it != scores.end()) {
         score = it->second;
       }
-      user.score = score;
+      users.push_back({.userid = userid, .score = score});
     }
 
     auto update_res = ps_db_sqlite_users_set(args.db, users);

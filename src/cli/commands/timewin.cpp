@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/cli/commands/timewin.hpp"
 #include "src/cli/endpoint/flux/timewin.hpp"
 #include "src/cli/util.hpp"

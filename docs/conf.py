@@ -1,7 +1,3 @@
-# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-#
-# SPDX-License-Identifier: MIT
-
 # Sphinx configuration for PrioriSea.
 # The C++ API is pulled in from Doxygen's XML output via Breathe
 

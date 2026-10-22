@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/cli/endpoint/flux/info.hpp"
 #include "src/cli/endpoint/util.hpp"
 #include "src/lib/error.hpp"

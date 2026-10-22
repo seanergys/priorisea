@@ -1,7 +1,3 @@
-# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-#
-# SPDX-License-Identifier: MIT
-
 _priorisea() {
     local words=("${COMP_WORDS[@]}")
     local cword=$COMP_CWORD

@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/database/error.hpp"
 
 std::string ps_error_message(const ps_db_not_found_t &err) {

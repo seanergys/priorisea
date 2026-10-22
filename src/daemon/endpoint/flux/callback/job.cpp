@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/daemon/endpoint/flux/callback/job.hpp"
 #include "croncpp.h"
 #include "src/database/sqlite/formula.hpp"

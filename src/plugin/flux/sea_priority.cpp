@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/lib/error.hpp"
 #include "src/lib/formula.hpp"
 #include "src/lib/types.hpp"

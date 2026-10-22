@@ -1,12 +1,3 @@
-# SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-# SPDX-License-Identifier: MIT
-
-#   mkdir -p build && cmake -S . -B build -G Ninja && cmake --build build
-#   ctest --test-dir build            # run unit + integration tests
-#
-#   -D PRIORISEA_PCH=ON    precompiles the heavy headers (error.hpp/types.hpp
-#                          chain + external headers) once instead of per TU. ON by default.
-
 cmake_minimum_required(VERSION 3.22)
 
 project(sea_priority_plugin
@@ -41,9 +32,6 @@ if(ENABLE_COVERAGE)
 endif()
 
 # ---- Dependencies (pkg-config) ------------------------------------------
-# Kept even when the current CLI surface does not reference every library yet:
-# the daemon/endpoint and database layers depend on them and they will be
-# linked as that code is completed.
 pkg_check_modules(JANSSON   REQUIRED IMPORTED_TARGET jansson)
 pkg_check_modules(SEANERBUS REQUIRED IMPORTED_TARGET seanerbus-c)
 pkg_check_modules(FLUX_CORE REQUIRED IMPORTED_TARGET flux-core>=0.81.0)
@@ -55,7 +43,7 @@ add_library(CLI11::CLI11 INTERFACE IMPORTED)
 set_target_properties(CLI11::CLI11 PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${CLI11_INCLUDE_DIR}")
 
-# Catch2 v2 (used by the unit tests, see commented test section below)
+# Catch2 v2 (used by the unit tests)
 find_path(CATCH2_INCLUDE_DIR catch2/catch.hpp REQUIRED)
 add_library(Catch2::Catch2 INTERFACE IMPORTED)
 set_target_properties(Catch2::Catch2 PROPERTIES
@@ -88,17 +76,13 @@ set(PRIORISEA_INCLUDE_ROOTS
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Vendored headers (tinyexpr, croncpp) kept available for the formula/timewin
-# layers even if they are not pulled in yet.
+# Vendored headers (tinyexpr, croncpp)
 set(PRIORISEA_EXT_INCLUDES
   ${CMAKE_CURRENT_SOURCE_DIR}/external/tinyexpr
   ${CMAKE_CURRENT_SOURCE_DIR}/external/croncpp/include)
 
 # ---- priorisea CLI -------------------------------------------------------
-# Single executable bundling the whole new src/ tree. The layers are tightly
-# cross-referential (lib/error.hpp reaches into daemon/ and cli/ headers), so
-# everything is compiled into one target to avoid static-archive link-order
-# issues.
+# Single executable bundling the whole new src/ tree.
 add_executable(priorisea
   # CLI commands
   src/cli/main.cpp
@@ -167,23 +151,33 @@ priorisea_add_pch(priorisea)
 
 install(TARGETS priorisea RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Shell completion (only staged when present in the new tree).
+# Shell completion (only staged when present in the new tree). The script is:
+#   * staged into the build tree at src/cli/priorisea.bash so the sharness
+#     integration tests can source it (they look in SHARNESS_BUILD_DIRECTORY);
+#   * installed into the system bash-completion dir on `make install`.
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/priorisea.bash)
-  install(FILES src/cli/priorisea.bash
+  set(PRIORISEA_COMPLETION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/priorisea.bash)
+  set(PRIORISEA_COMPLETION_DIR ${CMAKE_BINARY_DIR}/src/cli)
+  set(PRIORISEA_COMPLETION_OUT ${PRIORISEA_COMPLETION_DIR}/priorisea.bash)
+
+  add_custom_command(
+    OUTPUT ${PRIORISEA_COMPLETION_OUT}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${PRIORISEA_COMPLETION_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${PRIORISEA_COMPLETION_SRC} ${PRIORISEA_COMPLETION_OUT}
+    DEPENDS ${PRIORISEA_COMPLETION_SRC}
+    COMMENT "Staging priorisea bash completion script into the build tree")
+
+  add_custom_target(priorisea_completion ALL DEPENDS ${PRIORISEA_COMPLETION_OUT})
+
+  install(FILES ${PRIORISEA_COMPLETION_SRC}
     DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions
     RENAME priorisea)
 endif()
 
 # ---- flux jobtap plugin: sea_priority -----------------------------------
 # Loadable module for the flux job-manager. Emitted at
-#   {build}/lib/flux/job-manager/plugins/sea_priority.so
-# so flux discovers it via its default plugin search path. Compiled as a MODULE
-# (dlopen'd, not linked into anything) which also yields the bare `sea_priority`
-# name (no `lib` prefix) flux expects.
-#
-# The plugin reaches into the priorisea library core, so the TUs it pulls in
-# (formula/error/util + the error.hpp translation units) are compiled directly
-# into the module to avoid a separate linkable priorisea_lib target.
+# {build}/lib/flux/job-manager/plugins/sea_priority.so
 add_library(sea_priority MODULE
   # plugin entry point + jobtap handlers
   src/plugin/flux/sea_priority.cpp
@@ -213,8 +207,7 @@ set_target_properties(sea_priority PROPERTIES
     ${CMAKE_BINARY_DIR}/lib/flux/job-manager/plugins)
 
 # Installed into flux's job-manager plugin dir so `flux jobtap load` / the
-# daemon auto-discovers it. Pinned to a literal `lib` (not CMAKE_INSTALL_LIBDIR,
-# which resolves to lib64 on Rocky) to match flux-core's own install layout.
+# daemon auto-discovers it.
 install(TARGETS sea_priority LIBRARY DESTINATION lib/flux/job-manager/plugins)
 
 # ---- Unit tests (Catch2) -------------------------------------------------
@@ -235,25 +228,20 @@ install(TARGETS sea_priority LIBRARY DESTINATION lib/flux/job-manager/plugins)
 # endforeach()
 
 # ---- Integration tests (sharness) ----------------------------------------
-# Re-enabled once the jobtap plugins and sharness harness are restored.
-#
-# file(GLOB SHARNESS_TESTS CONFIGURE_DEPENDS
-#   ${CMAKE_CURRENT_SOURCE_DIR}/tests/t[0-9]*.t)
-# if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/sharness.sh)
-#   foreach(t ${SHARNESS_TESTS})
-#     get_filename_component(tname ${t} NAME)
-#     add_test(NAME ${tname}
-#       COMMAND sh ${tname}
-#       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
-#     set_tests_properties(${tname} PROPERTIES ENVIRONMENT
-#       "SHARNESS_BUILD_DIRECTORY=${CMAKE_BINARY_DIR};SHARNESS_TEST_SRCDIR=${CMAKE_CURRENT_SOURCE_DIR}/tests;PATH=${CMAKE_CURRENT_BINARY_DIR}/src/cli:$ENV{PATH}")
-#   endforeach()
-# endif()
+file(GLOB SHARNESS_TESTS CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/t[0-9]*.t)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test/sharness.sh)
+  foreach(t ${SHARNESS_TESTS})
+    get_filename_component(tname ${t} NAME)
+    add_test(NAME ${tname}
+      COMMAND sh ${tname}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
+    set_tests_properties(${tname} PROPERTIES ENVIRONMENT
+      "SHARNESS_BUILD_DIRECTORY=${CMAKE_BINARY_DIR};SHARNESS_TEST_SRCDIR=${CMAKE_CURRENT_SOURCE_DIR}/test;PATH=${CMAKE_CURRENT_BINARY_DIR}/src/cli:$ENV{PATH}")
+  endforeach()
+endif()
 
 # ---- Docs (Doxygen + Sphinx) --------------------------------------------
-# Mirrors the old `make docs` target: generate Doxygen XML for the src/lib
-# API and render the Sphinx HTML docs. Only defined when both tools exist so
-# it never blocks a plain configure/build.
 find_program(DOXYGEN_EXECUTABLE doxygen)
 find_program(SPHINX_BUILD_EXECUTABLE sphinx-build)
 
@@ -270,8 +258,6 @@ if(DOXYGEN_EXECUTABLE AND SPHINX_BUILD_EXECUTABLE)
 endif()
 
 # ---- Code formatting -----------------------------------------------------
-# Mirrors the old `make format` target (clang-format -i over src and
-# tests/scripts).
 find_program(CLANG_FORMAT_EXECUTABLE clang-format)
 
 if(CLANG_FORMAT_EXECUTABLE)
@@ -280,10 +266,10 @@ if(CLANG_FORMAT_EXECUTABLE)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.hpp)
   add_custom_target(format
     COMMAND ${CLANG_FORMAT_EXECUTABLE} -i ${PRIORISEA_SOURCES}
     COMMENT "Formatting sources with clang-format")

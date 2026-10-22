@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #include "src/cli/commands/plugin.hpp"
 #include "src/cli/endpoint/flux/plugin.hpp"
 #include "src/cli/util.hpp"
@@ -55,7 +51,7 @@ static void register_debug_command(CLI::App *app) {
   debug_cmd->set_help_flag("-h,--help", "Show help for debug command");
   bool json;
   debug_cmd->add_flag("-j,--json", json, "Output JSON");
-  debug_cmd->callback([json] {
+  debug_cmd->callback([&json] {
     auto debug_res = ps_cli_endpoint_flux_plugin_debug();
     if (!ps_is_ok(debug_res)) {
       ps_exit_error(debug_res);
