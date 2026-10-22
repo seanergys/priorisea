@@ -6,7 +6,7 @@
 #include "src/lib/types.hpp"
 
 /**
- * Starts the daemon with the specified database path.
+ * Starts the daemon with the specified database path
  *
  * @param config The daemon config
  */

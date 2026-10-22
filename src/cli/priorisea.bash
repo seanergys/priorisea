@@ -11,9 +11,15 @@ _priorisea() {
     local cmd1=${words[1]:-}
     local cmd2=${words[2]:-}
 
-    # Options that consume a value: don't offer further flags right after them.
+    # The previous word is an option that consumes a value: complete the value
+    # instead of offering more flags. For the job id --format option, offer the
+    # set of accepted values.
     case "$prev" in
-        --seanerbus|--expr|--default|--cron|--duration|--score)
+        --format)
+            COMPREPLY=( $(compgen -W "dec hex kvs dothex words f58 f58plain" -- "$cur") )
+            return 0
+            ;;
+        --seanerbus|--expr|--cron|--duration|--score|--default)
             return 0
             ;;
     esac
@@ -26,10 +32,13 @@ _priorisea() {
     case "$cmd1" in
         daemon)
             if [ "$cword" -eq 2 ]; then
-                COMPREPLY=( $(compgen -W "start --help" -- "$cur") )
+                COMPREPLY=( $(compgen -W "start debug --help" -- "$cur") )
                 return 0
             fi
-            COMPREPLY=( $(compgen -W "--seanerbus --background --help" -- "$cur") )
+            case "$cmd2" in
+                start) COMPREPLY=( $(compgen -W "--seanerbus --background --help" -- "$cur") ) ;;
+                *)     COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
+            esac
             return 0
             ;;
         database)
@@ -46,18 +55,24 @@ _priorisea() {
                 return 0
             fi
             case "$cmd2" in
-                get|list)  COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
-                update)    COMPREPLY=( $(compgen -W "--expr --default --help" -- "$cur") ) ;;
-                *)         COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
+                get|list) COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
+                update)   COMPREPLY=( $(compgen -W "--expr --default --help" -- "$cur") ) ;;
+                reset)    COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
+                *)        COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac
             return 0
             ;;
         job)
             if [ "$cword" -eq 2 ]; then
-                COMPREPLY=( $(compgen -W "get list --help" -- "$cur") )
+                COMPREPLY=( $(compgen -W "get list update --help" -- "$cur") )
                 return 0
             fi
-            COMPREPLY=( $(compgen -W "--json --help" -- "$cur") )
+            case "$cmd2" in
+                get)    COMPREPLY=( $(compgen -W "--json --format --help" -- "$cur") ) ;;
+                list)   COMPREPLY=( $(compgen -W "--json --format --limit --help" -- "$cur") ) ;;
+                update) COMPREPLY=( $(compgen -W "--new --help" -- "$cur") ) ;;
+                *)      COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
+            esac
             return 0
             ;;
         plugin)
@@ -67,6 +82,7 @@ _priorisea() {
             fi
             case "$cmd2" in
                 debug) COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
+                sync)  COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
                 *)     COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac
             return 0
@@ -79,16 +95,21 @@ _priorisea() {
             case "$cmd2" in
                 get|list)      COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
                 update|create) COMPREPLY=( $(compgen -W "--cron --duration --score --help" -- "$cur") ) ;;
+                delete)        COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
                 *)             COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac
             return 0
             ;;
         user)
             if [ "$cword" -eq 2 ]; then
-                COMPREPLY=( $(compgen -W "get list --help" -- "$cur") )
+                COMPREPLY=( $(compgen -W "get list update --help" -- "$cur") )
                 return 0
             fi
-            COMPREPLY=( $(compgen -W "--json --help" -- "$cur") )
+            case "$cmd2" in
+                update)   COMPREPLY=( $(compgen -W "--all --help" -- "$cur") ) ;;
+                get|list) COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
+                *)        COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
+            esac
             return 0
             ;;
     esac

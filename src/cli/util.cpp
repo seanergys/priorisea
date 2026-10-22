@@ -5,7 +5,7 @@
 #include "src/cli/util.hpp"
 #include "src/lib/formula.hpp"
 
-void print_formula(const ps_formula_t &formula, bool json) {
+void ps_print_formula(const ps_formula_t &formula, bool json) {
   if (json) {
     auto obj = ps_formula_to_json(formula);
     char *dump = json_dumps(obj, JSON_INDENT(2));

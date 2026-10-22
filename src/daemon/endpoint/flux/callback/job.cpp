@@ -11,6 +11,7 @@
 #include "src/lib/error.hpp"
 #include "src/lib/formula.hpp"
 #include "src/lib/job.hpp"
+#include "src/lib/types.hpp"
 #include <climits>
 #include <cmath>
 #include <flux/core.h>
@@ -21,7 +22,6 @@
 #include <seanerbus/helpers/resolve.hpp>
 #include <seanerbus/msg/message.hpp>
 #include <set>
-#include <src/lib/types.hpp>
 #include <string>
 
 struct ps_flux_job_t {

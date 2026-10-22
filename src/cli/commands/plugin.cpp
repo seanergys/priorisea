@@ -61,7 +61,7 @@ static void register_debug_command(CLI::App *app) {
       ps_exit_error(debug_res);
     }
     auto debug = ps_unwrap(debug_res);
-    print_formula(debug.formula, json);
+    ps_print_formula(debug.formula, json);
     print_scores(debug.scores, json);
   });
 }

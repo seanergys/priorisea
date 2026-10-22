@@ -9,11 +9,11 @@
 #include "src/lib/error.hpp"
 #include <unistd.h>
 
-ps_result_t<sqlite3 *> ps_db_database_create(const std::string &path,
-                                             double user_period) {
+ps_result_t<ps_success_t> ps_db_database_create(const std::string &path,
+                                                double user_period) {
   auto db_res = ps_db_sqlite_create(path);
   if (!ps_is_ok(db_res)) {
-    return db_res;
+    return ps_forward_error<ps_success_t>(db_res);
   }
   auto db = ps_unwrap(db_res);
 
@@ -27,7 +27,7 @@ ps_result_t<sqlite3 *> ps_db_database_create(const std::string &path,
   auto fk_res = ps_db_sqlite_execute(db, "PRAGMA foreign_keys = ON;");
   if (!ps_is_ok(fk_res)) {
     abort();
-    return ps_forward_error<sqlite3 *>(fk_res);
+    return fk_res;
   }
 
   if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
@@ -40,21 +40,21 @@ ps_result_t<sqlite3 *> ps_db_database_create(const std::string &path,
   auto schema_res = ps_db_sqlite_create_schema(db);
   if (!ps_is_ok(schema_res)) {
     abort();
-    return ps_forward_error<sqlite3 *>(schema_res);
+    return schema_res;
   }
 
   // Seed the default formulas
   auto formulas_res = ps_db_formulas_init(db);
   if (!ps_is_ok(formulas_res)) {
     abort();
-    return ps_forward_error<sqlite3 *>(formulas_res);
+    return formulas_res;
   }
 
   // Seed the info row
   auto info_res = ps_db_info_init(db, user_period);
   if (!ps_is_ok(info_res)) {
     abort();
-    return ps_forward_error<sqlite3 *>(info_res);
+    return info_res;
   }
 
   if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
@@ -63,5 +63,6 @@ ps_result_t<sqlite3 *> ps_db_database_create(const std::string &path,
         ps_db_query_err_t{.query = "COMMIT", .message = sqlite3_errmsg(db)});
   }
 
-  return db;
+  sqlite3_close(db);
+  return ps_success_t{};
 }

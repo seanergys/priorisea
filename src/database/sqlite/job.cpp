@@ -7,7 +7,6 @@
 #include "src/database/sqlite/sqlite.hpp"
 #include "src/lib/util.hpp"
 #include <cstdint>
-#include <src/daemon/endpoint/flux/endpoint.hpp>
 #include <string>
 #include <sys/types.h>
 

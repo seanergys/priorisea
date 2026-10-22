@@ -29,8 +29,6 @@ static void register_create_command(CLI::App *app) {
     if (!ps_is_ok(db_res)) {
       ps_exit_error(db_res);
     }
-    auto db = ps_unwrap(db_res);
-    sqlite3_close(db);
   });
 }
 

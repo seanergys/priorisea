@@ -12,7 +12,7 @@
 #include <vector>
 
 /**
- * Represents a time recurring window where jobs can be scheduled.
+ * Represents a time recurring window where jobs can be scheduled
  */
 struct ps_timewin_t {
   std::string name;
@@ -22,7 +22,7 @@ struct ps_timewin_t {
 };
 
 /**
- * Represents a formula that can be used to calculate a double.
+ * Represents a formula that can be used to calculate a double
  */
 struct ps_formula_t {
   std::string name;
@@ -31,7 +31,7 @@ struct ps_formula_t {
 };
 
 /**
- * Represents a job with its associated information.
+ * Represents a job with its associated information
  */
 struct ps_job_t {
   std::string jobid;
@@ -41,7 +41,7 @@ struct ps_job_t {
 };
 
 /**
- * Represents a user with their associated information.
+ * Represents a user with their associated information
  */
 struct ps_user_t {
   uid_t userid;
@@ -52,7 +52,7 @@ struct ps_user_t {
  * Represents the database's info row: the t_inactive cursor and the default
  * user_period. The two fields are always read and written together as a single
  * unit, so the row can never be left half-written (for example with a NULL
- * user_period, which the schema forbids).
+ * user_period, which the schema forbids)
  */
 struct ps_db_info_t {
   double t_inactive;
@@ -60,7 +60,7 @@ struct ps_db_info_t {
 };
 
 /**
- * Represents a decay frame with a duration and weight.
+ * Represents a decay frame with a duration and weight
  */
 struct ps_decay_frame_t {
   int duration;
@@ -68,10 +68,13 @@ struct ps_decay_frame_t {
 };
 
 /**
- * Represents a decay configuration consisting of multiple decay frames.
+ * Represents a decay configuration consisting of multiple decay frames
  */
 typedef std::vector<ps_decay_frame_t> ps_decay_t;
 
+/**
+ * Configuration for running the daemon
+ */
 struct ps_daemon_config_t {
   std::string database_path;
   std::string seanerbus_url;

@@ -26,7 +26,7 @@ static void register_start_command(CLI::App *app) {
   start_cmd
       ->add_option("-s,--seanerbus", opts->config.seanerbus_url,
                    "SeanerBUS endpoint")
-      ->default_str(SEANERBUS_ENDPOINT_DEFAULT);
+      ->default_val(SEANERBUS_ENDPOINT_DEFAULT);
   start_cmd->add_flag("-b,--background", opts->background, "Run in background");
   start_cmd->callback([opts] {
     if (!opts->background) {

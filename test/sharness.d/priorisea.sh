@@ -61,18 +61,17 @@ test_start_priorisea() {
 
     if ! priorisea database create "$db_path"; then
         error "could not create priorisea database at $db_path"
-        return
     fi
 
-    # `--background` forks the daemon and prints the child PID on stdout.
+    # `--background` forks the daemon and prints the child PID on stdout; match
+    # that specific line so a stray "PID N" on stderr can't be captured instead.
     priorisea daemon start "$db_path" --seanerbus "$sb_url" --background \
         >priorisea-daemon.out 2>&1 </dev/null
 
-    daemon_pid=$(sed -n 's/.*PID \([0-9][0-9]*\).*/\1/p' priorisea-daemon.out | head -n1)
+    daemon_pid=$(sed -n 's/.*background with PID \([0-9][0-9]*\).*/\1/p' priorisea-daemon.out | head -n1)
     if test -z "$daemon_pid"; then
         error "priorisea daemon did not start (no PID reported); \
 see priorisea-daemon.out: $(sed 's/^/    /' priorisea-daemon.out)"
-        return
     fi
     echo "$daemon_pid" >priorisea-daemon.pid
     echo "# test_start_priorisea: started priorisea daemon pid $daemon_pid on $sb_url" >&5
@@ -93,7 +92,6 @@ see priorisea-daemon.out: $(sed 's/^/    /' priorisea-daemon.out)"
         if ! kill -0 "$daemon_pid" 2>/dev/null; then
             error "priorisea daemon (pid $daemon_pid) exited early; \
 see priorisea-daemon.out: $(sed 's/^/    /' priorisea-daemon.out)"
-            return
         fi
         sleep 0.1
     done

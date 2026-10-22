@@ -61,7 +61,7 @@ static void register_get_command(CLI::App *app) {
     if (!ps_is_ok(get_res)) {
       ps_exit_error(get_res);
     }
-    print_formula(ps_unwrap(get_res), opts->json);
+    ps_print_formula(ps_unwrap(get_res), opts->json);
   });
 }
 
@@ -105,6 +105,7 @@ static void register_update_command(CLI::App *app) {
       ->type_size(2);
   update_cmd->callback([opts] {
     ps_formula_t formula{.name = opts->name, .expr = opts->expr};
+    // Retrieve default values for variables
     for (size_t i = 0; i < opts->defaults.size(); i += 2) {
       auto default_name = opts->defaults[i];
       auto value_str = opts->defaults[i + 1];

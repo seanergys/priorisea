@@ -11,47 +11,142 @@
 #include <sys/types.h>
 #include <vector>
 
+/**
+ * Fetches a single job by id
+ *
+ * @param db The SQLite database
+ * @param jobid The id of the job to fetch
+ * @return The job, or an error if it does not exist
+ */
 ps_result_t<ps_job_t> ps_db_sqlite_job_get(sqlite3 *db, flux_jobid_t jobid);
 
+/**
+ * Fetches multiple jobs by id
+ *
+ * Returns one entry per requested id, with an error for any missing id
+ *
+ * @param db The SQLite database
+ * @param jobids The ids of the jobs to fetch
+ * @return A map of id to result
+ */
 ps_result_t<ps_db_sqlite_jobs_get_t>
 ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids);
 
+/**
+ * Lists the most recent jobs, most recent first (highest t_inactive first)
+ *
+ * @param db The SQLite database
+ * @param limit The maximum number of jobs to return
+ * @return The jobs
+ */
 ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
                                                           size_t limit);
 
+/**
+ * Lists the most recent jobs owned by a user, most recent first
+ *
+ * @param db The SQLite database
+ * @param limit The maximum number of jobs to return
+ * @param userid The owner id to filter by
+ * @return The jobs
+ */
 ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid);
 
+/**
+ * Lists the jobs inactive for at least min_t_inactive, most recent first
+ *
+ * @param db The SQLite database
+ * @param min_t_inactive The minimum t_inactive of the jobs to list
+ * @return The jobs
+ */
 ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive);
 
-// Returns the jobs with t_inactive >= min_t_inactive whose owner is one of the
-// given user ids, most recent first (higher t_inactive sorts earlier).
+/**
+ * Lists the jobs inactive for at least min_t_inactive owned by one of the
+ * given user ids, most recent first (higher t_inactive sorts earlier)
+ *
+ * @param db The SQLite database
+ * @param min_t_inactive The minimum t_inactive of the jobs to list
+ * @param userids The owner ids to filter by
+ * @return The jobs
+ */
 ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
                        const std::vector<uid_t> &userids);
 
+/**
+ * Inserts or replaces the jobs in a single transaction
+ *
+ * @param db The SQLite database
+ * @param jobs The jobs to store
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t>
 ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs);
 
-// Atomically stores the job scores and advances the t_inactive cursor in a
-// single transaction: either both commit or both roll back, so the jobs table
-// and the cursor can never diverge.
+/**
+ * Stores the jobs and advances the t_inactive cursor in a single transaction
+ *
+ * Both writes commit or roll back together so the jobs table and the cursor
+ * can never diverge
+ *
+ * @param db The SQLite database
+ * @param jobs The jobs to store
+ * @param t_inactive The new t_inactive cursor value
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t>
 ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
                       double t_inactive);
 
+/**
+ * Inserts or replaces a single job in a single transaction
+ *
+ * @param db The SQLite database
+ * @param job The job to store
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t> ps_db_sqlite_job_set(sqlite3 *db,
                                                const ps_job_t &job);
 
+/**
+ * Inserts new jobs, failing if any of them already exists
+ *
+ * @param db The SQLite database
+ * @param jobs The jobs to insert
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t>
 ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs);
 
+/**
+ * Inserts a new job, failing if it already exists
+ *
+ * @param db The SQLite database
+ * @param job The job to insert
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t> ps_db_sqlite_job_insert(sqlite3 *db,
                                                   const ps_job_t &job);
 
+/**
+ * Updates existing jobs, failing if any of them is missing
+ *
+ * @param db The SQLite database
+ * @param jobs The jobs to update
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t>
 ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs);
 
+/**
+ * Updates an existing job, failing if it is missing
+ *
+ * @param db The SQLite database
+ * @param job The job to update
+ * @return A result indicating the success of the operation
+ */
 ps_result_t<ps_success_t> ps_db_sqlite_job_update(sqlite3 *db,
                                                   const ps_job_t &job);

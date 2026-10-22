@@ -10,6 +10,9 @@
 #include <string>
 #include <vector>
 
+/**
+ * A table column with a header and a value getter
+ */
 template <typename T> struct ps_column_t {
   std::string header;
   std::function<std::string(const T &, std::size_t)> getter;
@@ -115,4 +118,10 @@ void ps_print_table_h(const std::vector<T> &rows,
   std::cout << std::endl;
 }
 
-void print_formula(const ps_formula_t &formula, bool json);
+/**
+ * Print a formula to the console as a table or JSON
+ *
+ * @param formula Formula to print
+ * @param json Whether to print the formula as JSON
+ */
+void ps_print_formula(const ps_formula_t &formula, bool json);
