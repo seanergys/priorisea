@@ -4,13 +4,22 @@ version = 1
 path = [
     "**",
    ]
+SPDX-FileCopyrightText = "Copyright (c) 2026 SEANERGYS Partners <https://seanergys.eu>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = [
+    "test/scripts/sb_response.cpp"
+   ]
+precedence = "override"
 SPDX-FileCopyrightText = "2026 SEANERGYS Partners <https://seanergys.eu>"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = [
     "test/sharness.d/01-setup.sh",
     "test/sharness.d/flux-sharness.sh",
+    "test/scripts/run_timeout.py",
     "test/scripts/submit_as.py"
    ]
 precedence = "override"

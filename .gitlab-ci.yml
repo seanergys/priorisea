@@ -9,7 +9,7 @@ variables:
 
 reuse:
     image:
-        name: fsfe/reuse:latest
+        name: fsfe/reuse:6.2.0
         entrypoint: [""]
     stage: prebuild
     script:
