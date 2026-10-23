@@ -47,14 +47,26 @@ ps_result_t<ps_success_t> ps_db_sqlite_execute(sqlite3 *db,
   return ps_success_t{};
 }
 
-ps_result_t<sqlite3 *> ps_db_sqlite_open(const std::string &path) {
-  sqlite3 *db;
-  auto rc = sqlite3_open(path.c_str(), &db);
+// Opens a SQLite database at the given path using the specified open flags.
+// The database handle is always released on error to avoid leaking it.
+static ps_result_t<sqlite3 *>
+ps_db_sqlite_open_with_flags(const std::string &path, int flags) {
+  sqlite3 *db = nullptr;
+  auto rc = sqlite3_open_v2(path.c_str(), &db, flags, nullptr);
   if (rc != SQLITE_OK) {
-    return ps_error(
-        ps_db_open_err_t{.path = path, .message = sqlite3_errmsg(db)});
+    auto err =
+        ps_error(ps_db_open_err_t{.path = path, .message = sqlite3_errmsg(db)});
+    if (db != nullptr) {
+      sqlite3_close(db);
+    }
+    return err;
   }
   return db;
+}
+
+ps_result_t<sqlite3 *> ps_db_sqlite_open(const std::string &path) {
+  // Open an existing database only; never create the file
+  return ps_db_sqlite_open_with_flags(path, SQLITE_OPEN_READWRITE);
 }
 
 ps_result_t<sqlite3 *> ps_db_sqlite_create(const std::string &path) {
@@ -66,7 +78,9 @@ ps_result_t<sqlite3 *> ps_db_sqlite_create(const std::string &path) {
   if (!ps_is_ok(mkdir_res)) {
     return ps_forward_error<sqlite3 *>(mkdir_res);
   }
-  return ps_db_sqlite_open(path);
+  // Create the database file if it does not exist yet
+  return ps_db_sqlite_open_with_flags(path, SQLITE_OPEN_READWRITE |
+                                                SQLITE_OPEN_CREATE);
 }
 
 ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {

@@ -18,6 +18,7 @@
 #include <seanerbus/helpers/resolve.hpp>
 #include <seanerbus/msg/message.hpp>
 #include <set>
+#include <src/daemon/endpoint/error.hpp>
 #include <string>
 
 struct ps_flux_job_t {
@@ -50,15 +51,20 @@ struct ps_flux_job_t {
   // int waitstatus;
 };
 
-static ps_result_t<bool> ps_flux_job_ok(json_t *job_json) {
-  bool exception_occurred;
-  if (json_unpack(job_json, "{s:b}", "exception_occurred",
-                  &exception_occurred) < 0) {
+static ps_result_t<ps_success_t> ps_flux_job_ok(json_t *job_json) {
+  flux_jobid_t id;
+  double t_inactive = 0;
+  bool exception_occured = false;
+  if (json_unpack(job_json, "{s:I s?f s?b}", "id", &id, "t_inactive",
+                  &t_inactive, "exception_occurred", &exception_occured) < 0) {
     return ps_error(
-        ps_unexpected_err_t{.msg = "Failed to unpack exception_occurred: " +
+        ps_unexpected_err_t{.msg = "Failed to unpack job: " +
                                    std::string(json_dumps(job_json, 0))});
   }
-  return !exception_occurred;
+  if (t_inactive != 0 && !exception_occured) {
+    return ps_success_t{};
+  }
+  return ps_error(ps_job_invalid_t{.jobid = std::to_string(id)});
 }
 
 static ps_result_t<ps_flux_job_t> ps_flux_job_unpack(json_t *job_json) {
@@ -133,12 +139,7 @@ ps_flux_list_inactive_jobs(double since) {
     size_t index;
     json_t *value;
     json_array_foreach(jobs, index, value) {
-      auto ok_res = ps_flux_job_ok(value);
-      if (!ps_is_ok(ok_res)) {
-        return ps_forward_error<ps_flux_list_inactive_jobs_t>(ok_res);
-      }
-      auto ok = ps_unwrap(ok_res);
-      if (!ok) {
+      if (!ps_is_ok(ps_flux_job_ok(value))) {
         continue;
       }
 
@@ -162,7 +163,7 @@ ps_flux_list_inactive_jobs(double since) {
   return res;
 }
 
-ps_result_t<std::vector<ps_flux_job_t>>
+static ps_result_t<std::vector<ps_flux_job_t>>
 ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids) {
   flux_future_t *f;
   json_t *c;
@@ -188,10 +189,6 @@ ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids) {
     if (!ps_is_ok(ok_res)) {
       return ps_forward_error<std::vector<ps_flux_job_t>>(ok_res);
     }
-    auto ok = ps_unwrap(ok_res);
-    if (!ok) {
-      continue;
-    }
 
     auto job_res = ps_flux_job_unpack(value);
     if (!ps_is_ok(job_res)) {
@@ -204,7 +201,7 @@ ps_flux_list_jobs(const std::vector<flux_jobid_t> &jobids) {
   return res;
 }
 
-std::map<std::string, seanerbus::msg::Entity>
+static std::map<std::string, seanerbus::msg::Entity>
 ps_formula_sb_entities(const ps_formula_t &formula,
                        const std::string &seanerbus_url) {
   std::map<std::string, seanerbus::msg::Entity> res;

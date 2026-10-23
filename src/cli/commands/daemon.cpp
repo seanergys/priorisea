@@ -4,7 +4,9 @@
 #include "src/cli/endpoint/flux/info.hpp"
 #include "src/cli/endpoint/info.hpp"
 #include "src/cli/util.hpp"
+#include "src/lib/info.hpp"
 #include "src/lib/types.hpp"
+#include <jansson.h>
 #include <memory>
 #include <string>
 #include <unistd.h>
@@ -30,8 +32,7 @@ static void register_start_command(CLI::App *app) {
     } else {
       pid_t pid = fork();
       if (pid > 0) {
-        std::cout << "Daemon started in background with PID " << pid
-                  << std::endl;
+        std::cout << pid << std::endl;
         return;
       }
       setsid();
@@ -40,27 +41,44 @@ static void register_start_command(CLI::App *app) {
   });
 }
 
+static void print_info(const ps_cli_endpoint_info_get_t &info, bool json) {
+  if (json) {
+    auto *obj = json_object();
+    json_object_set_new(obj, "version", json_integer(info.version));
+    json_object_set_new(obj, "info", ps_db_info_to_json(info.info));
+    char *dump = json_dumps(obj, JSON_INDENT(2));
+    if (dump) {
+      std::cout << dump << std::endl;
+      free(dump);
+    }
+    json_decref(obj);
+    return;
+  }
+  std::vector<ps_cli_endpoint_info_get_t> vec = {info};
+  ps_print_table_v(vec, {{"Version",
+                          [](auto &value, auto index) -> auto {
+                            return std::to_string(value.version);
+                          }},
+                         {"t_inactive",
+                          [](auto &value, auto index) -> auto {
+                            return std::to_string(value.info.t_inactive);
+                          }},
+                         {"user_period", [](auto &value, auto index) -> auto {
+                            return std::to_string(value.info.user_period);
+                          }}});
+}
+
 static void register_debug_command(CLI::App *app) {
   auto *debug_cmd = app->add_subcommand("debug", "Debug print for the daemon");
   debug_cmd->set_help_flag("-h,--help", "Show help for debug command");
-  debug_cmd->callback([] {
+  bool json;
+  debug_cmd->add_flag("-j,--json", json, "Output JSON");
+  debug_cmd->callback([&json] {
     auto info_res = ps_cli_endpoint_info_get();
     if (!ps_is_ok(info_res)) {
       ps_exit_error(info_res);
     }
-    auto info = ps_unwrap(info_res);
-    std::vector<ps_cli_endpoint_info_get_t> vec = {info};
-    ps_print_table_v(vec, {{"Version",
-                            [](auto &value, auto index) -> auto {
-                              return std::to_string(value.version);
-                            }},
-                           {"t_inactive",
-                            [](auto &value, auto index) -> auto {
-                              return std::to_string(value.info.t_inactive);
-                            }},
-                           {"user_period", [](auto &value, auto index) -> auto {
-                              return std::to_string(value.info.user_period);
-                            }}});
+    print_info(ps_unwrap(info_res), json);
   });
 }
 

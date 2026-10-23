@@ -103,7 +103,7 @@ using ps_error_kind_t =
                  ps_flux_open_err_t, ps_flux_rpc_err_t,
                  ps_flux_jobid_parse_err_t,
 
-                 ps_daemon_err_t, ps_plugin_err_t,
+                 ps_daemon_err_t, ps_plugin_err_t, ps_job_invalid_t,
 
                  ps_db_not_found_t, ps_db_already_exist_err_t, ps_db_open_err_t,
                  ps_db_version_mismatch_t, ps_db_query_err_t>;

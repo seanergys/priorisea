@@ -39,7 +39,9 @@ ps_result_t<sqlite3 *> ps_db_sqlite_create(const std::string &path);
 ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db);
 
 /**
- * Opens a SQLite database at the specified path
+ * Opens an existing SQLite database at the specified path. The database file
+ * must already exist; it is never created here (use ps_db_sqlite_create for
+ * that)
  *
  * @param path The path to the database file
  * @return A pointer to the SQLite database if successful

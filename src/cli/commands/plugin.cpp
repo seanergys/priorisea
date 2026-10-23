@@ -2,6 +2,7 @@
 #include "src/cli/endpoint/flux/plugin.hpp"
 #include "src/cli/util.hpp"
 #include "src/lib/error.hpp"
+#include "src/lib/formula.hpp"
 #include <jansson.h>
 #include <string>
 #include <sys/types.h>
@@ -34,6 +35,29 @@ static void print_scores(const std::map<uid_t, double> &scores, bool json) {
        {"Score", [](auto &u, auto) { return std::to_string(u.score); }}});
 }
 
+static void print_debug(const ps_cli_endpoint_plugin_debug_t &debug,
+                        bool json) {
+  if (!json) {
+    ps_print_formula(debug.formula, /*json=*/false);
+    print_scores(debug.scores, /*json=*/false);
+    return;
+  }
+  auto *obj = json_object();
+  json_object_set_new(obj, "formula", ps_formula_to_json(debug.formula));
+  auto *scores_obj = json_object();
+  for (const auto &[user, score] : debug.scores) {
+    json_object_set_new(scores_obj, std::to_string(user).c_str(),
+                        json_real(score));
+  }
+  json_object_set_new(obj, "scores", scores_obj);
+  char *dump = json_dumps(obj, JSON_INDENT(2));
+  if (dump) {
+    std::cout << dump << std::endl;
+    free(dump);
+  }
+  json_decref(obj);
+}
+
 static void register_sync_command(CLI::App *app) {
   auto *sync_cmd =
       app->add_subcommand("sync", "Sync the plugin with the database");
@@ -56,9 +80,7 @@ static void register_debug_command(CLI::App *app) {
     if (!ps_is_ok(debug_res)) {
       ps_exit_error(debug_res);
     }
-    auto debug = ps_unwrap(debug_res);
-    ps_print_formula(debug.formula, json);
-    print_scores(debug.scores, json);
+    print_debug(ps_unwrap(debug_res), json);
   });
 }
 
