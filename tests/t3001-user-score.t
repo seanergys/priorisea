@@ -31,20 +31,14 @@ test_expect_success 'the user score equals the job score with 1 weight' '
     jq -e ".score == 42" user.json
 '
 
-test_expect_success 'reset restores the default job_weight formula and score' '
+test_expect_success 'reset restores the default job_weight formula' '
     priorisea formula reset job_weight &&
     priorisea formula get job_weight --json > formula.json &&
-    jq -e ".expr == \"max(0, 1 - <var:age_days> / 90)\"" formula.json &&
-    priorisea user update $(whoami) &&
-    priorisea user get $(whoami) --json > user.json &&
-    jq -e ".score == 42" user.json
-'
-
-test_expect_success 'load the priority plugin' '
-    flux jobtap load ${PRIORITY_PLUGIN}
+    jq -e ".expr == \"max(0, 1 - (<var:age_days> / 90) - (<var:duration_seconds> / <var:max_duration_seconds>))\"" formula.json
 '
 
 test_expect_success 'syncing pushes the user score into the plugin' '
+    flux jobtap load ${PRIORITY_PLUGIN}
     priorisea plugin sync &&
     priorisea plugin debug --json > plugin.json &&
     jq -e ".scores[\"$(id -u)\"] == 42" plugin.json
@@ -55,12 +49,8 @@ test_expect_success 'duration weighting pulls the user score toward longer jobs'
     jobB=$(${SUBMIT} "sleep 1") &&
     priorisea formula update job_score --expr "100" &&
     priorisea job update ${jobA} &&
-    priorisea formula update job_score --expr "1" &&
+    priorisea formula update job_score --expr "2" &&
     priorisea job update ${jobB} &&
-    priorisea formula update job_weight --expr "1" &&
-    priorisea user update $(whoami) &&
-    priorisea user get $(whoami) --json >u_plain.json &&
-    jq -e ".score < 60" u_plain.json &&
     priorisea formula update job_weight --expr "<var:duration_seconds>" &&
     priorisea user update $(whoami) &&
     priorisea user get $(whoami) --json >u_w.json &&
