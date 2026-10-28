@@ -16,7 +16,8 @@ static const ps_formula_t JOB_SCORE_DEFAULT = {
 
 static const ps_formula_t JOB_WEIGHT_DEFAULT = {
     .name = "job_weight",
-    .expr = "max(0, 1 - (<var:age_days> / 90) - (<var:duration_seconds> / <var:max_duration_seconds>))",
+    .expr = "max(0, 1 - (<var:age_days> / 90) - (<var:duration_seconds> / "
+            "<var:max_duration_seconds>))",
     .defaults = {}};
 
 static const std::vector<ps_formula_t> DEFAULT_FORMULAS = {
