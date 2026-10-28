@@ -115,9 +115,7 @@ RUN dnf install -y \
     cli11-devel
 WORKDIR /app
 COPY . .
-RUN if [ -d .git ]; then \
-      git submodule update --init --recursive; \
-    fi
+RUN git submodule update --init --recursive
 
 FROM base
 ARG ENABLE_COVERAGE=0
