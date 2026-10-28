@@ -2,9 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "lib/util.hpp"
+#include "src/lib/util.hpp"
 
 #include <catch2/catch.hpp>
+#include <climits>
+#include <cstdint>
 
 TEST_CASE("parse_int accepts well-formed integers", "[util][parse_int]") {
   int out = 0;
@@ -47,6 +49,30 @@ TEST_CASE("parse_double rejects malformed or non-finite input",
   REQUIRE_FALSE(parse_double("1.2x", out));
   REQUIRE_FALSE(parse_double("inf", out));
   REQUIRE_FALSE(parse_double("nan", out));
+}
+
+TEST_CASE("parse_uint64 accepts well-formed values", "[util][parse_uint64]") {
+  uint64_t out = 0;
+  REQUIRE(parse_uint64("0", out));
+  REQUIRE(out == 0);
+  REQUIRE(parse_uint64("42", out));
+  REQUIRE(out == 42);
+  REQUIRE(parse_uint64("1000", out));
+  REQUIRE(out == 1000);
+
+  // The full unsigned 64-bit range is accepted.
+  REQUIRE(parse_uint64("18446744073709551615", out));
+  REQUIRE(out == ULLONG_MAX);
+}
+
+TEST_CASE("parse_uint64 rejects malformed or overflowing input",
+          "[util][parse_uint64]") {
+  uint64_t out = 0;
+  REQUIRE_FALSE(parse_uint64("", out));
+  REQUIRE_FALSE(parse_uint64("abc", out));
+  REQUIRE_FALSE(parse_uint64("42x", out));
+  // UINT64_MAX + 1 overflows.
+  REQUIRE_FALSE(parse_uint64("18446744073709551616", out));
 }
 
 TEST_CASE("parse_uid accepts non-negative uids", "[util][parse_uid]") {

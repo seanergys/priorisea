@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "lib/timewin.hpp"
+#include "src/lib/timewin.hpp"
 
 #include <catch2/catch.hpp>
 
@@ -30,7 +30,7 @@ TEST_CASE("ps_validate_cron rejects malformed input",
   REQUIRE_FALSE(ps_is_ok(ps_validate_cron("* * * * * * * *")));
 
   auto r = ps_validate_cron("notacron");
-  REQUIRE(ps_is_error_type<ps_cron_parse_err_t>(r));
+  REQUIRE(ps_is_error_type<ps_string_parse_err_t>(r));
 }
 
 TEST_CASE("ps_validate_timewin accepts well-formed input",
@@ -46,19 +46,19 @@ TEST_CASE("ps_validate_timewin rejects malformed input",
   auto r1 = ps_validate_timewin(
       {.name = "", .cron = "0 0 * * * *", .duration = 3600, .score = 1.0});
   REQUIRE_FALSE(ps_is_ok(r1));
-  REQUIRE(ps_is_error_type<ps_str_empty_t>(r1));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r1));
 
   // Invalid cron expression.
   auto r2 = ps_validate_timewin(
       {.name = "x", .cron = "notacron", .duration = 3600, .score = 1.0});
   REQUIRE_FALSE(ps_is_ok(r2));
-  REQUIRE(ps_is_error_type<ps_cron_parse_err_t>(r2));
+  REQUIRE(ps_is_error_type<ps_string_parse_err_t>(r2));
 
   // Negative duration.
   auto r3 = ps_validate_timewin(
       {.name = "x", .cron = "0 0 * * * *", .duration = -1, .score = 1.0});
   REQUIRE_FALSE(ps_is_ok(r3));
-  REQUIRE(ps_is_error_type<ps_timewin_neg_duration_t>(r3));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r3));
 }
 
 TEST_CASE("ps_timewin_from_json accepts well-formed input",
@@ -81,7 +81,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          3600, "score", 1.5);
   auto r1 = ps_timewin_from_json(o1);
   REQUIRE_FALSE(ps_is_ok(r1));
-  REQUIRE(ps_is_error_type<ps_timewin_name_missing_t>(r1));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r1));
   json_decref(o1);
 
   // Name present but not a string.
@@ -89,7 +89,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          "duration", 3600, "score", 1.5);
   auto r2 = ps_timewin_from_json(o2);
   REQUIRE_FALSE(ps_is_ok(r2));
-  REQUIRE(ps_is_error_type<ps_timewin_name_invalid_t>(r2));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r2));
   json_decref(o2);
 
   // Missing cron.
@@ -97,7 +97,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
       json_pack("{s:s,s:i,s:f}", "name", "n", "duration", 3600, "score", 1.5);
   auto r3 = ps_timewin_from_json(o3);
   REQUIRE_FALSE(ps_is_ok(r3));
-  REQUIRE(ps_is_error_type<ps_timewin_cron_missing_t>(r3));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r3));
   json_decref(o3);
 
   // Cron present but not a string.
@@ -105,7 +105,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          "duration", 3600, "score", 1.5);
   auto r4 = ps_timewin_from_json(o4);
   REQUIRE_FALSE(ps_is_ok(r4));
-  REQUIRE(ps_is_error_type<ps_timewin_cron_invalid_t>(r4));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r4));
   json_decref(o4);
 
   // Missing duration.
@@ -113,7 +113,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          "score", 1.5);
   auto r5 = ps_timewin_from_json(o5);
   REQUIRE_FALSE(ps_is_ok(r5));
-  REQUIRE(ps_is_error_type<ps_timewin_duration_missing_t>(r5));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r5));
   json_decref(o5);
 
   // Duration present but not an integer.
@@ -121,7 +121,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          "0 0 * * * *", "duration", 1.5, "score", 1.5);
   auto r6 = ps_timewin_from_json(o6);
   REQUIRE_FALSE(ps_is_ok(r6));
-  REQUIRE(ps_is_error_type<ps_timewin_duration_invalid_t>(r6));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r6));
   json_decref(o6);
 
   // Missing score.
@@ -129,7 +129,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          "duration", 3600);
   auto r7 = ps_timewin_from_json(o7);
   REQUIRE_FALSE(ps_is_ok(r7));
-  REQUIRE(ps_is_error_type<ps_timewin_score_missing_t>(r7));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r7));
   json_decref(o7);
 
   // Score present but not a real (integer is rejected).
@@ -137,7 +137,7 @@ TEST_CASE("ps_timewin_from_json rejects malformed input",
                          "0 0 * * * *", "duration", 3600, "score", 2);
   auto r8 = ps_timewin_from_json(o8);
   REQUIRE_FALSE(ps_is_ok(r8));
-  REQUIRE(ps_is_error_type<ps_timewin_score_invalid_t>(r8));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r8));
   json_decref(o8);
 }
 

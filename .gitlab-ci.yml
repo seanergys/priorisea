@@ -9,7 +9,7 @@ variables:
 
 reuse:
     image:
-        name: fsfe/reuse:latest
+        name: fsfe/reuse:6.2.0
         entrypoint: [""]
     stage: prebuild
     script:
@@ -40,7 +40,7 @@ coverage:
     image: $IMAGE_TAG
     script:
         - cd /app
-        - ctest --test-dir build --output-on-failure
+        - ./scripts/test.sh
         - |
           gcovr \
               --print-summary \

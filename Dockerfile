@@ -26,7 +26,8 @@ RUN dnf install -y \
     epel-release \
     clang-tools-extra \
     doxygen \
-    bash-completion
+    bash-completion \
+    tar
 
 RUN pip install gcovr sphinx breathe sphinx_rtd_theme
 
@@ -34,31 +35,6 @@ ARG CI_JOB_TOKEN
 RUN if [ -n "$CI_JOB_TOKEN" ]; then \
         git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.seanergys.fz-juelich.de/".insteadOf "git@gitlab.seanergys.fz-juelich.de:"; \
     fi
-
-#
-# Build flux-security
-#
-WORKDIR /opt
-RUN dnf install -y \
-    autoconf \
-    automake \
-    libtool \
-    pkgconf-pkg-config \
-    libsodium-devel \
-    jansson-devel \
-    libuuid-devel \
-    munge-devel \
-    pam-devel \
-    fmt-devel
-RUN wget https://github.com/flux-framework/flux-security/releases/download/v0.15.0/flux-security-0.15.0.tar.gz && \
-    tar -xzf flux-security-0.15.0.tar.gz
-
-WORKDIR /opt/flux-security-0.15.0
-
-RUN ./configure --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install && \
-    ldconfig
 
 #
 # Build flux-core
@@ -76,13 +52,16 @@ RUN dnf install -y \
     lz4-devel \
     sqlite-devel \
     ncurses-devel \
-    libarchive-devel
+    libarchive-devel \
+    pkgconf-pkg-config \
+    jansson-devel \
+    libuuid-devel
 RUN wget https://github.com/flux-framework/flux-core/releases/download/v0.85.0/flux-core-0.85.0.tar.gz && \
     tar -xzf flux-core-0.85.0.tar.gz
 
 WORKDIR /opt/flux-core-0.85.0
 
-RUN ./configure --prefix=/usr/local --with-flux-security && \
+RUN ./configure --prefix=/usr/local && \
     make -j$(nproc) && \
     make install && \
     ldconfig
@@ -109,10 +88,11 @@ RUN cargo install --path . --root /usr/local
 # Build Seanerbus naming service
 #
 WORKDIR /opt
-RUN git clone --recurse-submodules --revision 44893ce72181079f81b26f6140ca8d1c808dff15 \
+RUN git clone --recurse-submodules --revision d1236b5cfac3209a8fa3ed0848d1adc7ecb6e960 \
     git@gitlab.seanergys.fz-juelich.de:software/seanerbus-naming-service.git
 WORKDIR /opt/seanerbus-naming-service
 RUN cargo install --path . --root /usr/local
+RUN printf '%s\n' /usr/local/lib /usr/local/lib64 > /etc/ld.so.conf.d/local.conf
 
 #
 # Build seanerbus cpp
@@ -126,9 +106,6 @@ WORKDIR /opt/seanerbus-cpp/build
 RUN cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON && \
     make -j$(nproc) && \
     make install
-# Keep seanerbus-cpp's bundled fmt installed
-RUN echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
-    ldconfig
 
 #
 # PrioriSea dependencies
@@ -136,17 +113,16 @@ RUN echo "/usr/local/lib64" > /etc/ld.so.conf.d/local.conf && \
 RUN dnf install -y \
     catch2-devel \
     cli11-devel
+WORKDIR /app
+COPY . .
+RUN git submodule update --init --recursive
 
 FROM base
-
 ARG ENABLE_COVERAGE=0
 
 #
 # Build priorisea
 #
-WORKDIR /app
-COPY . .
-RUN git submodule update --init --recursive
 RUN if [ "$ENABLE_COVERAGE" = "1" ] || [ "$ENABLE_COVERAGE" = "true" ]; then \
         COVERAGE=ON; \
     else \

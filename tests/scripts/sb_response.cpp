@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 // Usage:
-//     sb_response [--ip IP] [--port PORT] UUID MESSAGE
+//     sb_response IP PORT UUID MESSAGE
 
 #include <seanerbus/client/connection.hpp>
 #include <seanerbus/client/simple_event_loop.hpp>
@@ -53,31 +53,19 @@ void res_handler(
 } // namespace
 
 int main(int argc, char **argv) {
-  std::string ip = "localhost";
-  std::string port = "5398";
-  std::vector<std::string> positionals;
-
-  for (int i = 1; i < argc; ++i) {
-    const std::string arg(argv[i]);
-    if (arg == "--ip" && i + 1 < argc) {
-      ip = argv[++i];
-    } else if (arg == "--port" && i + 1 < argc) {
-      port = argv[++i];
-    } else {
-      positionals.push_back(arg);
-    }
-  }
-
-  if (positionals.size() < 2) {
-    std::cerr << "Usage: " << argv[0] << " [--ip IP] [--port PORT] UUID MESSAGE"
-              << std::endl;
+  // All four arguments are mandatory positionals; there are no options and no
+  // defaults, so the caller must always pass IP PORT UUID MESSAGE.
+  if (argc < 5) {
+    std::cerr << "Usage: " << argv[0] << " IP PORT UUID MESSAGE" << std::endl;
     return -1;
   }
 
-  const auto entity =
-      seanerbus::msg::Entity{seanerbus::msg::Uuid{positionals[0]}};
+  const std::string ip = argv[1];
+  const std::string port = argv[2];
+  const std::string uuid = argv[3];
+  const std::string reply = argv[4];
 
-  const std::string reply = positionals[1];
+  const auto entity = seanerbus::msg::Entity{seanerbus::msg::Uuid{uuid}};
 
   // Connect to the server.
   const std::string endpoint = "demobus://" + ip + ":" + port;

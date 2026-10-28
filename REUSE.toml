@@ -2,17 +2,16 @@ version = 1
 
 [[annotations]]
 path = [
-    ".devcontainer/devcontainer.json",
-    ".clang-format",
-    ".gitignore",
-    ".gitlab-ci.yml",
-    ".gitmodules",
-    "Dockerfile",
-    "extended.Dockerfile",
-    "README.md",
-    "REUSE.toml",
-    "tests/**"
+    "**",
    ]
+SPDX-FileCopyrightText = "Copyright (c) 2026 SEANERGYS Partners <https://seanergys.eu>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = [
+    "tests/scripts/sb_response.cpp"
+   ]
+precedence = "override"
 SPDX-FileCopyrightText = "2026 SEANERGYS Partners <https://seanergys.eu>"
 SPDX-License-Identifier = "MIT"
 
@@ -20,8 +19,7 @@ SPDX-License-Identifier = "MIT"
 path = [
     "tests/sharness.d/01-setup.sh",
     "tests/sharness.d/flux-sharness.sh",
-    "tests/scripts/run_timeout.py",
-    "tests/scripts/submit_as.py"
+    "tests/scripts/run_timeout.py"
    ]
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright 2021 Lawrence Livermore National Security, LLC"

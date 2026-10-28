@@ -1,15 +1,14 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
 #pragma once
-#include "lib/error.hpp"
+#include "src/lib/types.hpp"
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
 
+/**
+ * A table column with a header and a value getter
+ */
 template <typename T> struct ps_column_t {
   std::string header;
   std::function<std::string(const T &, std::size_t)> getter;
@@ -116,18 +115,9 @@ void ps_print_table_h(const std::vector<T> &rows,
 }
 
 /**
- * Prints an error message to the console.
+ * Print a formula to the console as a table or JSON
  *
- * @param err The error to print.
+ * @param formula Formula to print
+ * @param json Whether to print the formula as JSON
  */
-void cli_error(const ps_error_t &err);
-
-/**
- * Prints an error message to the console.
- *
- * @param res The result to print.
- */
-template <typename T> void cli_error(const ps_result_t<T> &res) {
-  auto err = ps_unwrap_error(res);
-  cli_error(err);
-}
+void ps_print_formula(const ps_formula_t &formula, bool json);

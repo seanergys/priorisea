@@ -2,37 +2,39 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "lib/formula.hpp"
-#include "lib/error.hpp"
+#include "src/lib/formula.hpp"
+#include "src/lib/error.hpp"
 
 #include <catch2/catch.hpp>
 
 TEST_CASE("ps_validate_formula accepts well-formed input",
           "[formula][ps_validate_formula]") {
   // A plain arithmetic expression.
-  REQUIRE(ps_validate_formula({.name = "a", .expr = "1 + 2"}));
+  REQUIRE(ps_is_ok(ps_validate_formula({.name = "a", .expr = "1 + 2"})));
 
   // Variables provided through defaults.
-  REQUIRE(ps_validate_formula({.name = "b",
-                               .expr = "<var:x> * 0.5 + <var:y> * 0.5",
-                               .defaults = {{"var:x", 1}, {"var:y", 2}}}));
+  REQUIRE(ps_is_ok(
+      ps_validate_formula({.name = "b",
+                           .expr = "<var:x> * 0.5 + <var:y> * 0.5",
+                           .defaults = {{"var:x", 1}, {"var:y", 2}}})));
 
   // The shipped default formulas must validate.
-  REQUIRE(ps_validate_formula(
+  REQUIRE(ps_is_ok(ps_validate_formula(
       {.name = "job_score",
-       .expr = "<var:duration_ratio> + <var:timewin_score>"}));
+       .expr = "<var:duration_ratio> + <var:timewin_score>"})));
 }
 
 TEST_CASE("ps_validate_formula rejects malformed input",
           "[formula][ps_validate_formula]") {
   // Trailing operator.
-  REQUIRE_FALSE(ps_validate_formula({.name = "bad", .expr = "1 +"}));
+  REQUIRE_FALSE(ps_is_ok(ps_validate_formula({.name = "bad", .expr = "1 +"})));
 
   // Unbalanced parenthesis.
-  REQUIRE_FALSE(ps_validate_formula({.name = "bad", .expr = "(1 + 2"}));
+  REQUIRE_FALSE(
+      ps_is_ok(ps_validate_formula({.name = "bad", .expr = "(1 + 2"})));
 
   // Garbage that tinyexpr cannot parse.
-  REQUIRE_FALSE(ps_validate_formula({.name = "bad", .expr = "@#$"}));
+  REQUIRE_FALSE(ps_is_ok(ps_validate_formula({.name = "bad", .expr = "@#$"})));
 }
 
 TEST_CASE("ps_eval_formula accepts well-formed input",
@@ -98,28 +100,28 @@ TEST_CASE("ps_formula_from_json rejects malformed input",
   json_t *o1 = json_pack("{s:s}", "expr", "1 + 2");
   auto r1 = ps_formula_from_json(o1);
   REQUIRE_FALSE(ps_is_ok(r1));
-  REQUIRE(ps_is_error_type<ps_formula_name_missing_t>(r1));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r1));
   json_decref(o1);
 
   // Name present but not a string.
   json_t *o2 = json_pack("{s:i,s:s}", "name", 42, "expr", "1 + 2");
   auto r2 = ps_formula_from_json(o2);
   REQUIRE_FALSE(ps_is_ok(r2));
-  REQUIRE(ps_is_error_type<ps_formula_name_invalid_t>(r2));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r2));
   json_decref(o2);
 
   // Missing expr.
   json_t *o3 = json_pack("{s:s}", "name", "f");
   auto r3 = ps_formula_from_json(o3);
   REQUIRE_FALSE(ps_is_ok(r3));
-  REQUIRE(ps_is_error_type<ps_formula_expr_missing_t>(r3));
+  REQUIRE(ps_is_error_type<ps_field_missing_t>(r3));
   json_decref(o3);
 
   // Expr present but not a string.
   json_t *o4 = json_pack("{s:s,s:i}", "name", "f", "expr", 42);
   auto r4 = ps_formula_from_json(o4);
   REQUIRE_FALSE(ps_is_ok(r4));
-  REQUIRE(ps_is_error_type<ps_formula_expr_invalid_t>(r4));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r4));
   json_decref(o4);
 
   // Defaults present but not an object.
@@ -127,7 +129,7 @@ TEST_CASE("ps_formula_from_json rejects malformed input",
                          "defaults", "defaults");
   auto r5 = ps_formula_from_json(o5);
   REQUIRE_FALSE(ps_is_ok(r5));
-  REQUIRE(ps_is_error_type<ps_formula_defaults_invalid_t>(r5));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r5));
   json_decref(o5);
 
   // Defaults present but value is not a float.
@@ -135,7 +137,7 @@ TEST_CASE("ps_formula_from_json rejects malformed input",
                          "defaults", "var", "value");
   auto r6 = ps_formula_from_json(o6);
   REQUIRE_FALSE(ps_is_ok(r6));
-  REQUIRE(ps_is_error_type<ps_formula_defaults_value_invalid_t>(r6));
+  REQUIRE(ps_is_error_type<ps_field_type_mismatch_t>(r6));
   json_decref(o6);
 }
 

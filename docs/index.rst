@@ -1,7 +1,3 @@
-.. SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-..
-.. SPDX-License-Identifier: MIT
-
 PrioriSea
 =========
 
@@ -24,10 +20,11 @@ SEANERGYS components to retrieve meaningful information about jobs.
 
    architecture
    getstarted
+   daemon
    cli
-   configuration
+   database
+   plugin
    formula
-   jobscore
-   userscore
+   job
+   user
    timewin
-   lib

@@ -1,0 +1,10 @@
+#pragma once
+#include "src/lib/error.hpp"
+#include "src/lib/types.hpp"
+#include <map>
+#include <sys/types.h>
+
+/**
+ * Map of user id to its get result, one entry per requested id
+ */
+using ps_db_sqlite_users_get_t = std::map<uid_t, ps_result_t<ps_user_t>>;

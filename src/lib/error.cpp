@@ -1,170 +1,32 @@
-// SPDX-FileCopyrightText: 2026 SEANERGYS Partners <https://seanergys.eu>
-//
-// SPDX-License-Identifier: MIT
-
-#include "error.hpp"
-#include "util.hpp"
+#include "src/lib/error.hpp"
 #include <sstream>
 #include <string>
 
-ps_error_t ps_error(ps_error_kind_t kind, std::string ctx) {
-  ps_error_t e{.kind = kind};
-  if (!ctx.empty()) {
-    e.context.push_back(std::move(ctx));
-  }
-  return e;
+std::string ps_error_message(const ps_unexpected_err_t &err) {
+  return "Unexpected error: " + err.msg;
 }
 
-////
-
-//// generic
-
-std::string ps_error_message_kind(const ps_str_empty_t &) {
-  return "string is empty";
+std::string ps_error_message(const ps_permissions_err_t &err) {
+  return "Permission error: " + err.msg;
 }
 
-std::string ps_error_message_kind(const ps_parse_int_err_t &err) {
-  return "could not parse integer: " + err.int_str;
+std::string ps_error_message(const ps_access_denied_t &err) {
+  return "Access denied to " + err.key;
 }
 
-std::string ps_error_message_kind(const ps_parse_uid_err_t &err) {
-  return "could not parse uid: " + err.uid_str;
+std::string ps_error_message(const ps_field_missing_t &err) {
+  return "Field " + err.field + " is missing";
 }
 
-std::string ps_error_message_kind(const ps_parse_double_err_t &err) {
-  return "could not parse double: " + err.double_str;
+std::string ps_error_message(const ps_field_type_mismatch_t &err) {
+  return "Field " + err.field + " expected the following type: " + err.expected;
 }
 
-std::string ps_error_message_kind(const ps_json_unpack_err_t &err) {
-  return "could not unpack json: " + err.dumps;
+std::string ps_error_message(const ps_string_parse_err_t &err) {
+  return "Error parsing string: " + err.msg;
 }
 
-std::string ps_error_message_kind(const ps_json_pack_err_t &) {
-  return "json pack error";
-}
-
-std::string ps_error_message_kind(const ps_unimplemented_err_t &err) {
-  return "feature unimplemented";
-}
-
-std::string ps_error_message_kind(const ps_no_file_err_t &err) {
-  return "no such file: " + err.path;
-}
-
-std::string ps_error_message_kind(const ps_user_not_found_err_t &err) {
-  return "user not found: " + err.name;
-}
-
-//// flux
-
-std::string ps_error_message_kind(const ps_flux_open_err_t &err) {
-  return "flux open error: " + err.msg + ". Is flux running ?";
-}
-
-std::string ps_error_message_kind(const ps_flux_future_get_err_t &err) {
-  return "flux future get error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_txn_create_err_t &err) {
-  return "flux transaction create error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_commit_err_t &err) {
-  return "flux kvs commit error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_txn_create_err_t &err) {
-  return "flux kvs transaction create error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_txn_unlink_err_t &err) {
-  return "flux kvs transaction unlink error for key '" + err.key +
-         "': " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_get_err_t &err) {
-  return "flux kvs get error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_lookup_err_t &err) {
-  return "flux kvs lookup error for key '" + err.key + "': " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_lookup_get_err_t &err) {
-  return "flux kvs lookup get error for key '" + err.key +
-         "'. Is the key valid?";
-}
-
-std::string ps_error_message_kind(const ps_flux_rpc_get_unpack_err_t &err) {
-  return "flux rpc unpack error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_rpc_pack_err_t &err) {
-  return "flux rpc pack error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_rpc_err_t &err) {
-  return "flux rpc error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_flux_jobid_parse_err_t &err) {
-  return "flux job id parse error for '" + err.jobid + "': " + err.msg +
-         ". Is the job id valid?";
-}
-
-std::string ps_error_message_kind(const ps_flux_job_list_id_err_t &err) {
-  return "flux job list error for id " + std::to_string(err.jobid) + ": " +
-         err.msg + ". Does the job exist?";
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_lookup_get_dir_err_t &err) {
-  return "flux kvs lookup get dir error for key '" + err.key + "': " + err.msg +
-         ". Is the key valid?";
-}
-
-std::string ps_error_message_kind(const ps_flux_kvsitr_create_err_t &err) {
-  return "flux kvs iterator create error for key '" + err.key +
-         "': " + err.msg + ". Is the key valid?";
-}
-
-std::string ps_error_message_kind(const ps_flux_kvs_txn_put_err_t &err) {
-  return "flux kvs transaction put error for key '" + err.key + "' value '" +
-         err.value + "': " + err.msg;
-}
-
-//// decay
-
-std::string ps_error_message_kind(const ps_decay_weight_missing_t &) {
-  return "decay weight missing";
-}
-
-std::string ps_error_message_kind(const ps_decay_weight_invalid_t &) {
-  return "decay weight invalid";
-}
-
-std::string ps_error_message_kind(const ps_decay_frame_duration_missing_t &) {
-  return "decay frame duration missing";
-}
-
-std::string ps_error_message_kind(const ps_decay_frame_duration_invalid_t &) {
-  return "decay frame duration invalid";
-}
-
-std::string ps_error_message_kind(const ps_decay_duration_invalid_t &err) {
-  return "decay duration invalid: " + std::to_string(err.value);
-}
-
-std::string ps_error_message_kind(const ps_decay_string_parse_err_t &err) {
-  return "decay string parse error: " + err.expr;
-}
-
-//// formula
-
-std::string ps_error_message_kind(const ps_formula_expr_invalid_t &err) {
-  return "formula expression invalid: " + err.expr;
-}
-
-std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
+std::string ps_error_message(const ps_formula_eval_err_t &err) {
   std::string msg = "formula eval error. name: " + err.formula.name + "\n" +
                     err.compiled_expr;
 
@@ -190,175 +52,30 @@ std::string ps_error_message_kind(const ps_formula_eval_err_t &err) {
   return msg;
 }
 
-std::string ps_error_message_kind(const ps_formula_name_missing_t &) {
-  return "formula name missing";
+std::string ps_error_message(const ps_flux_open_err_t &err) {
+  return "Error reaching Flux: " + err.strerror + ". Is Flux running ?";
 }
 
-std::string ps_error_message_kind(const ps_formula_name_invalid_t &err) {
-  return "formula name invalid: " + err.name;
+std::string ps_error_message(const ps_flux_rpc_err_t &err) {
+  return "Error on Flux RPC: " + err.strerror;
 }
 
-std::string ps_error_message_kind(const ps_formula_expr_missing_t &err) {
-  return "formula expression";
+std::string ps_error_message(const ps_flux_jobid_parse_err_t &err) {
+  return "Error parsing job id " + err.jobid + ": " + err.strerror;
 }
 
-std::string ps_error_message_kind(const ps_formula_defaults_invalid_t &err) {
-  return "formula defaults invalid: " + err.dump;
+ps_error_t ps_error(ps_error_kind_t kind, std::string ctx) {
+  ps_error_t e{.kind = kind};
+  if (!ctx.empty()) {
+    e.context.push_back(std::move(ctx));
+  }
+  return e;
 }
 
-std::string
-ps_error_message_kind(const ps_formula_defaults_value_invalid_t &err) {
-  return "formula defaults invalid value: " + err.dump;
+std::string ps_error_message(const ps_error_kind_t &error) {
+  return std::visit([](const auto &err) { return ps_error_message(err); },
+                    error);
 }
-
-//// timewin
-
-std::string ps_error_message_kind(const ps_timewin_name_missing_t &) {
-  return "time window name missing";
-}
-
-std::string ps_error_message_kind(const ps_timewin_name_invalid_t &) {
-  return "time window name invalid";
-}
-
-std::string ps_error_message_kind(const ps_timewin_duration_missing_t &) {
-  return "time window duration missing";
-}
-
-std::string ps_error_message_kind(const ps_timewin_duration_invalid_t &) {
-  return "time window duration invalid";
-}
-
-std::string ps_error_message_kind(const ps_timewin_cron_missing_t &) {
-  return "time window cron missing";
-}
-
-std::string ps_error_message_kind(const ps_timewin_cron_invalid_t &) {
-  return "time window cron invalid";
-}
-
-std::string ps_error_message_kind(const ps_timewin_score_missing_t &) {
-  return "time window score missing";
-}
-
-std::string ps_error_message_kind(const ps_timewin_score_invalid_t &) {
-  return "time window score invalid";
-}
-
-std::string ps_error_message_kind(const ps_timewin_score_parse_err_t &) {
-  return "time window score parse error";
-}
-
-std::string ps_error_message_kind(const ps_timewin_duration_parse_err_t &) {
-  return "time window duration parse error";
-}
-
-std::string ps_error_message_kind(const ps_cron_parse_err_t &err) {
-  return "cron parse error: " + err.cron;
-}
-
-std::string ps_error_message_kind(const ps_timewin_neg_duration_t &err) {
-  return "time window negative duration: " + std::to_string(err.duration);
-}
-
-//// job
-
-std::string ps_error_message_kind(const ps_job_jobid_missing_t &) {
-  return "job id missing";
-}
-
-std::string ps_error_message_kind(const ps_job_t_inactive_missing_t &) {
-  return "job t_inactive missing";
-}
-
-std::string ps_error_message_kind(const ps_job_score_missing_t &) {
-  return "job score missing";
-}
-
-std::string ps_error_message_kind(const ps_job_jobid_invalid_t &) {
-  return "job id invalid";
-}
-
-std::string ps_error_message_kind(const ps_job_t_inactive_invalid_t &) {
-  return "job t_inactive invalid";
-}
-
-std::string ps_error_message_kind(const ps_job_score_invalid_t &) {
-  return "job score invalid";
-}
-
-std::string ps_error_message_kind(const ps_user_userid_missing_t &) {
-  return "user id missing";
-}
-
-std::string ps_error_message_kind(const ps_user_userid_invalid_t &) {
-  return "user id invalid";
-}
-
-std::string ps_error_message_kind(const ps_user_score_missing_t &) {
-  return "user score missing";
-}
-
-std::string ps_error_message_kind(const ps_user_score_invalid_t &) {
-  return "user score invalid";
-}
-
-//// score map
-
-std::string ps_error_message_kind(const ps_score_map_invalid_t &) {
-  return "score map is not a JSON object";
-}
-
-std::string ps_error_message_kind(const ps_score_map_value_invalid_t &err) {
-  return "score map value invalid for user '" + err.userid + "'";
-}
-
-std::string ps_error_message_kind(const ps_config_err_t &err) {
-  return "config error at " + err.path + ": " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_url_missing_t &) {
-  return "seanerbus url missing";
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_url_invalid_t &) {
-  return "seanerbus url invalid";
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_resolve_err_t &err) {
-  return "error when resolving seanerbus service: " + err.service;
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_err_t &err) {
-  return "seanerbus rpc error (" + err.service + "): " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_wrong_payload_err_t &err) {
-  return "seanerbus wrong payload error (" + err.service + ")";
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_decode_err_t &err) {
-  return "seanerbus failed to decode error (" + err.service + "): " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_seanerbus_connection_err_t &err) {
-  return "seanerbus (" + err.seanerbus + ") connection error: " + err.msg;
-}
-
-std::string ps_error_message_kind(const ps_invalid_uuid_err_t &err) {
-  return "invalid uuid: " + err.uuid;
-}
-
-std::string ps_error_message_kind(const ps_invalid_rpc_ns_err_t &err) {
-  return "invalid rpc_ns expression: " + err.expr;
-}
-
-std::string ps_error_message_kind(const ps_error_kind_t &error) {
-  return "unknown error: " +
-         std::visit([](const auto &e) { return ps_type_name(e); }, error);
-}
-
-////
 
 std::string ps_error_message(const ps_error_t &e) {
   std::stringstream ss;
@@ -366,7 +83,12 @@ std::string ps_error_message(const ps_error_t &e) {
     ss << context << "\n-> ";
   }
 
-  ss << std::visit([](const auto &err) { return ps_error_message_kind(err); },
+  ss << std::visit([](const auto &err) { return ps_error_message(err); },
                    e.kind);
   return ss.str();
+}
+
+void ps_exit_error(const ps_error_t &e) {
+  std::cerr << ps_error_message(e) << std::endl;
+  std::exit(EXIT_FAILURE);
 }
