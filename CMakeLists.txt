@@ -81,6 +81,33 @@ set(PRIORISEA_EXT_INCLUDES
   ${CMAKE_CURRENT_SOURCE_DIR}/external/tinyexpr
   ${CMAKE_CURRENT_SOURCE_DIR}/external/croncpp/include)
 
+# ---- priorisea core library (message-free logic) ------------------------
+# The pure logic layer touches no messages and I/O.
+# It is compiled once into a static library so both the
+# executables and the unit tests can link against it.
+add_library(priorisea_lib STATIC
+  src/lib/error.cpp
+  src/cli/endpoint/error.cpp
+  src/daemon/endpoint/error.cpp
+  src/database/error.cpp
+  src/lib/formula.cpp
+  src/lib/info.cpp
+  src/lib/job.cpp
+  src/lib/timewin.cpp
+  src/lib/user.cpp
+  src/lib/util.cpp)
+
+target_include_directories(priorisea_lib PUBLIC
+  ${PRIORISEA_INCLUDE_ROOTS}
+  ${PRIORISEA_EXT_INCLUDES})
+
+target_link_libraries(priorisea_lib PUBLIC
+  PkgConfig::JANSSON
+  PkgConfig::FLUX_CORE
+  tinyexpr)
+
+priorisea_add_pch(priorisea_lib)
+
 # ---- priorisea CLI -------------------------------------------------------
 # Single executable bundling the whole new src/ tree.
 add_executable(priorisea
@@ -95,7 +122,6 @@ add_executable(priorisea
   src/cli/commands/timewin.cpp
   src/cli/commands/user.cpp
   # CLI flux endpoint
-  src/cli/endpoint/error.cpp
   src/cli/endpoint/util.cpp
   src/cli/endpoint/flux/formula.cpp
   src/cli/endpoint/flux/info.cpp
@@ -105,7 +131,6 @@ add_executable(priorisea
   src/cli/endpoint/flux/user.cpp
   # Daemon core + flux endpoint
   src/daemon/daemon.cpp
-  src/daemon/endpoint/error.cpp
   src/daemon/endpoint/flux/endpoint.cpp
   src/daemon/endpoint/flux/callback/formula.cpp
   src/daemon/endpoint/flux/callback/info.cpp
@@ -115,7 +140,6 @@ add_executable(priorisea
   src/daemon/endpoint/flux/callback/user.cpp
   # Database core + sqlite endpoint
   src/database/database.cpp
-  src/database/error.cpp
   src/database/formula.cpp
   src/database/info.cpp
   src/database/sqlite/formula.cpp
@@ -124,21 +148,14 @@ add_executable(priorisea
   src/database/sqlite/user.cpp
   src/database/sqlite/sqlite.cpp
   src/database/sqlite/timewin.cpp
-  src/database/sqlite/user.cpp
-  # Shared library core
-  src/lib/error.cpp
-  src/lib/formula.cpp
-  src/lib/info.cpp
-  src/lib/job.cpp
-  src/lib/timewin.cpp
-  src/lib/user.cpp
-  src/lib/util.cpp)
+  src/database/sqlite/user.cpp)
 
 target_include_directories(priorisea PRIVATE
   ${PRIORISEA_INCLUDE_ROOTS}
   ${PRIORISEA_EXT_INCLUDES})
 
 target_link_libraries(priorisea PRIVATE
+  priorisea_lib
   CLI11::CLI11
   PkgConfig::JANSSON
   PkgConfig::SEANERBUS
@@ -179,25 +196,16 @@ endif()
 # Loadable module for the flux job-manager. Emitted at
 # {build}/lib/flux/job-manager/plugins/sea_priority.so
 add_library(sea_priority MODULE
-  # plugin entry point + jobtap handlers
-  src/plugin/flux/sea_priority.cpp
-  # priorisea library pieces referenced by the plugin
-  src/lib/formula.cpp
-  src/lib/error.cpp
-  src/lib/util.cpp
-  src/cli/endpoint/error.cpp
-  src/daemon/endpoint/error.cpp
-  src/database/error.cpp)
+  src/plugin/flux/sea_priority.cpp)
 
 target_include_directories(sea_priority PRIVATE
   ${PRIORISEA_INCLUDE_ROOTS}
   ${PRIORISEA_EXT_INCLUDES})
 
+# priorisea_lib pulls in jansson, flux-core and tinyexpr transitively.
 target_link_libraries(sea_priority PRIVATE
-  PkgConfig::JANSSON
-  PkgConfig::FLUX_CORE
-  PkgConfig::SQLITE3
-  tinyexpr)
+  priorisea_lib
+  PkgConfig::SQLITE3)
 
 priorisea_add_pch(sea_priority)
 
@@ -211,33 +219,79 @@ set_target_properties(sea_priority PROPERTIES
 install(TARGETS sea_priority LIBRARY DESTINATION lib/flux/job-manager/plugins)
 
 # ---- Unit tests (Catch2) -------------------------------------------------
-# Re-enabled once the library is split out into a linkable target again.
-#
-# add_library(catchmain STATIC src/lib/test/main.cpp)
-# target_include_directories(catchmain PUBLIC
-#   ${PRIORISEA_INCLUDE_ROOTS} ${PRIORISEA_EXT_INCLUDES} ${CATCH2_INCLUDE_DIR})
-# target_link_libraries(catchmain PUBLIC priorisea_lib Catch2::Catch2)
-#
-# foreach(topic config formula score timewin util)
-#   add_executable(${topic}_test src/lib/test/${topic}.cpp)
-#   target_link_libraries(${topic}_test PRIVATE
-#     catchmain priorisea_lib tinyexpr
-#     PkgConfig::JANSSON PkgConfig::SEANERBUS PkgConfig::FLUX_CORE
-#     Catch2::Catch2)
-#   add_test(NAME ${topic} COMMAND ${topic}_test)
-# endforeach()
+# The message-free core (priorisea_lib) is linkable, so the Catch2 unit tests
+# can test it directly. Each topic file in src/lib/test/ is built into its own
+# executable
+add_library(catchmain STATIC src/lib/test/main.cpp)
+target_include_directories(catchmain PUBLIC
+  ${PRIORISEA_INCLUDE_ROOTS} ${PRIORISEA_EXT_INCLUDES} ${CATCH2_INCLUDE_DIR})
+target_link_libraries(catchmain PUBLIC priorisea_lib Catch2::Catch2)
+
+foreach(topic formula info job timewin user util)
+  add_executable(${topic}_test src/lib/test/${topic}.cpp)
+  target_link_libraries(${topic}_test PRIVATE
+    catchmain
+    PkgConfig::JANSSON
+    PkgConfig::FLUX_CORE
+    Catch2::Catch2)
+  add_test(NAME ${topic} COMMAND ${topic}_test)
+endforeach()
+
+# ---- Test helper: sb_response -------------------------------------------
+add_executable(sb_response
+  tests/scripts/sb_response.cpp)
+
+target_link_libraries(sb_response PRIVATE
+  PkgConfig::SEANERBUS
+  Threads::Threads)
+
+set_target_properties(sb_response PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/scripts)
+
+# ---- Optional test dependency: demobus (seanerbus server) ----------------
+# The sharness integration tests need a SeanerBUS server.
+# This is only a warning: a missing binary must not break configure -
+# the tests that need it simply won't run.
+find_program(DEMOBUS_EXECUTABLE
+  NAMES demobus
+  PATHS /usr/local/bin
+  DOC "demobus (seanerbus) server binary used by the sharness tests")
+
+if(NOT DEMOBUS_EXECUTABLE AND NOT DEFINED ENV{DEMOBUS_BIN})
+  message(WARNING
+    "demobus (seanerbus server) not found. Set DEMOBUS_BIN or install "
+    "demobus to run the SeanerBUS integration tests "
+    "(e.g. tests/t3003-seanerbus.t); skipping them for now.")
+endif()
+
+# ---- Optional test dependency: naming server -----------------------------
+# The sharness integration tests register services through a SeanerBUS naming
+# server, whose launch command is provided via $NAMING_SERVER_BIN. This is
+# only a warning: a missing binary must not break configure - the tests that
+# need it simply won't run.
+find_program(NAMING_SERVER_EXECUTABLE
+  NAMES naming_server
+  PATHS /usr/local/bin
+  DOC "seanerbus naming server binary used by the sharness tests")
+
+if(NOT NAMING_SERVER_EXECUTABLE AND NOT DEFINED ENV{NAMING_SERVER_BIN})
+  message(WARNING
+    "naming server binary not found. Set NAMING_SERVER_BIN to run the "
+    "naming-server integration tests (e.g. tests/t3003-seanerbus.t); "
+    "skipping them for now.")
+endif()
 
 # ---- Integration tests (sharness) ----------------------------------------
 file(GLOB SHARNESS_TESTS CONFIGURE_DEPENDS
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/t[0-9]*.t)
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test/sharness.sh)
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/t[0-9]*.t)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/sharness.sh)
   foreach(t ${SHARNESS_TESTS})
     get_filename_component(tname ${t} NAME)
     add_test(NAME ${tname}
       COMMAND sh ${tname}
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     set_tests_properties(${tname} PROPERTIES ENVIRONMENT
-      "SHARNESS_BUILD_DIRECTORY=${CMAKE_BINARY_DIR};SHARNESS_TEST_SRCDIR=${CMAKE_CURRENT_SOURCE_DIR}/test;PATH=${CMAKE_CURRENT_BINARY_DIR}/src/cli:$ENV{PATH}")
+      "SHARNESS_BUILD_DIRECTORY=${CMAKE_BINARY_DIR};SHARNESS_TEST_SRCDIR=${CMAKE_CURRENT_SOURCE_DIR}/tests;PATH=${CMAKE_CURRENT_BINARY_DIR}/src/cli:$ENV{PATH}")
   endforeach()
 endif()
 
@@ -266,10 +320,10 @@ if(CLANG_FORMAT_EXECUTABLE)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/*.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/*.hpp)
   add_custom_target(format
     COMMAND ${CLANG_FORMAT_EXECUTABLE} -i ${PRIORISEA_SOURCES}
     COMMENT "Formatting sources with clang-format")
