@@ -7,16 +7,18 @@ Build and install
 To build the software from source, the following dependencies are required:
 
 - cmake
+- pkg-config
 - jansson
-- libfmt
 - seanerbus
 - flux-core
-- flux-security
+- sqlite3
+- CLI11
+- catch2 (v3)
 
 Optional dependencies (used in testing):
 
-- demobus
-- seanerbus' naming-service
+- demobus (seanerbus)
+- naming-service (seanerbus)
 
 The software can then be built by running:
 
@@ -33,8 +35,13 @@ A ``Dockerfile`` is also available to build the software in a container.
 First steps
 -----------
 
-PrioriSea requires Flux to be running, as it uses the Flux KVS to persist data. The job manager
-plugin should be loaded first using ``flux jobtap load sea_priority.so``. Afterward the database
-and the plugin memory can be populated using ``priorisea init``. This defines the default
-formulas (see :doc:`../formula`) and the default decay expression (see :doc:`../userscore`). This
-is verified by running ``priorisea formula list`` and ``priorisea decay get``.
+PrioriSea requires Flux to be running, as it uses the Flux data-plane to handle communication between
+the daemon and the CLI.
+#The job manager plugin should be loaded first using ``flux jobtap load sea_priority.so``.
+The database should be created first using ``priorisea database create /path/to/database.db``.
+Afterward the daemon should be started with ``priorisea daemon start /path/to/database.db``.
+Once this is done, you can start using PrioriSea. If you want to enable the priority plugin,
+it should be loaded using ``flux jobtap load sea_priority.so`` then synced using the
+``priorisea plugin sync`` command. Run that command each time you update:
+- the ``job_priority`` formula
+- the users score

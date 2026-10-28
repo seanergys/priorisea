@@ -1,14 +1,19 @@
 Architecture
 ============
 
-PrioriSea is split between three components: a Flux plugin,
-a database and the CLI (command-line interface) tool.
+PrioriSea is split between five components:
+- a Flux priority plugin
+- an SQLite database
+- a daemon connected to the Flux data-plane
+- the CLI (command-line interface) tool.
 
-When loaded using ``flux jobtap load sea_priority.so``, the Flux plugin reads the database
-to load in-memory the job score formula as well as the user scores.
+The daemon is the main component of PrioriSea: it is connected to the database and receive RPC commands from
+the CLI to both update the database and sync the data with the priority plugin.
 
-When updating or adding any value (formula, job score, user score, time window, decay expression)
-using the CLI, the change is persisted to the database and also sent to the Flux plugin via the
-Flux dataplane.
+When any command is typed in the CLI, a corresponding message is sent to the daemon via the Flux data-plane,
+where it executes the operation. That operation may include communicating with the priority plugin. After the
+operation has been executed, the daemon sends a response to the CLI.
 
-The CLI can be used to reset formulas and decay expression to their default values.
+All operations are persisted in the SQLite database administrated by the daemon. Since the priority plugin is a
+separated component from the daemon, any change that should affect the priority plugin need to be transmitted using
+the ``priorisea plugin sync`` command.
