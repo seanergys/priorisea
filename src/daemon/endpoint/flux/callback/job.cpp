@@ -326,15 +326,15 @@ static ps_result_t<double> ps_job_score_compute(
   }
   vars_over["var:timewin_score"] = timewin_score;
 
-  auto real_duration = job.t_cleanup - job.t_run;
+  auto real_duration = job.t_inactive - job.t_run;
   auto duration_ratio = real_duration / job.duration;
   if (!std::isinf(duration_ratio)) {
     vars_over["var:duration_ratio"] = std::min(1.0, duration_ratio);
   }
 
   if (sb_entities.size() > 0) {
-    seanerbus::client::Connection req_conn(seanerbus_url, seanerbus_url);
     for (const auto &[var, entity] : sb_entities) {
+      seanerbus::client::Connection req_conn(seanerbus_url, seanerbus_url);
       try {
         seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
         bd.builder().setMsg(std::to_string(job.id));
@@ -344,29 +344,35 @@ static ps_result_t<double> ps_job_score_compute(
              var](seanerbus::client::Connection &c,
                   seanerbus::Expected<seanerbus::msg::Message, seanerbus::Error>
                       res) {
+              // The variable resolution silently fails
+              // A warning could be emitted in this function
               if (!res.ok()) {
-                return;
+                return c.shutdown(seanerbus::Unexpected(res.unwrap_error()));
               }
               auto msg = std::move(res.unwrap_ok());
               if (msg.payload_type() != HelloWorldResV1::TYPE) {
-                return;
+                return c.shutdown();
               }
               auto rd_res =
                   seanerbus::msg::MessageReader<HelloWorldResV1>::from_msg(msg);
               if (!rd_res.ok()) {
-                return;
+                return c.shutdown();
               }
               auto rd = std::move(rd_res.unwrap_ok());
               const std::string res_str = rd.reader().getMsg().cStr();
               double res_double;
               if (!parse_double(res_str, res_double)) {
-                return;
+                return c.shutdown();
               }
               vars_over[var] = res_double;
+              c.shutdown();
             });
         seanerbus::client::SimpleEventLoop req_sel(req_conn);
         req_sel.run();
-      } catch (const std::exception &e) {
+      } catch (const seanerbus::Expected<seanerbus::msg::Message,
+                                         seanerbus::Error>) {
+        // The variable resolution silently fails
+        // A warning could be emitted here
         continue;
       }
     }
@@ -680,7 +686,8 @@ int ps_daemon_endpoint_flux_job_update(
     _jobs.push_back({.jobid = std::to_string(jobid),
                      .userid = uid,
                      .t_inactive = job.t_inactive,
-                     .score = ps_unwrap(score_res)});
+                     .score = ps_unwrap(score_res),
+                     .duration = job.t_inactive - job.t_run});
   }
 
   // Store the scored jobs and, when scanning newly inactive jobs, advance the

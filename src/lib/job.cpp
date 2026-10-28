@@ -8,6 +8,7 @@ json_t *ps_job_to_json(const ps_job_t &job) {
   json_object_set_new(obj, "userid", json_integer((json_int_t)job.userid));
   json_object_set_new(obj, "t_inactive", json_real(job.t_inactive));
   json_object_set_new(obj, "score", json_real(job.score));
+  json_object_set_new(obj, "duration", json_real(job.duration));
   return obj;
 }
 
@@ -52,5 +53,15 @@ ps_result_t<ps_job_t> ps_job_from_json(json_t *obj) {
         ps_field_type_mismatch_t{.field = "score", .expected = "double"});
   }
   res.score = json_number_value(score_j);
+
+  json_t *duration_j = json_object_get(obj, "duration");
+  if (!duration_j) {
+    return ps_error(ps_field_missing_t{.field = "duration"});
+  }
+  if (!json_is_real(duration_j)) {
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "duration", .expected = "double"});
+  }
+  res.duration = json_number_value(duration_j);
   return res;
 }

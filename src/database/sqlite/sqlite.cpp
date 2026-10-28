@@ -96,14 +96,15 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
 
     CREATE TABLE IF NOT EXISTS users (
         userid INTEGER PRIMARY KEY,
-        score REAL NOT NULL
+        score REAL
     );
 
     CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY,
         userid INTEGER NOT NULL,
         t_inactive REAL NOT NULL,
-        score REAL NOT NULL
+        score REAL NOT NULL,
+        duration REAL NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS formulas (
@@ -136,7 +137,7 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
   return ps_db_sqlite_execute(db, sql);
 }
 
-ps_result_t<int> ps_db_sqlite_get_user_version(sqlite3 *db) {
+ps_result_t<int> ps_db_sqlite_user_version_get(sqlite3 *db) {
   sqlite3_stmt *stmt = nullptr;
   auto sql = "PRAGMA user_version;";
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -153,7 +154,7 @@ ps_result_t<int> ps_db_sqlite_get_user_version(sqlite3 *db) {
   return version;
 }
 
-ps_result_t<ps_success_t> ps_db_sqlite_set_user_version(sqlite3 *db,
+ps_result_t<ps_success_t> ps_db_sqlite_user_version_set(sqlite3 *db,
                                                         int version) {
   auto sql = "PRAGMA user_version = " + std::to_string(version) + ";";
   auto res = ps_db_sqlite_execute(db, sql);
@@ -162,7 +163,7 @@ ps_result_t<ps_success_t> ps_db_sqlite_set_user_version(sqlite3 *db,
 
 ps_result_t<ps_success_t> ps_db_sqlite_verify(sqlite3 *db) {
   // The database should contain the user_version
-  auto version_res = ps_db_sqlite_get_user_version(db);
+  auto version_res = ps_db_sqlite_user_version_get(db);
   if (!ps_is_ok(version_res)) {
     sqlite3_close(db);
     return ps_forward_error<ps_success_t>(version_res);

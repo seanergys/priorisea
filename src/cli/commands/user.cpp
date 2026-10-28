@@ -37,7 +37,13 @@ static void print_user(const ps_user_t &user, bool json) {
         [](auto &u, auto) {
           return std::to_string(static_cast<uint64_t>(u.userid));
         }},
-       {"Score", [](auto &u, auto) { return std::to_string(u.score); }}});
+       {"Score", [](auto &u, auto) {
+          if (!u.has_score) {
+            return std::string("/");
+          } else {
+            return std::to_string(u.score);
+          }
+        }}});
 }
 
 static void print_users(const std::vector<ps_user_t> &users, bool json) {
@@ -55,13 +61,18 @@ static void print_users(const std::vector<ps_user_t> &users, bool json) {
     return;
   }
   ps_print_table_v(
-      users,
-      {{"Username", [](auto &u, auto) { return display_username(u); }},
-       {"User ID",
-        [](auto &u, auto) {
-          return std::to_string(static_cast<uint64_t>(u.userid));
-        }},
-       {"Score", [](auto &u, auto) { return std::to_string(u.score); }}});
+      users, {{"Username", [](auto &u, auto) { return display_username(u); }},
+              {"User ID",
+               [](auto &u, auto) {
+                 return std::to_string(static_cast<uint64_t>(u.userid));
+               }},
+              {"Score", [](auto &u, auto) {
+                 if (!u.has_score) {
+                   return std::string("/");
+                 } else {
+                   return std::to_string(u.score);
+                 }
+               }}});
 }
 
 static void register_get_command(CLI::App *app) {

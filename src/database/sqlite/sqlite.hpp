@@ -6,7 +6,7 @@
 /**
  * Expected SQLite user_version of the schema
  */
-inline constexpr int SQLITE_DB_VERSION = 2;
+inline constexpr int SQLITE_DB_VERSION = 3;
 
 /**
  * Executes an SQL statement on the given SQLite database
@@ -54,7 +54,7 @@ ps_result_t<sqlite3 *> ps_db_sqlite_open(const std::string &path);
  * @param db The SQLite database to get the user version from
  * @return The user version of the database
  */
-ps_result_t<int> ps_db_sqlite_get_user_version(sqlite3 *db);
+ps_result_t<int> ps_db_sqlite_user_version_get(sqlite3 *db);
 
 /**
  * Sets the user version of the SQLite database at the specified path
@@ -63,7 +63,7 @@ ps_result_t<int> ps_db_sqlite_get_user_version(sqlite3 *db);
  * @param version The user version to set
  * @return A success if the user version was set successfully
  */
-ps_result_t<ps_success_t> ps_db_sqlite_set_user_version(sqlite3 *db,
+ps_result_t<ps_success_t> ps_db_sqlite_user_version_set(sqlite3 *db,
                                                         int version);
 
 /**

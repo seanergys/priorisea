@@ -36,6 +36,8 @@ static const std::vector<ps_daemon_endpoint_flux_t> endpoints_priviledged = {
     {"priorisea.daemon.formula.update", ps_daemon_endpoint_flux_formula_update},
     {"priorisea.daemon.formula.reset", ps_daemon_endpoint_flux_formula_reset},
     {"priorisea.daemon.info.get", ps_daemon_endpoint_flux_info_get},
+    {"priorisea.daemon.info.user_period.update",
+     ps_daemon_endpoint_flux_info_user_period_update},
     {"priorisea.daemon.job.update", ps_daemon_endpoint_flux_job_update},
     {"priorisea.daemon.plugin.sync", ps_daemon_endpoint_flux_plugin_sync},
     {"priorisea.daemon.plugin.debug", ps_daemon_endpoint_flux_plugin_debug},
@@ -71,14 +73,14 @@ static void ps_daemon_endpoint_flux_dispatch_cb(flux_t *h,
 static std::vector<flux_msg_handler_t *>
 ps_daemon_endpoint_flux_create_handlers(
     flux_t *handle, const std::vector<ps_daemon_endpoint_flux_t> &endpoints,
-    bool priviledged, sqlite3 *db) {
+    bool priviledged, sqlite3 *db, std::string seanerbus_url) {
   static std::deque<ps_daemon_endpoint_flux_args_t> args;
   std::vector<flux_msg_handler_t *> res;
   for (const auto &ep : endpoints) {
     auto match =
         flux_match_init(FLUX_MSGTYPE_REQUEST, FLUX_MATCHTAG_NONE, ep.topic);
-    args.push_back(
-        ps_daemon_endpoint_flux_args_t{.handle = ep.handle, .db = db});
+    args.push_back(ps_daemon_endpoint_flux_args_t{
+        .handle = ep.handle, .db = db, .seanerbus_url = seanerbus_url});
     auto *mh = flux_msg_handler_create(
         handle, match, ps_daemon_endpoint_flux_dispatch_cb, &args.back());
     if (!mh) {
@@ -125,9 +127,10 @@ ps_result_t<ps_success_t> ps_daemon_endpoint_flux_run(sqlite3 *db,
 
   // Create message handlers
   std::vector<flux_msg_handler_t *> handlers;
-  auto mh = ps_daemon_endpoint_flux_create_handlers(h, endpoints, false, db);
+  auto mh = ps_daemon_endpoint_flux_create_handlers(h, endpoints, false, db,
+                                                    seanerbus);
   auto mhp = ps_daemon_endpoint_flux_create_handlers(h, endpoints_priviledged,
-                                                     true, db);
+                                                     true, db, seanerbus);
   handlers.insert(handlers.end(), mh.begin(), mh.end());
   handlers.insert(handlers.end(), mhp.begin(), mhp.end());
 

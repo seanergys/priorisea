@@ -22,3 +22,13 @@ ps_result_t<ps_db_info_t> ps_db_sqlite_info_get(sqlite3 *db);
  */
 ps_result_t<ps_success_t> ps_db_sqlite_info_set(sqlite3 *db,
                                                 const ps_db_info_t &info);
+
+/**
+ * Update user_period in the database_info row
+ *
+ * @param db The SQLite database
+ * @param user_period The user_period row to write
+ * @return A result indicating the success of the operation
+ */
+ps_result_t<ps_success_t>
+ps_db_sqlite_info_user_period_update(sqlite3 *db, double user_period);

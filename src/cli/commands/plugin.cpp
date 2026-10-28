@@ -38,8 +38,8 @@ static void print_scores(const std::map<uid_t, double> &scores, bool json) {
 static void print_debug(const ps_cli_endpoint_plugin_debug_t &debug,
                         bool json) {
   if (!json) {
-    ps_print_formula(debug.formula, /*json=*/false);
-    print_scores(debug.scores, /*json=*/false);
+    ps_print_formula(debug.formula, false);
+    print_scores(debug.scores, false);
     return;
   }
   auto *obj = json_object();
@@ -73,14 +73,17 @@ static void register_sync_command(CLI::App *app) {
 static void register_debug_command(CLI::App *app) {
   auto *debug_cmd = app->add_subcommand("debug", "Debug print for plugin");
   debug_cmd->set_help_flag("-h,--help", "Show help for debug command");
-  bool json;
-  debug_cmd->add_flag("-j,--json", json, "Output JSON");
-  debug_cmd->callback([&json] {
+  struct options {
+    bool json;
+  };
+  auto opts = std::make_shared<options>();
+  debug_cmd->add_flag("-j,--json", opts->json, "Output JSON");
+  debug_cmd->callback([opts] {
     auto debug_res = ps_cli_endpoint_flux_plugin_debug();
     if (!ps_is_ok(debug_res)) {
       ps_exit_error(debug_res);
     }
-    print_debug(ps_unwrap(debug_res), json);
+    print_debug(ps_unwrap(debug_res), opts->json);
   });
 }
 

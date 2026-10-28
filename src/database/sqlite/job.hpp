@@ -29,7 +29,7 @@ ps_result_t<ps_db_sqlite_jobs_get_t>
 ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids);
 
 /**
- * Lists the most recent jobs, most recent first (highest t_inactive first)
+ * Lists the most recent jobs
  *
  * @param db The SQLite database
  * @param limit The maximum number of jobs to return
@@ -39,7 +39,7 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
                                                           size_t limit);
 
 /**
- * Lists the most recent jobs owned by a user, most recent first
+ * Lists the most recent jobs owned by a user
  *
  * @param db The SQLite database
  * @param limit The maximum number of jobs to return
@@ -50,25 +50,29 @@ ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid);
 
 /**
- * Lists the jobs inactive for at least min_t_inactive, most recent first
+ * Lists the jobs inactive for at least min_t_inactive
+ *
+ * Also returns, per user, the maximum job duration in the listing
  *
  * @param db The SQLite database
  * @param min_t_inactive The minimum t_inactive of the jobs to list
- * @return The jobs
+ * @return The jobs and the per-user maximum duration
  */
-ps_result_t<std::vector<ps_job_t>>
+ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive);
 
 /**
  * Lists the jobs inactive for at least min_t_inactive owned by one of the
- * given user ids, most recent first (higher t_inactive sorts earlier)
+ * given user ids
+ *
+ * Also returns, per user, the maximum job duration in the listing
  *
  * @param db The SQLite database
  * @param min_t_inactive The minimum t_inactive of the jobs to list
  * @param userids The owner ids to filter by
- * @return The jobs
+ * @return The jobs and the per-user maximum duration
  */
-ps_result_t<std::vector<ps_job_t>>
+ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
                        const std::vector<uid_t> &userids);
 

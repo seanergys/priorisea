@@ -28,11 +28,12 @@ _priorisea() {
     case "$cmd1" in
         daemon)
             if [ "$cword" -eq 2 ]; then
-                COMPREPLY=( $(compgen -W "start debug --help" -- "$cur") )
+                COMPREPLY=( $(compgen -W "start debug update-user-period --help" -- "$cur") )
                 return 0
             fi
             case "$cmd2" in
                 start) COMPREPLY=( $(compgen -W "--seanerbus --background --help" -- "$cur") ) ;;
+                debug) COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
                 *)     COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac
             return 0

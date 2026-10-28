@@ -45,6 +45,8 @@ static void print_info(const ps_cli_endpoint_info_get_t &info, bool json) {
   if (json) {
     auto *obj = json_object();
     json_object_set_new(obj, "version", json_integer(info.version));
+    json_object_set_new(obj, "seanerbus_url",
+                        json_string(info.seanerbus_url.c_str()));
     json_object_set_new(obj, "info", ps_db_info_to_json(info.info));
     char *dump = json_dumps(obj, JSON_INDENT(2));
     if (dump) {
@@ -59,6 +61,10 @@ static void print_info(const ps_cli_endpoint_info_get_t &info, bool json) {
                           [](auto &value, auto index) -> auto {
                             return std::to_string(value.version);
                           }},
+                         {"Seanerbus URL",
+                          [](auto &value, auto index) -> auto {
+                            return value.seanerbus_url;
+                          }},
                          {"t_inactive",
                           [](auto &value, auto index) -> auto {
                             return std::to_string(value.info.t_inactive);
@@ -71,21 +77,46 @@ static void print_info(const ps_cli_endpoint_info_get_t &info, bool json) {
 static void register_debug_command(CLI::App *app) {
   auto *debug_cmd = app->add_subcommand("debug", "Debug print for the daemon");
   debug_cmd->set_help_flag("-h,--help", "Show help for debug command");
-  bool json;
-  debug_cmd->add_flag("-j,--json", json, "Output JSON");
-  debug_cmd->callback([&json] {
+  struct options {
+    bool json;
+  };
+  auto opts = std::make_shared<options>();
+  debug_cmd->add_flag("-j,--json", opts->json, "Output JSON");
+  debug_cmd->callback([opts] {
     auto info_res = ps_cli_endpoint_info_get();
     if (!ps_is_ok(info_res)) {
       ps_exit_error(info_res);
     }
-    print_info(ps_unwrap(info_res), json);
+    print_info(ps_unwrap(info_res), opts->json);
   });
 }
 
+static void register_update_user_period_command(CLI::App *app) {
+  auto *uup_cmd =
+      app->add_subcommand("update-user-period", "Update the user period");
+  uup_cmd->set_help_flag("-h,--help",
+                         "Show help for update-user-period command");
+  struct options {
+    double user_period;
+  };
+  auto opts = std::make_shared<options>();
+  uup_cmd
+      ->add_option("user_period", opts->user_period,
+                   "Max. age (seconds) of jobs when computing users score")
+      ->required();
+  uup_cmd->callback([opts] {
+    auto update_res =
+        ps_cli_endpoint_flux_user_period_update(opts->user_period);
+    if (!ps_is_ok(update_res)) {
+      ps_exit_error(update_res);
+    }
+  });
+}
 void register_daemon_commands(CLI::App *app) {
   auto *daemon_cmd = app->add_subcommand("daemon", "Manage the daemon");
   daemon_cmd->require_subcommand(true);
   daemon_cmd->set_help_flag("-h,--help", "Show help for daemon commands");
   register_start_command(daemon_cmd);
   register_debug_command(daemon_cmd);
+  register_update_user_period_command(daemon_cmd);
 }

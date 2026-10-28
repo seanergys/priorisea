@@ -33,7 +33,8 @@ static void print_job(const ps_job_t &job, bool json) {
         }},
        {"t_inactive",
         [](auto &j, auto) { return std::to_string(j.t_inactive); }},
-       {"Score", [](auto &j, auto) { return std::to_string(j.score); }}});
+       {"Score", [](auto &j, auto) { return std::to_string(j.score); }},
+       {"Duration", [](auto &j, auto) { return std::to_string(j.duration); }}});
 }
 
 static void print_jobs(const std::vector<ps_job_t> &jobs, bool json) {
@@ -51,14 +52,16 @@ static void print_jobs(const std::vector<ps_job_t> &jobs, bool json) {
     return;
   }
   ps_print_table_v(
-      jobs, {{"Job ID", [](auto &j, auto) { return j.jobid; }},
-             {"User ID",
-              [](auto &j, auto) {
-                return std::to_string(static_cast<uint64_t>(j.userid));
-              }},
-             {"t_inactive",
-              [](auto &j, auto) { return std::to_string(j.t_inactive); }},
-             {"Score", [](auto &j, auto) { return std::to_string(j.score); }}});
+      jobs,
+      {{"Job ID", [](auto &j, auto) { return j.jobid; }},
+       {"User ID",
+        [](auto &j, auto) {
+          return std::to_string(static_cast<uint64_t>(j.userid));
+        }},
+       {"t_inactive",
+        [](auto &j, auto) { return std::to_string(j.t_inactive); }},
+       {"Score", [](auto &j, auto) { return std::to_string(j.score); }},
+       {"Duration", [](auto &j, auto) { return std::to_string(j.duration); }}});
 }
 
 static void register_get_command(CLI::App *app) {

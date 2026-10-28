@@ -15,8 +15,6 @@
 #include <sys/types.h>
 #include <utility>
 
-static constexpr double USER_SCORE_DEFAULT = 0;
-
 // Builds the list of users described by a request payload. When data_json is
 // null the entire user list is returned; otherwise data_json must be a JSON
 // array of user ids (integers) and the matching users are returned in request
@@ -70,7 +68,7 @@ ps_collect_users(sqlite3 *db, json_t *data_json, bool create_missing = false) {
         if (!create_missing) {
           return ps_forward_error<std::vector<ps_user_t>>(user_res);
         }
-        users.push_back({.userid = userid, .score = USER_SCORE_DEFAULT});
+        users.push_back({.userid = userid, .has_score = false});
         continue;
       }
       users.push_back(ps_unwrap(user_res));
@@ -79,9 +77,20 @@ ps_collect_users(sqlite3 *db, json_t *data_json, bool create_missing = false) {
   return users;
 }
 
+/**
+ * Computes the score for each user based on the given formula and jobs.
+ * A user that ran of of the jobs may not appear in the return value
+ * if the sum of its weight is 0
+ *
+ * @param formula The formula to use for computing the score.
+ * @param jobs The jobs to use for computing the score.
+ * @param max_duration_by_user For each user, the longest job duration among
+ *        their jobs, used to weight each job's score by its duration.
+ * @return A map of user IDs and their computed scores.
+ */
 static ps_result_t<std::map<uid_t, double>>
-ps_compute_users_score(const ps_formula_t &formula,
-                       std::vector<ps_job_t> jobs) {
+ps_compute_users_score(const ps_formula_t &formula, std::vector<ps_job_t> jobs,
+                       const std::map<uid_t, double> &max_duration_by_user) {
   std::map<uid_t, std::pair<double, double>> user_scores;
   auto now = std::chrono::system_clock::now();
   auto now_ts = std::chrono::duration<double>(
@@ -90,8 +99,26 @@ ps_compute_users_score(const ps_formula_t &formula,
   for (const auto &job : jobs) {
     double age_seconds = now_ts - job.t_inactive;
     double age_days = age_seconds / (24.0 * 60.0 * 60.0);
-    std::map<std::string, double> vars_over = {{"var:age_seconds", age_seconds},
-                                               {"var:age_days", age_days}};
+    double duration_seconds = job.duration;
+    double duration_hours = duration_seconds / 3600.0;
+
+    // The user's longest job duration in the window (0 when the user has no
+    // job in the window), exposed alongside its value in hours for symmetry
+    // with the per-job duration variables.
+    auto max_duration_seconds = 0.0;
+    auto md_it = max_duration_by_user.find(job.userid);
+    if (md_it != max_duration_by_user.end()) {
+      max_duration_seconds = md_it->second;
+    }
+    double max_duration_hours = max_duration_seconds / 3600.0;
+
+    std::map<std::string, double> vars_over = {
+        {"var:age_seconds", age_seconds},
+        {"var:age_days", age_days},
+        {"var:duration_seconds", duration_seconds},
+        {"var:duration_hours", duration_hours},
+        {"var:max_duration_seconds", max_duration_seconds},
+        {"var:max_duration_hours", max_duration_hours}};
     auto weight_res = ps_eval_formula(formula, vars_over);
     if (!ps_is_ok(weight_res)) {
       return ps_forward_error<std::map<uid_t, double>>(weight_res);
@@ -110,7 +137,6 @@ ps_compute_users_score(const ps_formula_t &formula,
 
   std::map<uid_t, double> res;
   for (const auto &[user, pair] : user_scores) {
-    res[user] = USER_SCORE_DEFAULT;
     if (pair.second != 0) {
       auto score = pair.first / pair.second;
       if (!std::isinf(score)) {
@@ -251,7 +277,10 @@ int ps_daemon_endpoint_flux_user_update(
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(info_res).c_str());
   }
-  auto t_inactive_min = ps_unwrap(info_res).user_period;
+
+  auto now = std::chrono::system_clock::now();
+  auto now_ts = std::chrono::duration<double>(now.time_since_epoch()).count();
+  auto t_inactive_min = now_ts - ps_unwrap(info_res).user_period;
 
   if (data_json == nullptr) {
     // Retrieve all jobs
@@ -263,7 +292,7 @@ int ps_daemon_endpoint_flux_user_update(
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(jobs_res).c_str());
     }
-    auto jobs = ps_unwrap(jobs_res);
+    auto jobs_list = ps_unwrap(jobs_res);
 
     auto users_res = ps_db_sqlite_users_list(args.db);
     if (!ps_is_ok(users_res)) {
@@ -272,7 +301,8 @@ int ps_daemon_endpoint_flux_user_update(
     }
     auto users = ps_unwrap(users_res);
 
-    auto scores_res = ps_compute_users_score(formula, jobs);
+    auto scores_res = ps_compute_users_score(formula, jobs_list.jobs,
+                                             jobs_list.max_duration_by_user);
     if (!ps_is_ok(scores_res)) {
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(scores_res).c_str());
@@ -281,15 +311,15 @@ int ps_daemon_endpoint_flux_user_update(
 
     std::vector<ps_user_t> updated;
     for (const auto &user : users) {
-      // The users who did not run a job receive the default user score
+      // Users who did not compute a user score
       if (scores.find(user.userid) == scores.end()) {
-        updated.push_back({.userid = user.userid, .score = USER_SCORE_DEFAULT});
+        updated.push_back({.userid = user.userid, .has_score = false});
       }
     }
 
     for (const auto &[user, score] : scores) {
       // Users who ran a job are updated
-      updated.push_back({.userid = user, .score = score});
+      updated.push_back({.userid = user, .has_score = true, .score = score});
     }
 
     // Update every new and existing users
@@ -326,9 +356,10 @@ int ps_daemon_endpoint_flux_user_update(
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(jobs_res).c_str());
     }
-    auto jobs = ps_unwrap(jobs_res);
+    auto jobs_list = ps_unwrap(jobs_res);
 
-    auto scores_res = ps_compute_users_score(formula, jobs);
+    auto scores_res = ps_compute_users_score(formula, jobs_list.jobs,
+                                             jobs_list.max_duration_by_user);
     if (!ps_is_ok(scores_res)) {
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(scores_res).c_str());
@@ -336,15 +367,18 @@ int ps_daemon_endpoint_flux_user_update(
     auto scores = ps_unwrap(scores_res);
 
     // A user may not appear in the list of jobs
-    // Their score is set to the default value
+    // Their score is unset
     std::vector<ps_user_t> users;
     for (auto &userid : userids) {
-      auto score = USER_SCORE_DEFAULT;
+      ps_user_t user = {.userid = userid};
       auto it = scores.find(userid);
-      if (it != scores.end()) {
-        score = it->second;
+      if (it == scores.end()) {
+        user.has_score = false;
+      } else {
+        user.has_score = true;
+        user.score = it->second;
       }
-      users.push_back({.userid = userid, .score = score});
+      users.push_back(user);
     }
 
     auto update_res = ps_db_sqlite_users_set(args.db, users);

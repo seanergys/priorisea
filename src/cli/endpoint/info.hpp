@@ -7,5 +7,6 @@
  */
 struct ps_cli_endpoint_info_get_t {
   int version;
+  std::string seanerbus_url;
   ps_db_info_t info;
 };

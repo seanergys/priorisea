@@ -28,7 +28,7 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids) {
       placeholders += ", ";
     placeholders += "?";
   }
-  auto sql = "SELECT id, userid, t_inactive, score "
+  auto sql = "SELECT id, userid, t_inactive, score, duration "
              "FROM jobs "
              "WHERE id IN (" +
              placeholders + ");";
@@ -61,7 +61,8 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids) {
         ps_job_t{.jobid = id_str,
                  .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
                  .t_inactive = sqlite3_column_double(stmt, 2),
-                 .score = sqlite3_column_double(stmt, 3)};
+                 .score = sqlite3_column_double(stmt, 3),
+                 .duration = sqlite3_column_double(stmt, 4)};
   }
   sqlite3_finalize(stmt);
 
@@ -79,7 +80,7 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids) {
 ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
                                                           size_t limit) {
   // Most recent first: higher t_inactive sorts earlier.
-  auto sql = "SELECT id, userid, t_inactive, score "
+  auto sql = "SELECT id, userid, t_inactive, score, duration "
              "FROM jobs "
              "ORDER BY t_inactive DESC "
              "LIMIT ?;";
@@ -104,6 +105,7 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
+        .duration = sqlite3_column_double(stmt, 4),
     });
   }
   sqlite3_finalize(stmt);
@@ -113,7 +115,7 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
 ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid) {
   // Most recent first: higher t_inactive sorts earlier.
-  auto sql = "SELECT id, userid, t_inactive, score "
+  auto sql = "SELECT id, userid, t_inactive, score, duration "
              "FROM jobs "
              "WHERE userid = ? "
              "ORDER BY t_inactive DESC "
@@ -140,16 +142,17 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid) {
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
+        .duration = sqlite3_column_double(stmt, 4),
     });
   }
   sqlite3_finalize(stmt);
   return res;
 }
 
-ps_result_t<std::vector<ps_job_t>>
+ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive) {
   // Most recent first: higher t_inactive sorts earlier.
-  auto sql = "SELECT id, userid, t_inactive, score "
+  auto sql = "SELECT id, userid, t_inactive, score, duration "
              "FROM jobs "
              "WHERE t_inactive >= ? "
              "ORDER BY t_inactive DESC;";
@@ -165,25 +168,48 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
 
-  std::vector<ps_job_t> res;
+  ps_db_sqlite_jobs_list_t res;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-    res.push_back(ps_job_t{
+    res.jobs.push_back(ps_job_t{
         .jobid = id_str ? id_str : "",
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
+        .duration = sqlite3_column_double(stmt, 4),
     });
   }
   sqlite3_finalize(stmt);
+
+  // Per-user maximum duration, so the user-score aggregation can weight each
+  // job by its duration relative to the user's longest job.
+  auto max_sql = "SELECT userid, MAX(duration) "
+                 "FROM jobs "
+                 "WHERE t_inactive >= ? "
+                 "GROUP BY userid;";
+  sqlite3_stmt *max_stmt = nullptr;
+  if (sqlite3_prepare_v2(db, max_sql, -1, &max_stmt, nullptr) != SQLITE_OK) {
+    return ps_error(
+        ps_db_query_err_t{.query = max_sql, .message = sqlite3_errmsg(db)});
+  }
+  if (sqlite3_bind_double(max_stmt, 1, min_t_inactive) != SQLITE_OK) {
+    sqlite3_finalize(max_stmt);
+    return ps_error(
+        ps_db_query_err_t{.query = max_sql, .message = sqlite3_errmsg(db)});
+  }
+  while (sqlite3_step(max_stmt) == SQLITE_ROW) {
+    res.max_duration_by_user[static_cast<uid_t>(
+        sqlite3_column_int(max_stmt, 0))] = sqlite3_column_double(max_stmt, 1);
+  }
+  sqlite3_finalize(max_stmt);
   return res;
 }
 
-ps_result_t<std::vector<ps_job_t>>
+ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
                        const std::vector<uid_t> &userids) {
   // Most recent first: higher t_inactive sorts earlier.
-  std::vector<ps_job_t> res;
+  ps_db_sqlite_jobs_list_t res;
 
   // An empty user list can never match any job; skip building an invalid
   // "userid IN ()" clause.
@@ -197,7 +223,7 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
       placeholders += ", ";
     placeholders += "?";
   }
-  auto sql = "SELECT id, userid, t_inactive, score "
+  auto sql = "SELECT id, userid, t_inactive, score, duration "
              "FROM jobs "
              "WHERE t_inactive >= ? AND userid IN (" +
              placeholders +
@@ -227,14 +253,49 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
 
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-    res.push_back(ps_job_t{
+    res.jobs.push_back(ps_job_t{
         .jobid = id_str ? id_str : "",
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 1)),
         .t_inactive = sqlite3_column_double(stmt, 2),
         .score = sqlite3_column_double(stmt, 3),
+        .duration = sqlite3_column_double(stmt, 4),
     });
   }
   sqlite3_finalize(stmt);
+
+  // Per-user maximum duration, scoped to the requested users, so the
+  // user-score aggregation can weight each job by its duration relative to
+  // the user's longest job.
+  auto max_sql = "SELECT userid, MAX(duration) "
+                 "FROM jobs "
+                 "WHERE t_inactive >= ? AND userid IN (" +
+                 placeholders +
+                 ") "
+                 "GROUP BY userid;";
+  sqlite3_stmt *max_stmt = nullptr;
+  if (sqlite3_prepare_v2(db, max_sql.c_str(), -1, &max_stmt, nullptr) !=
+      SQLITE_OK) {
+    return ps_error(
+        ps_db_query_err_t{.query = max_sql, .message = sqlite3_errmsg(db)});
+  }
+  if (sqlite3_bind_double(max_stmt, 1, min_t_inactive) != SQLITE_OK) {
+    sqlite3_finalize(max_stmt);
+    return ps_error(
+        ps_db_query_err_t{.query = max_sql, .message = sqlite3_errmsg(db)});
+  }
+  for (size_t i = 0; i < userids.size(); i++) {
+    if (sqlite3_bind_int(max_stmt, static_cast<int>(i + 2), userids[i]) !=
+        SQLITE_OK) {
+      sqlite3_finalize(max_stmt);
+      return ps_error(
+          ps_db_query_err_t{.query = max_sql, .message = sqlite3_errmsg(db)});
+    }
+  }
+  while (sqlite3_step(max_stmt) == SQLITE_ROW) {
+    res.max_duration_by_user[static_cast<uid_t>(
+        sqlite3_column_int(max_stmt, 0))] = sqlite3_column_double(max_stmt, 1);
+  }
+  sqlite3_finalize(max_stmt);
   return res;
 }
 
@@ -253,8 +314,9 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
   }
 
-  auto sql = "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score) "
-             "VALUES (?, ?, ?, ?);";
+  auto sql =
+      "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score, duration) "
+      "VALUES (?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -266,7 +328,8 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
             SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
-        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
+        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK ||
+        sqlite3_bind_double(stmt, 5, job.duration) != SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
       return ps_error(
@@ -304,8 +367,9 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
         ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
   }
 
-  auto sql = "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score) "
-             "VALUES (?, ?, ?, ?);";
+  auto sql =
+      "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score, duration) "
+      "VALUES (?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -317,7 +381,8 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
             SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
-        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
+        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK ||
+        sqlite3_bind_double(stmt, 5, job.duration) != SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
       return ps_error(
@@ -388,8 +453,8 @@ ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
   }
 
-  auto sql =
-      "INSERT INTO jobs (id, userid, t_inactive, score) VALUES (?, ?, ?, ?);";
+  auto sql = "INSERT INTO jobs (id, userid, t_inactive, score, duration) "
+             "VALUES (?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -401,7 +466,8 @@ ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
             SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
-        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK) {
+        sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK ||
+        sqlite3_bind_double(stmt, 5, job.duration) != SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
       return ps_error(
@@ -450,8 +516,8 @@ ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(db)});
   }
 
-  auto sql =
-      "UPDATE jobs SET userid = ?, t_inactive = ?, score = ? WHERE id = ?;";
+  auto sql = "UPDATE jobs SET userid = ?, t_inactive = ?, score = ?, duration "
+             "= ? WHERE id = ?;";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -462,7 +528,8 @@ ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
     if (sqlite3_bind_int(stmt, 1, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 2, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.score) != SQLITE_OK ||
-        sqlite3_bind_text(stmt, 4, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
+        sqlite3_bind_double(stmt, 4, job.duration) != SQLITE_OK ||
+        sqlite3_bind_text(stmt, 5, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();

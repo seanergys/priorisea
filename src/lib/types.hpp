@@ -34,6 +34,7 @@ struct ps_job_t {
   uid_t userid;
   double t_inactive;
   double score;
+  double duration;
 };
 
 /**
@@ -41,14 +42,13 @@ struct ps_job_t {
  */
 struct ps_user_t {
   uid_t userid;
+  bool has_score;
   double score;
 };
 
 /**
  * Represents the database's info row: the t_inactive cursor and the default
- * user_period. The two fields are always read and written together as a single
- * unit, so the row can never be left half-written (for example with a NULL
- * user_period, which the schema forbids)
+ * user_period
  */
 struct ps_db_info_t {
   double t_inactive;

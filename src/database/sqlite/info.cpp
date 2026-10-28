@@ -44,3 +44,25 @@ ps_result_t<ps_success_t> ps_db_sqlite_info_set(sqlite3 *db,
   sqlite3_finalize(stmt);
   return ps_success_t{};
 }
+
+ps_result_t<ps_success_t>
+ps_db_sqlite_info_user_period_update(sqlite3 *db, double user_period) {
+  auto sql = "UPDATE database_info SET user_period = ? WHERE id = 1;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return ps_error(
+        ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+  }
+  if (sqlite3_bind_double(stmt, 1, user_period) != SQLITE_OK) {
+    sqlite3_finalize(stmt);
+    return ps_error(
+        ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+  }
+  if (sqlite3_step(stmt) != SQLITE_DONE) {
+    sqlite3_finalize(stmt);
+    return ps_error(
+        ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
+  }
+  sqlite3_finalize(stmt);
+  return ps_success_t{};
+}

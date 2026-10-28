@@ -49,9 +49,11 @@ ps_db_sqlite_users_get(sqlite3 *db, const std::vector<uid_t> &userids) {
   ps_db_sqlite_users_get_t res;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     uid_t userid = static_cast<uid_t>(sqlite3_column_int(stmt, 0));
+    const bool has_score = sqlite3_column_type(stmt, 1) != SQLITE_NULL;
     res[userid] = ps_user_t{
         .userid = userid,
-        .score = sqlite3_column_double(stmt, 1),
+        .has_score = has_score,
+        .score = has_score ? sqlite3_column_double(stmt, 1) : 0.0,
     };
   }
   sqlite3_finalize(stmt);
@@ -77,9 +79,11 @@ ps_result_t<std::vector<ps_user_t>> ps_db_sqlite_users_list(sqlite3 *db) {
 
   std::vector<ps_user_t> res;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
+    const bool has_score = sqlite3_column_type(stmt, 1) != SQLITE_NULL;
     res.push_back(ps_user_t{
         .userid = static_cast<uid_t>(sqlite3_column_int(stmt, 0)),
-        .score = sqlite3_column_double(stmt, 1),
+        .has_score = has_score,
+        .score = has_score ? sqlite3_column_double(stmt, 1) : 0.0,
     });
   }
   sqlite3_finalize(stmt);
@@ -111,7 +115,8 @@ ps_db_sqlite_users_set(sqlite3 *db, const std::vector<ps_user_t> &users) {
   }
   for (const auto &user : users) {
     if (sqlite3_bind_int(stmt, 1, user.userid) != SQLITE_OK ||
-        sqlite3_bind_double(stmt, 2, user.score) != SQLITE_OK) {
+        (user.has_score ? sqlite3_bind_double(stmt, 2, user.score)
+                        : sqlite3_bind_null(stmt, 2)) != SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
       return ps_error(
@@ -166,7 +171,8 @@ ps_db_sqlite_users_insert(sqlite3 *db, const std::vector<ps_user_t> &users) {
   }
   for (const auto &user : users) {
     if (sqlite3_bind_int(stmt, 1, user.userid) != SQLITE_OK ||
-        sqlite3_bind_double(stmt, 2, user.score) != SQLITE_OK) {
+        (user.has_score ? sqlite3_bind_double(stmt, 2, user.score)
+                        : sqlite3_bind_null(stmt, 2)) != SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
       return ps_error(
@@ -224,7 +230,8 @@ ps_db_sqlite_users_update(sqlite3 *db, const std::vector<ps_user_t> &users) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &user : users) {
-    if (sqlite3_bind_double(stmt, 1, user.score) != SQLITE_OK ||
+    if ((user.has_score ? sqlite3_bind_double(stmt, 1, user.score)
+                        : sqlite3_bind_null(stmt, 1)) != SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, user.userid) != SQLITE_OK) {
       sqlite3_finalize(stmt);
       rollback();
