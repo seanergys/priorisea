@@ -34,7 +34,7 @@ test_expect_success 'the user score equals the job score with 1 weight' '
 test_expect_success 'reset restores the default job_weight formula' '
     priorisea formula reset job_weight &&
     priorisea formula get job_weight --json > formula.json &&
-    jq -e ".expr == \"max(0, 1 - (<var:age_days> / 90) - (<var:duration_seconds> / <var:max_duration_seconds>))\"" formula.json
+    jq -e ".expr == \"max(0, (<var:duration_seconds> / <var:max_duration_seconds>) - (<var:age_days> / 90))\"" formula.json
 '
 
 test_expect_success 'syncing pushes the user score into the plugin' '

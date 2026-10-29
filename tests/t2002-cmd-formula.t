@@ -34,7 +34,7 @@ test_expect_success 'default formula expressions and values are as expected' '
     jq -e ".defaults[\"var:user_score\"] == 16" job_priority.json &&
 
     priorisea formula get job_weight --json > job_weight.json &&
-    jq -e ".expr == \"max(0, 1 - (<var:age_days> / 90) - (<var:duration_seconds> / <var:max_duration_seconds>))\"" job_weight.json &&
+    jq -e ".expr == \"max(0, (<var:duration_seconds> / <var:max_duration_seconds>) - (<var:age_days> / 90))\"" job_weight.json &&
     jq -e "(.defaults | length) == 0" job_weight.json
 '
 
