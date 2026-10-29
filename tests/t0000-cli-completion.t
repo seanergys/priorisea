@@ -111,12 +111,12 @@ test_expect_success 'job subcommands' '
 
 test_expect_success 'job get flags' '
 	_comp_run 3 priorisea job get &&
-	_comp_has --json --format --help
+	_comp_has --json --detail --format --help
 '
 
 test_expect_success 'job list flags' '
 	_comp_run 3 priorisea job list &&
-	_comp_has --json --format --limit --help
+	_comp_has --json --detail --format --limit --help
 '
 
 test_expect_success 'job update flags' '

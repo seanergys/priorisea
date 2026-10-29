@@ -13,7 +13,7 @@ test_expect_success 'create the database twice' '
 '
 
 test_expect_success 'database has the expected schema version' '
-    echo 3 >expected_version.out &&
+    echo 4 >expected_version.out &&
     sqlite3 ./priorisea.db "PRAGMA user_version;" >version.out &&
     test_cmp expected_version.out version.out
 '
@@ -22,7 +22,6 @@ test_expect_success 'database has all expected tables' '
     cat >expected_tables.out <<EOF
 database_info
 decay_items
-formula_defaults
 formulas
 jobs
 timewins
