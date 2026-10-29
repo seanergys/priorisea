@@ -6,7 +6,7 @@
 /**
  * Expected SQLite user_version of the schema
  */
-inline constexpr int SQLITE_DB_VERSION = 3;
+inline constexpr int SQLITE_DB_VERSION = 4;
 
 /**
  * Executes an SQL statement on the given SQLite database

@@ -1,6 +1,7 @@
 #include "src/lib/formula.hpp"
 #include "external/tinyexpr/tinyexpr.h"
 #include "src/lib/error.hpp"
+#include <cstdlib>
 #include <math.h>
 #include <regex>
 #include <utility>
@@ -9,11 +10,8 @@ json_t *ps_formula_to_json(const ps_formula_t &formula) {
   auto *obj = json_object();
   json_object_set_new(obj, "name", json_string(formula.name.c_str()));
   json_object_set_new(obj, "expr", json_string(formula.expr.c_str()));
-  auto *defaults_obj = json_object();
-  for (const auto &[var_name, value] : formula.defaults) {
-    json_object_set_new(defaults_obj, var_name.c_str(), json_real(value));
-  }
-  json_object_set_new(obj, "defaults", defaults_obj);
+  json_object_set_new(obj, "defaults",
+                      ps_formula_vars_to_json(formula.defaults));
   return obj;
 }
 
@@ -45,17 +43,65 @@ ps_result_t<ps_formula_t> ps_formula_from_json(json_t *obj) {
     return ps_error(
         ps_field_type_mismatch_t{.field = "defaults", .expected = "object"});
   }
-  const char *var_name;
+  auto defaults_res = ps_formula_vars_from_json(defaults_obj);
+  if (!ps_is_ok(defaults_res)) {
+    return ps_forward_error<ps_formula_t>(defaults_res);
+  }
+  res.defaults = ps_unwrap(defaults_res);
+  return res;
+}
+
+json_t *ps_formula_vars_to_json(const std::map<std::string, double> &vars) {
+  auto *obj = json_object();
+  for (const auto &[name, value] : vars) {
+    json_object_set_new(obj, name.c_str(), json_real(value));
+  }
+  return obj;
+}
+
+ps_result_t<std::map<std::string, double>>
+ps_formula_vars_from_json(json_t *obj) {
+  std::map<std::string, double> res;
+  if (!json_is_object(obj)) {
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "variables", .expected = "object"});
+  }
+  const char *name;
   json_t *value_j;
-  json_object_foreach(defaults_obj, var_name, value_j) {
+  json_object_foreach(obj, name, value_j) {
     if (!json_is_real(value_j)) {
-      auto key_str = std::string(var_name);
+      auto key_str = std::string(name);
       return ps_error(
           ps_field_type_mismatch_t{.field = key_str, .expected = "double"});
     }
-    res.defaults[var_name] = json_real_value(value_j);
+    res[name] = json_real_value(value_j);
   }
   return res;
+}
+
+std::string
+ps_formula_vars_to_json_str(const std::map<std::string, double> &vars) {
+  auto *obj = ps_formula_vars_to_json(vars);
+  char *text = json_dumps(obj, JSON_COMPACT);
+  json_decref(obj);
+  std::string result(text);
+  free(text);
+  return result;
+}
+
+ps_result_t<std::map<std::string, double>>
+ps_formula_vars_from_json_str(const std::string &text) {
+  std::map<std::string, double> res;
+  if (text.empty()) {
+    return res;
+  }
+  json_t *obj = json_loads(text.c_str(), 0, nullptr);
+  if (!obj) {
+    return ps_error(ps_unexpected_err_t{.msg = "invalid variables JSON"});
+  }
+  auto parsed = ps_formula_vars_from_json(obj);
+  json_decref(obj);
+  return parsed;
 }
 
 static double _min(double a, double b) { return a < b ? a : b; }

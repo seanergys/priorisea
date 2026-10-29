@@ -65,8 +65,8 @@ _priorisea() {
                 return 0
             fi
             case "$cmd2" in
-                get)    COMPREPLY=( $(compgen -W "--json --format --help" -- "$cur") ) ;;
-                list)   COMPREPLY=( $(compgen -W "--json --format --limit --help" -- "$cur") ) ;;
+                get)    COMPREPLY=( $(compgen -W "--json --detail --format --help" -- "$cur") ) ;;
+                list)   COMPREPLY=( $(compgen -W "--json --detail --format --limit --help" -- "$cur") ) ;;
                 update) COMPREPLY=( $(compgen -W "--new --help" -- "$cur") ) ;;
                 *)      COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac

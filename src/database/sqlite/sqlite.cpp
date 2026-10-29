@@ -90,7 +90,7 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
              R"(
     CREATE TABLE IF NOT EXISTS database_info (
         id INTEGER PRIMARY KEY CHECK(id = 1),
-        t_inactive REAL,
+        t_inactive REAL NOT NULL,
         user_period REAL NOT NULL
     );
 
@@ -104,20 +104,16 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
         userid INTEGER NOT NULL,
         t_inactive REAL NOT NULL,
         score REAL NOT NULL,
-        duration REAL NOT NULL DEFAULT 0
+        duration REAL NOT NULL,
+        f_expr TEXT NOT NULL,
+        f_defaults TEXT,
+        f_values TEXT
     );
 
     CREATE TABLE IF NOT EXISTS formulas (
         name TEXT PRIMARY KEY,
-        expression TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS formula_defaults (
-        formula TEXT,
-        var TEXT,
-        value REAL NOT NULL,
-        PRIMARY KEY (formula, var),
-        FOREIGN KEY (formula) REFERENCES formulas(name)
+        expression TEXT NOT NULL,
+        f_defaults TEXT
     );
 
     CREATE TABLE IF NOT EXISTS timewins (

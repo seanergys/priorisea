@@ -35,6 +35,9 @@ struct ps_job_t {
   double t_inactive;
   double score;
   double duration;
+  std::string f_expr;
+  std::map<std::string, double> defaults;
+  std::map<std::string, double> values;
 };
 
 /**

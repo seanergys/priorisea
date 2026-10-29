@@ -12,6 +12,15 @@
 json_t *ps_job_to_json(const ps_job_t &job);
 
 /**
+ * Converts a job structure to a JSON object, excluding the formula fields
+ * (f_expr, defaults, values)
+ *
+ * @param job The job structure to convert
+ * @return A JSON object representing the job
+ */
+json_t *ps_job_to_json_plain(const ps_job_t &job);
+
+/**
  * Converts a JSON object to a job structure
  *
  * @param obj The JSON object to convert

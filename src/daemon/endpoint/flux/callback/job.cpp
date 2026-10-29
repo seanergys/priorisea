@@ -310,7 +310,11 @@ ps_formula_sb_entities(const ps_formula_t &formula,
   return res;
 }
 
-static ps_result_t<double> ps_job_score_compute(
+struct ps_job_score_compute_t {
+  double result;
+  std::map<std::string, double> vars_over;
+};
+static ps_result_t<ps_job_score_compute_t> ps_job_score_compute(
     ps_flux_job_t job, const ps_formula_t &formula,
     const std::vector<ps_timewin_t> &timewins, const std::string &seanerbus_url,
     std::map<std::string, seanerbus::msg::Entity> sb_entities) {
@@ -380,10 +384,11 @@ static ps_result_t<double> ps_job_score_compute(
 
   auto eval_res = ps_eval_formula(formula, vars_over);
   if (!ps_is_ok(eval_res)) {
-    return eval_res;
+    return ps_forward_error<ps_job_score_compute_t>(eval_res);
   }
 
-  return ps_unwrap(eval_res);
+  return ps_job_score_compute_t{.result = ps_unwrap(eval_res),
+                                .vars_over = vars_over};
 }
 
 static ps_result_t<std::string>
@@ -676,18 +681,22 @@ int ps_daemon_endpoint_flux_job_update(
 
   std::vector<ps_job_t> _jobs;
   for (const auto &[jobid, job] : jobs) {
-    auto score_res = ps_job_score_compute(job, formula, timewins,
-                                          args.seanerbus_url, sb_entities);
-    if (!ps_is_ok(score_res)) {
+    auto compute_res = ps_job_score_compute(job, formula, timewins,
+                                            args.seanerbus_url, sb_entities);
+    if (!ps_is_ok(compute_res)) {
       return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(score_res).c_str());
+                                ps_error_message(compute_res).c_str());
     }
+    auto compute = ps_unwrap(compute_res);
     auto uid = static_cast<uid_t>(job.userid);
     _jobs.push_back({.jobid = std::to_string(jobid),
                      .userid = uid,
                      .t_inactive = job.t_inactive,
-                     .score = ps_unwrap(score_res),
-                     .duration = job.t_inactive - job.t_run});
+                     .score = compute.result,
+                     .duration = job.t_inactive - job.t_run,
+                     .f_expr = formula.expr,
+                     .defaults = formula.defaults,
+                     .values = compute.vars_over});
   }
 
   // Store the scored jobs and, when scanning newly inactive jobs, advance the
