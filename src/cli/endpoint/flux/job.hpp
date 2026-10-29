@@ -2,6 +2,7 @@
 #include "src/lib/error.hpp"
 #include "src/lib/types.hpp"
 #include <flux/core.h>
+#include <src/lib/util.hpp>
 #include <string>
 #include <vector>
 
@@ -20,10 +21,12 @@ ps_result_t<ps_job_t> ps_cli_endpoint_flux_job_get(const std::string &jobid,
  * @param jobids Ids to fetch, or empty for all
  * @param format Job listing format requested from the daemon
  * @param limit Maximum number of jobs to return
+ * @param order Sort order of the listing, forwarded to the daemon
  */
 ps_result_t<std::vector<ps_job_t>>
 ps_cli_endpoint_flux_job_list(const std::vector<std::string> &jobids,
-                              const std::string &format, int limit);
+                              const std::string &format, int limit,
+                              const ps_db_order_t &order);
 
 /**
  * Mark jobs as new or not new on the daemon

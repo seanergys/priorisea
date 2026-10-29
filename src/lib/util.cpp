@@ -1,4 +1,5 @@
 #include "src/lib/util.hpp"
+#include "src/lib/error.hpp"
 #include <cmath>
 #include <pwd.h>
 #include <stdexcept>
@@ -84,4 +85,19 @@ bool username_from_uid(uid_t uid, std::string &out) {
   }
   out = pw->pw_name;
   return true;
+}
+
+std::string ps_db_order_to_str(ps_db_order_t order) {
+  return order == ps_db_order_t::asc ? "ASC" : "DESC";
+}
+
+ps_result_t<ps_db_order_t> ps_db_order_from_str(std::string order) {
+  if (order == "asc" || order == "ASC") {
+    return ps_db_order_t::asc;
+  }
+  if (order == "desc" || order == "DESC") {
+    return ps_db_order_t::desc;
+  }
+  return ps_error(
+      ps_string_parse_err_t{.msg = "Invalid order string: " + order});
 }

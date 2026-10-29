@@ -90,8 +90,8 @@ ps_result_t<ps_job_t> ps_job_from_json(json_t *obj) {
   json_t *defaults_obj = json_object_get(obj, "f_defaults");
   if (defaults_obj) {
     if (!json_is_object(defaults_obj)) {
-      return ps_error(
-          ps_field_type_mismatch_t{.field = "f_defaults", .expected = "object"});
+      return ps_error(ps_field_type_mismatch_t{.field = "f_defaults",
+                                               .expected = "object"});
     }
     auto defaults_res = ps_formula_vars_from_json(defaults_obj);
     if (!ps_is_ok(defaults_res)) {

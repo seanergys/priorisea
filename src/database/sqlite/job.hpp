@@ -2,6 +2,7 @@
 #include "src/database/job.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/types.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
 #include <sqlite3.h>
 #include <sys/types.h>
@@ -33,10 +34,12 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids);
  *
  * @param db The SQLite database
  * @param limit The maximum number of jobs to return
+ * @param order The sort order of the listing (defaults to descending)
  * @return The jobs
  */
-ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
-                                                          size_t limit);
+ps_result_t<std::vector<ps_job_t>>
+ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit,
+                       ps_db_order_t order = ps_db_order_t::desc);
 
 /**
  * Lists the most recent jobs owned by a user
@@ -44,10 +47,12 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
  * @param db The SQLite database
  * @param limit The maximum number of jobs to return
  * @param userid The owner id to filter by
+ * @param order The sort order of the listing (defaults to descending)
  * @return The jobs
  */
 ps_result_t<std::vector<ps_job_t>>
-ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid);
+ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid,
+                       ps_db_order_t order = ps_db_order_t::desc);
 
 /**
  * Lists the jobs inactive for at least min_t_inactive
@@ -56,10 +61,12 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid);
  *
  * @param db The SQLite database
  * @param min_t_inactive The minimum t_inactive of the jobs to list
+ * @param order The sort order of the listing (defaults to descending)
  * @return The jobs and the per-user maximum duration
  */
 ps_result_t<ps_db_sqlite_jobs_list_t>
-ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive);
+ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
+                       ps_db_order_t order = ps_db_order_t::desc);
 
 /**
  * Lists the jobs inactive for at least min_t_inactive owned by one of the
@@ -70,11 +77,13 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive);
  * @param db The SQLite database
  * @param min_t_inactive The minimum t_inactive of the jobs to list
  * @param userids The owner ids to filter by
+ * @param order The sort order of the listing (defaults to descending)
  * @return The jobs and the per-user maximum duration
  */
 ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
-                       const std::vector<uid_t> &userids);
+                       const std::vector<uid_t> &userids,
+                       ps_db_order_t order = ps_db_order_t::desc);
 
 /**
  * Inserts or replaces the jobs in a single transaction

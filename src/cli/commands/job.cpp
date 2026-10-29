@@ -9,6 +9,7 @@
 #include <flux/core.h>
 #include <jansson.h>
 #include <memory>
+#include <src/lib/util.hpp>
 #include <string>
 #include <sys/types.h>
 #include <vector>
@@ -112,12 +113,12 @@ static void register_get_command(CLI::App *app) {
   };
   auto opts = std::make_shared<options>();
   get_cmd->add_option("jobid", opts->jobid, "Job ID")->required(true);
-  get_cmd->add_flag("-j,--json", opts->json, "Output JSON");
-  get_cmd->add_flag("-d,--detail", opts->detail, "Show details for jobs");
+  get_cmd->add_flag("-d,--detail", opts->detail, "Show additional details");
   get_cmd->add_option("-f,--format", opts->format, "Job ID output format")
       ->default_val("f58")
       ->check(CLI::IsMember(
           {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}));
+  get_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   get_cmd->callback([opts] {
     auto get_res = ps_cli_endpoint_flux_job_get(opts->jobid, opts->format);
     if (!ps_is_ok(get_res)) {
@@ -136,21 +137,30 @@ static void register_list_command(CLI::App *app) {
     int limit;
     bool json;
     bool detail;
+    std::string order;
+    std::string sort;
   };
   auto opts = std::make_shared<options>();
   list_cmd->add_option("jobids", opts->jobids, "Job IDs (optional)");
-  list_cmd->add_flag("-j,--json", opts->json, "Output JSON");
-  list_cmd->add_flag("-d,--detail", opts->detail, "Show details for jobs");
+  list_cmd->add_flag("-d,--detail", opts->detail, "Show additional details");
   list_cmd->add_option("-f,--format", opts->format, "Job IDs output format")
-      ->default_val("f58")
       ->check(CLI::IsMember(
-          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}));
-
+          {"dec", "hex", "kvs", "dothex", "words", "f58", "f58plain"}))
+      ->default_val("f58");
+  list_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   list_cmd->add_option("-n,--limit", opts->limit, "Limit the output to N items")
       ->default_val(INT_MAX);
+  list_cmd->add_option("-o,--order", opts->order, "Order of the output")
+      ->check(CLI::IsMember({"asc", "desc"}))
+      ->default_val("desc");
   list_cmd->callback([opts] {
-    auto list_res =
-        ps_cli_endpoint_flux_job_list(opts->jobids, opts->format, opts->limit);
+    auto order_res = ps_db_order_from_str(opts->order);
+    if (!ps_is_ok(order_res)) {
+      ps_exit_error(order_res);
+    }
+    auto order = ps_unwrap(order_res);
+    auto list_res = ps_cli_endpoint_flux_job_list(opts->jobids, opts->format,
+                                                  opts->limit, order);
     if (!ps_is_ok(list_res)) {
       ps_exit_error(list_res);
     }

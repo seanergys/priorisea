@@ -8,6 +8,7 @@
 #include "src/lib/formula.hpp"
 #include "src/lib/job.hpp"
 #include "src/lib/types.hpp"
+#include "src/lib/util.hpp"
 #include <climits>
 #include <cmath>
 #include <flux/core.h>
@@ -482,12 +483,22 @@ int ps_daemon_endpoint_flux_job_list(
   json_t *data_json = nullptr;
   const char *format;
   int limit;
-  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i}", "data", &data_json,
-                          "format", &format, "limit", &limit) < 0) {
+  const char *order = "desc";
+  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i s?s}", "data",
+                          &data_json, "format", &format, "limit", &limit,
+                          "order", &order) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
   }
+
+  // Map the requested order ("asc"/"desc") to the database sort order.
+  auto db_order_res = ps_db_order_from_str(order);
+  if (!ps_is_ok(db_order_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(db_order_res).c_str());
+  }
+  auto db_order = ps_unwrap(db_order_res);
 
   std::vector<ps_job_t> jobs;
   if (data_json == nullptr) {
@@ -496,10 +507,11 @@ int ps_daemon_endpoint_flux_job_list(
     size_t limit_entries = limit > 0 ? static_cast<size_t>(limit) : SIZE_MAX;
     ps_result_t<std::vector<ps_job_t>> list_res;
     if (is_owner) {
-      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries);
+      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, db_order);
     } else {
       // Non-owners only see their own jobs
-      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, userid);
+      list_res =
+          ps_db_sqlite_jobs_list(args.db, limit_entries, userid, db_order);
     }
     if (!ps_is_ok(list_res)) {
       return flux_respond_error(args.h, args.msg, 0,
