@@ -2,9 +2,9 @@
 #include "src/cli/endpoint/util.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/job.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
 #include <jansson.h>
-#include <src/lib/util.hpp>
 #include <string>
 
 ps_result_t<ps_job_t> ps_cli_endpoint_flux_job_get(const std::string &jobid,

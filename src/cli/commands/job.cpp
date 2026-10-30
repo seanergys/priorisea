@@ -3,13 +3,13 @@
 #include "src/cli/util.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/job.hpp"
+#include "src/lib/util.hpp"
 #include <cerrno>
 #include <climits>
 #include <cstdint>
 #include <flux/core.h>
 #include <jansson.h>
 #include <memory>
-#include <src/lib/util.hpp>
 #include <string>
 #include <sys/types.h>
 #include <vector>

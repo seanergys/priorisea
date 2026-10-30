@@ -1,8 +1,8 @@
 #pragma once
 #include "src/lib/error.hpp"
 #include "src/lib/types.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
-#include <src/lib/util.hpp>
 #include <string>
 #include <vector>
 

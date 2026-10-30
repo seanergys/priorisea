@@ -1,9 +1,9 @@
 #include "src/cli/endpoint/flux/info.hpp"
+#include "src/cli/endpoint/error.hpp"
 #include "src/cli/endpoint/util.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/info.hpp"
 #include <flux/core/rpc.h>
-#include <src/cli/endpoint/error.hpp>
 
 ps_result_t<ps_cli_endpoint_info_get_t> ps_cli_endpoint_info_get() {
   auto h = flux_open(NULL, 0);

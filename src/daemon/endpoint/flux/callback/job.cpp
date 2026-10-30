@@ -1,5 +1,6 @@
 #include "src/daemon/endpoint/flux/callback/job.hpp"
 #include "croncpp.h"
+#include "src/daemon/endpoint/error.hpp"
 #include "src/database/sqlite/formula.hpp"
 #include "src/database/sqlite/info.hpp"
 #include "src/database/sqlite/job.hpp"
@@ -19,7 +20,6 @@
 #include <seanerbus/helpers/resolve.hpp>
 #include <seanerbus/msg/message.hpp>
 #include <set>
-#include <src/daemon/endpoint/error.hpp>
 #include <string>
 
 struct ps_flux_job_t {

@@ -114,7 +114,7 @@ std::string ps_job_sort_to_str(ps_job_sort_t sort) {
   case ps_job_sort_t::duration:
     return "duration";
   default:
-      return "t_inactive";
+    return "t_inactive";
   }
 }
 
