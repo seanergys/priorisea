@@ -111,14 +111,15 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids) {
   return res;
 }
 
-ps_result_t<std::vector<ps_job_t>>
-ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, ps_db_order_t order) {
-  // Most recent first: higher t_inactive sorts earlier.
+ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
+                                                          size_t limit,
+                                                          ps_db_order_t order,
+                                                          ps_job_sort_t sort) {
   auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
              "f_defaults, f_values "
              "FROM jobs "
-             "ORDER BY t_inactive " +
-             ps_db_order_to_str(order) +
+             "ORDER BY " +
+             ps_job_sort_to_str(sort) + " " + ps_db_order_to_str(order) +
              " "
              "LIMIT ?;";
   sqlite3_stmt *stmt = nullptr;
@@ -147,17 +148,15 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, ps_db_order_t order) {
   return res;
 }
 
-ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
-                                                          size_t limit,
-                                                          uid_t userid,
-                                                          ps_db_order_t order) {
-  // Most recent first: higher t_inactive sorts earlier.
+ps_result_t<std::vector<ps_job_t>>
+ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid,
+                       ps_db_order_t order, ps_job_sort_t sort) {
   auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
              "f_defaults, f_values "
              "FROM jobs "
              "WHERE userid = ? "
-             "ORDER BY t_inactive " +
-             ps_db_order_to_str(order) +
+             "ORDER BY " +
+             ps_job_sort_to_str(sort) + " " + ps_db_order_to_str(order) +
              " "
              "LIMIT ?;";
   sqlite3_stmt *stmt = nullptr;
@@ -188,15 +187,14 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
 }
 
 ps_result_t<ps_db_sqlite_jobs_list_t>
-ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
-                       ps_db_order_t order) {
-  // Most recent first: higher t_inactive sorts earlier.
+ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive, ps_db_order_t order,
+                       ps_job_sort_t sort) {
   auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
              "f_defaults, f_values "
              "FROM jobs "
              "WHERE t_inactive >= ? "
-             "ORDER BY t_inactive " +
-             ps_db_order_to_str(order) + ";";
+             "ORDER BY " +
+             ps_job_sort_to_str(sort) + " " + ps_db_order_to_str(order) + ";";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
     return ps_error(
@@ -246,10 +244,9 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
 
 ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
-                       const std::vector<uid_t> &userids, ps_db_order_t order) {
-  // Most recent first: higher t_inactive sorts earlier.
+                       const std::vector<uid_t> &userids, ps_db_order_t order,
+                       ps_job_sort_t sort) {
   ps_db_sqlite_jobs_list_t res;
-
   // An empty user list can never match any job; skip building an invalid
   // "userid IN ()" clause.
   if (userids.empty()) {
@@ -268,8 +265,8 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
              "WHERE t_inactive >= ? AND userid IN (" +
              placeholders +
              ") "
-             "ORDER BY t_inactive " +
-             ps_db_order_to_str(order) + ";";
+             "ORDER BY " +
+             ps_job_sort_to_str(sort) + " " + ps_db_order_to_str(order) + ";";
 
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -277,7 +274,7 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
 
-  // Bind t_inactive first (param 1), then each user id (params 2..n+1).
+  // Bind t_inactive and each user id
   if (sqlite3_bind_double(stmt, 1, min_t_inactive) != SQLITE_OK) {
     sqlite3_finalize(stmt);
     return ps_error(

@@ -12,6 +12,16 @@ enum class ps_db_order_t {
 };
 
 /**
+ * Column to sort a job listing by
+ */
+enum class ps_job_sort_t {
+  userid,
+  t_inactive,
+  score,
+  duration,
+};
+
+/**
  * Parse a string into an integer
  *
  * @param s The string to parse
@@ -80,3 +90,19 @@ std::string ps_db_order_to_str(ps_db_order_t order);
  * @return The corresponding enum type or an error if the string is invalid
  */
 ps_result_t<ps_db_order_t> ps_db_order_from_str(std::string order);
+
+/**
+ * Convert a sort column to its SQL column name
+ *
+ * @param sort The sort column to convert
+ * @return The corresponding SQL column name as a string
+ */
+std::string ps_job_sort_to_str(ps_job_sort_t sort);
+
+/**
+ * Parse a sort column string into the enum type
+ *
+ * @param sort The sort column string to parse
+ * @return The corresponding enum type or an error if the string is invalid
+ */
+ps_result_t<ps_job_sort_t> ps_db_sort_from_str(std::string sort);

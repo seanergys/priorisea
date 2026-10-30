@@ -153,14 +153,22 @@ static void register_list_command(CLI::App *app) {
   list_cmd->add_option("-o,--order", opts->order, "Order of the output")
       ->check(CLI::IsMember({"asc", "desc"}))
       ->default_val("desc");
+  list_cmd->add_option("-s,--sort", opts->sort, "Column to order by")
+      ->check(CLI::IsMember({"userid", "t_inactive", "score", "duration"}))
+      ->default_val("t_inactive");
   list_cmd->callback([opts] {
     auto order_res = ps_db_order_from_str(opts->order);
     if (!ps_is_ok(order_res)) {
       ps_exit_error(order_res);
     }
     auto order = ps_unwrap(order_res);
+    auto sort_res = ps_db_sort_from_str(opts->sort);
+    if (!ps_is_ok(sort_res)) {
+      ps_exit_error(sort_res);
+    }
+    auto sort = ps_unwrap(sort_res);
     auto list_res = ps_cli_endpoint_flux_job_list(opts->jobids, opts->format,
-                                                  opts->limit, order);
+                                                  opts->limit, order, sort);
     if (!ps_is_ok(list_res)) {
       ps_exit_error(list_res);
     }

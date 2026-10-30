@@ -35,31 +35,32 @@ ps_result_t<ps_job_t> ps_cli_endpoint_flux_job_get(const std::string &jobid,
   return job;
 }
 
-ps_result_t<std::vector<ps_job_t>>
-ps_cli_endpoint_flux_job_list(const std::vector<std::string> &jobids,
-                              const std::string &format, int limit,
-                              const ps_db_order_t &order) {
+ps_result_t<std::vector<ps_job_t>> ps_cli_endpoint_flux_job_list(
+    const std::vector<std::string> &jobids, const std::string &format,
+    int limit, const ps_db_order_t &order, const ps_job_sort_t &sort) {
   auto h = flux_open(NULL, 0);
   if (!h) {
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
   }
 
   auto order_str = ps_db_order_to_str(order);
+  auto sort_str = ps_job_sort_to_str(sort);
   flux_future_t *f;
   if (jobids.empty()) {
     // No parameter: request the entire list
     f = flux_rpc_pack(h, "priorisea.daemon.job.list", FLUX_NODEID_ANY, 0,
-                      "{s:s s:i s:s}", "format", format.c_str(), "limit", limit,
-                      "order", order_str.c_str());
+                      "{s:s s:i s:s s:s}", "format", format.c_str(), "limit",
+                      limit, "order", order_str.c_str(), "sort",
+                      sort_str.c_str());
   } else {
     json_t *data = json_array();
     for (const auto &jobid : jobids) {
       json_array_append_new(data, json_string(jobid.c_str()));
     }
     f = flux_rpc_pack(h, "priorisea.daemon.job.list", FLUX_NODEID_ANY, 0,
-                      "{s:O s:s s:i s:s}", "data", data, "format",
+                      "{s:O s:s s:i s:s s:s}", "data", data, "format",
                       format.c_str(), "limit", limit, "order",
-                      order_str.c_str());
+                      order_str.c_str(), "sort", sort_str.c_str());
     json_decref(data);
   }
   if (!f) {

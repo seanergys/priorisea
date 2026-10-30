@@ -484,9 +484,10 @@ int ps_daemon_endpoint_flux_job_list(
   const char *format;
   int limit;
   const char *order = "desc";
-  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i s?s}", "data",
+  const char *sort = "t_inactive";
+  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i s?s s?s}", "data",
                           &data_json, "format", &format, "limit", &limit,
-                          "order", &order) < 0) {
+                          "order", &order, "sort", &sort) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
@@ -500,6 +501,14 @@ int ps_daemon_endpoint_flux_job_list(
   }
   auto db_order = ps_unwrap(db_order_res);
 
+  // Map the requested sort column to the database sort column.
+  auto db_sort_res = ps_db_sort_from_str(sort);
+  if (!ps_is_ok(db_sort_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(db_sort_res).c_str());
+  }
+  auto db_sort = ps_unwrap(db_sort_res);
+
   std::vector<ps_job_t> jobs;
   if (data_json == nullptr) {
     // No parameter: return the authorized list, capped at `limit` rows
@@ -507,11 +516,12 @@ int ps_daemon_endpoint_flux_job_list(
     size_t limit_entries = limit > 0 ? static_cast<size_t>(limit) : SIZE_MAX;
     ps_result_t<std::vector<ps_job_t>> list_res;
     if (is_owner) {
-      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, db_order);
+      list_res =
+          ps_db_sqlite_jobs_list(args.db, limit_entries, db_order, db_sort);
     } else {
       // Non-owners only see their own jobs
-      list_res =
-          ps_db_sqlite_jobs_list(args.db, limit_entries, userid, db_order);
+      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, userid,
+                                        db_order, db_sort);
     }
     if (!ps_is_ok(list_res)) {
       return flux_respond_error(args.h, args.msg, 0,
