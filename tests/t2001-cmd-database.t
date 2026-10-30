@@ -21,7 +21,6 @@ test_expect_success 'database has the expected schema version' '
 test_expect_success 'database has all expected tables' '
     cat >expected_tables.out <<EOF
 database_info
-decay_items
 formulas
 jobs
 timewins

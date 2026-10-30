@@ -105,15 +105,15 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
         t_inactive REAL NOT NULL,
         score REAL NOT NULL,
         duration REAL NOT NULL,
-        f_expr TEXT NOT NULL,
-        f_defaults TEXT,
-        f_values TEXT
+        s_expr TEXT NOT NULL,
+        s_defaults TEXT,
+        s_values TEXT
     );
 
     CREATE TABLE IF NOT EXISTS formulas (
         name TEXT PRIMARY KEY,
         expression TEXT NOT NULL,
-        f_defaults TEXT
+        defaults TEXT
     );
 
     CREATE TABLE IF NOT EXISTS timewins (
@@ -121,12 +121,6 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
         cron TEXT NOT NULL,
         duration INTEGER NOT NULL,
         score REAL NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS decay_items (
-        order_id INTEGER PRIMARY KEY,
-        duration REAL NOT NULL,
-        weight REAL NOT NULL
     );
     )";
 

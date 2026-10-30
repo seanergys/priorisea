@@ -41,21 +41,22 @@ static void print_jobs_table(const std::vector<ps_job_t> &jobs, bool plain) {
                 [](auto &j, auto) { return std::to_string(j.duration); }}});
   } else {
     ps_print_table_v(
-        jobs, {{"Job ID", [](auto &j, auto) { return j.jobid; }},
-               {"User ID",
-                [](auto &j, auto) {
-                  return std::to_string(static_cast<uint64_t>(j.userid));
-                }},
-               {"t_inactive (s)",
-                [](auto &j, auto) { return std::to_string(j.t_inactive); }},
-               {"Score", [](auto &j, auto) { return std::to_string(j.score); }},
-               {"Duration (s)",
-                [](auto &j, auto) { return std::to_string(j.duration); }},
-               {"Formula", [](auto &j, auto) { return j.f_expr; }},
-               {"Defaults",
-                [](auto &j, auto) { return variables_to_string(j.defaults); }},
-               {"Variables",
-                [](auto &j, auto) { return variables_to_string(j.values); }}});
+        jobs,
+        {{"Job ID", [](auto &j, auto) { return j.jobid; }},
+         {"User ID",
+          [](auto &j, auto) {
+            return std::to_string(static_cast<uint64_t>(j.userid));
+          }},
+         {"t_inactive (s)",
+          [](auto &j, auto) { return std::to_string(j.t_inactive); }},
+         {"Score", [](auto &j, auto) { return std::to_string(j.score); }},
+         {"Duration (s)",
+          [](auto &j, auto) { return std::to_string(j.duration); }},
+         {"Formula", [](auto &j, auto) { return j.s_expr; }},
+         {"Defaults",
+          [](auto &j, auto) { return variables_to_string(j.s_defaults); }},
+         {"Variables",
+          [](auto &j, auto) { return variables_to_string(j.s_values); }}});
   }
 }
 

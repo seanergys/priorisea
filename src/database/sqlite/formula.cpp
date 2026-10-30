@@ -29,7 +29,7 @@ ps_db_sqlite_formulas_get(sqlite3 *db, const std::vector<std::string> &names) {
     placeholders += "?";
   }
   // The defaults map is stored as a JSON object in a single column.
-  auto sql = "SELECT name, expression, f_defaults "
+  auto sql = "SELECT name, expression, defaults "
              "FROM formulas "
              "WHERE name IN (" +
              placeholders + ");";
@@ -76,7 +76,7 @@ ps_db_sqlite_formulas_get(sqlite3 *db, const std::vector<std::string> &names) {
 }
 
 ps_result_t<std::vector<ps_formula_t>> ps_db_sqlite_formulas_list(sqlite3 *db) {
-  auto sql = "SELECT name, expression, f_defaults FROM formulas;";
+  auto sql = "SELECT name, expression, defaults FROM formulas;";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     return ps_error(
@@ -132,7 +132,7 @@ ps_db_sqlite_formulas_set(sqlite3 *db,
 
   // The expression and the defaults map are stored together in the formulas
   // row; the defaults map is serialized as a JSON object.
-  auto sql = "INSERT OR REPLACE INTO formulas (name, expression, f_defaults) "
+  auto sql = "INSERT OR REPLACE INTO formulas (name, expression, defaults) "
              "VALUES (?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -206,7 +206,7 @@ ps_db_sqlite_formulas_insert(sqlite3 *db,
   }
 
   // Add to formulas table. A plain insert fails if the formula already exists.
-  auto sql = "INSERT INTO formulas (name, expression, f_defaults) "
+  auto sql = "INSERT INTO formulas (name, expression, defaults) "
              "VALUES (?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -285,8 +285,7 @@ ps_db_sqlite_formulas_update(sqlite3 *db,
 
   // Update the formulas row. If no row is affected the formula is absent
   // The defaults map is stored alongside the expression as a JSON object
-  auto sql =
-      "UPDATE formulas SET expression = ?, f_defaults = ? WHERE name = ?;";
+  auto sql = "UPDATE formulas SET expression = ?, defaults = ? WHERE name = ?;";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();

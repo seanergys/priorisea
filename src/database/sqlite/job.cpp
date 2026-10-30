@@ -10,7 +10,7 @@
 
 /**
  * Reads a job row whose columns are: id, userid, t_inactive, score, duration,
- * f_expr, f_defaults (JSON), f_values (JSON)
+ * s_expr, s_defaults (JSON), s_values (JSON)
  */
 static ps_result_t<ps_job_t> ps_db_sqlite_job_read(sqlite3_stmt *stmt) {
   auto id_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
@@ -22,8 +22,8 @@ static ps_result_t<ps_job_t> ps_db_sqlite_job_read(sqlite3_stmt *stmt) {
       .duration = sqlite3_column_double(stmt, 4),
   };
 
-  auto f_expr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
-  job.f_expr = f_expr;
+  auto s_expr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
+  job.s_expr = s_expr;
 
   auto defaults_str =
       reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
@@ -31,7 +31,7 @@ static ps_result_t<ps_job_t> ps_db_sqlite_job_read(sqlite3_stmt *stmt) {
   if (!ps_is_ok(defaults_res)) {
     return ps_forward_error<ps_job_t>(defaults_res);
   }
-  job.defaults = ps_unwrap(defaults_res);
+  job.s_defaults = ps_unwrap(defaults_res);
 
   auto values_str =
       reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
@@ -39,7 +39,7 @@ static ps_result_t<ps_job_t> ps_db_sqlite_job_read(sqlite3_stmt *stmt) {
   if (!ps_is_ok(values_res)) {
     return ps_forward_error<ps_job_t>(values_res);
   }
-  job.values = ps_unwrap(values_res);
+  job.s_values = ps_unwrap(values_res);
 
   return job;
 }
@@ -66,8 +66,8 @@ ps_db_sqlite_jobs_get(sqlite3 *db, const std::vector<flux_jobid_t> &jobids) {
       placeholders += ", ";
     placeholders += "?";
   }
-  auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
-             "f_defaults, f_values "
+  auto sql = "SELECT id, userid, t_inactive, score, duration, s_expr, "
+             "s_defaults, s_values "
              "FROM jobs "
              "WHERE id IN (" +
              placeholders + ");";
@@ -115,8 +115,8 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
                                                           size_t limit,
                                                           ps_db_order_t order,
                                                           ps_job_sort_t sort) {
-  auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
-             "f_defaults, f_values "
+  auto sql = "SELECT id, userid, t_inactive, score, duration, s_expr, "
+             "s_defaults, s_values "
              "FROM jobs "
              "ORDER BY " +
              ps_job_sort_to_str(sort) + " " + ps_db_order_to_str(order) +
@@ -151,8 +151,8 @@ ps_result_t<std::vector<ps_job_t>> ps_db_sqlite_jobs_list(sqlite3 *db,
 ps_result_t<std::vector<ps_job_t>>
 ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid,
                        ps_db_order_t order, ps_job_sort_t sort) {
-  auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
-             "f_defaults, f_values "
+  auto sql = "SELECT id, userid, t_inactive, score, duration, s_expr, "
+             "s_defaults, s_values "
              "FROM jobs "
              "WHERE userid = ? "
              "ORDER BY " +
@@ -189,8 +189,8 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid,
 ps_result_t<ps_db_sqlite_jobs_list_t>
 ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive, ps_db_order_t order,
                        ps_job_sort_t sort) {
-  auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
-             "f_defaults, f_values "
+  auto sql = "SELECT id, userid, t_inactive, score, duration, s_expr, "
+             "s_defaults, s_values "
              "FROM jobs "
              "WHERE t_inactive >= ? "
              "ORDER BY " +
@@ -259,8 +259,8 @@ ps_db_sqlite_jobs_list(sqlite3 *db, double min_t_inactive,
       placeholders += ", ";
     placeholders += "?";
   }
-  auto sql = "SELECT id, userid, t_inactive, score, duration, f_expr, "
-             "f_defaults, f_values "
+  auto sql = "SELECT id, userid, t_inactive, score, duration, s_expr, "
+             "s_defaults, s_values "
              "FROM jobs "
              "WHERE t_inactive >= ? AND userid IN (" +
              placeholders +
@@ -352,7 +352,7 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
 
   auto sql =
       "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score, duration, "
-      "f_expr, f_defaults, f_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
+      "s_expr, s_defaults, s_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -360,15 +360,15 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    auto defaults_json = ps_formula_vars_to_json_str(job.defaults);
-    auto values_json = ps_formula_vars_to_json_str(job.values);
+    auto defaults_json = ps_formula_vars_to_json_str(job.s_defaults);
+    auto values_json = ps_formula_vars_to_json_str(job.s_values);
     if (sqlite3_bind_text(stmt, 1, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 5, job.duration) != SQLITE_OK ||
-        sqlite3_bind_text(stmt, 6, job.f_expr.c_str(), -1, SQLITE_TRANSIENT) !=
+        sqlite3_bind_text(stmt, 6, job.s_expr.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_text(stmt, 7, defaults_json.c_str(), -1,
                           SQLITE_TRANSIENT) != SQLITE_OK ||
@@ -413,7 +413,7 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
 
   auto sql =
       "INSERT OR REPLACE INTO jobs (id, userid, t_inactive, score, duration, "
-      "f_expr, f_defaults, f_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
+      "s_expr, s_defaults, s_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -421,15 +421,15 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    auto defaults_json = ps_formula_vars_to_json_str(job.defaults);
-    auto values_json = ps_formula_vars_to_json_str(job.values);
+    auto defaults_json = ps_formula_vars_to_json_str(job.s_defaults);
+    auto values_json = ps_formula_vars_to_json_str(job.s_values);
     if (sqlite3_bind_text(stmt, 1, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 5, job.duration) != SQLITE_OK ||
-        sqlite3_bind_text(stmt, 6, job.f_expr.c_str(), -1, SQLITE_TRANSIENT) !=
+        sqlite3_bind_text(stmt, 6, job.s_expr.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_text(stmt, 7, defaults_json.c_str(), -1,
                           SQLITE_TRANSIENT) != SQLITE_OK ||
@@ -506,7 +506,7 @@ ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
   }
 
   auto sql = "INSERT INTO jobs (id, userid, t_inactive, score, duration, "
-             "f_expr, f_defaults, f_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
+             "s_expr, s_defaults, s_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -514,15 +514,15 @@ ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    auto defaults_json = ps_formula_vars_to_json_str(job.defaults);
-    auto values_json = ps_formula_vars_to_json_str(job.values);
+    auto defaults_json = ps_formula_vars_to_json_str(job.s_defaults);
+    auto values_json = ps_formula_vars_to_json_str(job.s_values);
     if (sqlite3_bind_text(stmt, 1, job.jobid.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_int(stmt, 2, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.score) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 5, job.duration) != SQLITE_OK ||
-        sqlite3_bind_text(stmt, 6, job.f_expr.c_str(), -1, SQLITE_TRANSIENT) !=
+        sqlite3_bind_text(stmt, 6, job.s_expr.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_text(stmt, 7, defaults_json.c_str(), -1,
                           SQLITE_TRANSIENT) != SQLITE_OK ||
@@ -577,7 +577,7 @@ ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
   }
 
   auto sql = "UPDATE jobs SET userid = ?, t_inactive = ?, score = ?, duration "
-             "= ?, f_expr = ?, f_defaults = ?, f_values = ? WHERE id = ?;";
+             "= ?, s_expr = ?, s_defaults = ?, s_values = ? WHERE id = ?;";
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
     rollback();
@@ -585,13 +585,13 @@ ps_db_sqlite_jobs_update(sqlite3 *db, const std::vector<ps_job_t> &jobs) {
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }
   for (const auto &job : jobs) {
-    auto defaults_json = ps_formula_vars_to_json_str(job.defaults);
-    auto values_json = ps_formula_vars_to_json_str(job.values);
+    auto defaults_json = ps_formula_vars_to_json_str(job.s_defaults);
+    auto values_json = ps_formula_vars_to_json_str(job.s_values);
     if (sqlite3_bind_int(stmt, 1, job.userid) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 2, job.t_inactive) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 3, job.score) != SQLITE_OK ||
         sqlite3_bind_double(stmt, 4, job.duration) != SQLITE_OK ||
-        sqlite3_bind_text(stmt, 5, job.f_expr.c_str(), -1, SQLITE_TRANSIENT) !=
+        sqlite3_bind_text(stmt, 5, job.s_expr.c_str(), -1, SQLITE_TRANSIENT) !=
             SQLITE_OK ||
         sqlite3_bind_text(stmt, 6, defaults_json.c_str(), -1,
                           SQLITE_TRANSIENT) != SQLITE_OK ||

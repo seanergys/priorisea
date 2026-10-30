@@ -716,9 +716,9 @@ int ps_daemon_endpoint_flux_job_update(
                      .t_inactive = job.t_inactive,
                      .score = compute.result,
                      .duration = job.t_inactive - job.t_run,
-                     .f_expr = formula.expr,
-                     .defaults = formula.defaults,
-                     .values = compute.vars_over});
+                     .s_expr = formula.expr,
+                     .s_defaults = formula.defaults,
+                     .s_values = compute.vars_over});
   }
 
   // Store the scored jobs and, when scanning newly inactive jobs, advance the
