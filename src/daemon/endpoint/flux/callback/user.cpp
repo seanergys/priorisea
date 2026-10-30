@@ -7,6 +7,7 @@
 #include "src/lib/formula.hpp"
 #include "src/lib/types.hpp"
 #include "src/lib/user.hpp"
+#include "src/lib/util.hpp"
 #include <chrono>
 #include <climits>
 #include <cmath>
@@ -190,16 +191,26 @@ int ps_daemon_endpoint_flux_user_list(
     const ps_daemon_endpoint_flux_callback_args_t &args) {
   // Retrieve the optional array of user ids from the payload
   json_t *data_json = nullptr;
-  if (flux_request_unpack(args.msg, NULL, "{s?o}", "data", &data_json) < 0) {
+  const char *order = "desc";
+  if (flux_request_unpack(args.msg, NULL, "{s?o s?s}", "data", &data_json,
+                          "order", &order) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
   }
 
+  // Map the requested order ("asc"/"desc") to the database sort order.
+  auto db_order_res = ps_db_order_from_str(order);
+  if (!ps_is_ok(db_order_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(db_order_res).c_str());
+  }
+  auto db_order = ps_unwrap(db_order_res);
+
   std::vector<ps_user_t> users;
   if (data_json == nullptr) {
     // No parameter: return the entire list
-    auto list_res = ps_db_sqlite_users_list(args.db);
+    auto list_res = ps_db_sqlite_users_list(args.db, db_order);
     if (!ps_is_ok(list_res)) {
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(list_res).c_str());

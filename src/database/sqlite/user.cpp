@@ -1,6 +1,7 @@
 #include "src/database/sqlite/user.hpp"
 #include "src/database/error.hpp"
 #include "src/database/sqlite/sqlite.hpp"
+#include "src/lib/util.hpp"
 #include <string>
 #include <sys/types.h>
 
@@ -69,10 +70,13 @@ ps_db_sqlite_users_get(sqlite3 *db, const std::vector<uid_t> &userids) {
   return res;
 }
 
-ps_result_t<std::vector<ps_user_t>> ps_db_sqlite_users_list(sqlite3 *db) {
-  auto sql = "SELECT userid, score FROM users;";
+ps_result_t<std::vector<ps_user_t>>
+ps_db_sqlite_users_list(sqlite3 *db, ps_db_order_t order) {
+  // Order by the user id; only the direction is chosen by the caller.
+  auto sql = "SELECT userid, score FROM users ORDER BY userid " +
+             ps_db_order_to_str(order) + ";";
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+  if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
     return ps_error(
         ps_db_query_err_t{.query = sql, .message = sqlite3_errmsg(db)});
   }

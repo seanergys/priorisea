@@ -99,13 +99,22 @@ static void register_list_command(CLI::App *app) {
   list_cmd->set_help_flag("-h,--help", "Show help for list command");
   struct options {
     std::vector<std::string> usernames;
+    std::string order;
     bool json;
   };
   auto opts = std::make_shared<options>();
   list_cmd->add_option("usernames", opts->usernames, "Usernames (optional)");
+  list_cmd->add_option("-o,--order", opts->order, "Order of the output")
+      ->check(CLI::IsMember({"asc", "desc"}))
+      ->default_val("desc");
   list_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   list_cmd->callback([opts] {
-    auto list_res = ps_cli_endpoint_flux_user_list(opts->usernames);
+    auto order_res = ps_db_order_from_str(opts->order);
+    if (!ps_is_ok(order_res)) {
+      ps_exit_error(order_res);
+    }
+    auto order = ps_unwrap(order_res);
+    auto list_res = ps_cli_endpoint_flux_user_list(opts->usernames, order);
     if (!ps_is_ok(list_res)) {
       ps_exit_error(list_res);
     }

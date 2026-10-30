@@ -5,7 +5,6 @@
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
-#include <vector>
 
 /**
  * Represents a time recurring window where jobs can be scheduled
@@ -57,19 +56,6 @@ struct ps_db_info_t {
   double t_inactive;
   double user_period;
 };
-
-/**
- * Represents a decay frame with a duration and weight
- */
-struct ps_decay_frame_t {
-  int duration;
-  double weight;
-};
-
-/**
- * Represents a decay configuration consisting of multiple decay frames
- */
-typedef std::vector<ps_decay_frame_t> ps_decay_t;
 
 /**
  * Configuration for running the daemon

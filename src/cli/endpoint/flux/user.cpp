@@ -42,7 +42,8 @@ ps_cli_endpoint_flux_user_get(const std::string &username) {
 }
 
 ps_result_t<std::vector<ps_user_t>>
-ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames) {
+ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames,
+                               ps_db_order_t order) {
   auto h = flux_open(NULL, 0);
   if (!h) {
     return ps_error(ps_flux_open_err_t{.strerror = strerror(errno)});
@@ -59,12 +60,12 @@ ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames) {
     userids.push_back(userid);
   }
 
+  auto order_str = ps_db_order_to_str(order);
   flux_future_t *f;
   if (userids.empty()) {
     // No parameter: request the entire list
-    // An empty object is sent
     f = flux_rpc_pack(h, "priorisea.daemon.user.list", FLUX_NODEID_ANY, 0,
-                      "{}");
+                      "{s:s}", "order", order_str.c_str());
   } else {
     json_t *data = json_array();
     for (const auto &userid : userids) {
@@ -72,7 +73,7 @@ ps_cli_endpoint_flux_user_list(const std::vector<std::string> &usernames) {
                             json_integer(static_cast<json_int_t>(userid)));
     }
     f = flux_rpc_pack(h, "priorisea.daemon.user.list", FLUX_NODEID_ANY, 0,
-                      "{s:O}", "data", data);
+                      "{s:O s:s}", "data", data, "order", order_str.c_str());
     json_decref(data);
   }
   if (!f) {

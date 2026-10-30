@@ -234,7 +234,7 @@ template <typename T> std::string ps_error_message(const ps_result_t<T> &r) {
 /**
  * Unwrap the error from a failed result, print it and terminate the program
  */
-template <typename T> std::string ps_exit_error(const ps_result_t<T> &r) {
+template <typename T> void ps_exit_error(const ps_result_t<T> &r) {
   ps_exit_error(ps_unwrap_error(r));
 }
 
