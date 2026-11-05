@@ -29,3 +29,66 @@ void ps_print_formula(const ps_formula_t &formula, bool json) {
                        return ss.str();
                      }}});
 }
+
+std::string
+ps_formula_vars_to_string(const std::map<std::string, double> variables) {
+  std::string result;
+  for (const auto &[var, val] : variables) {
+    if (!result.empty()) {
+      result += ", ";
+    }
+    result += var + "=" + std::to_string(val);
+  }
+  return result;
+}
+
+void print_jobs_table(const std::vector<ps_job_t> &jobs, bool plain) {
+  if (plain) {
+    ps_print_table_v(
+        jobs, {{"Job ID", [](auto &j, auto) { return j.jobid; }},
+               {"User ID",
+                [](auto &j, auto) {
+                  return std::to_string(static_cast<uint64_t>(j.userid));
+                }},
+               {"t_inactive (s)",
+                [](auto &j, auto) { return std::to_string(j.t_inactive); }},
+               {"Score", [](auto &j, auto) { return std::to_string(j.score); }},
+               {"Duration (s)",
+                [](auto &j, auto) { return std::to_string(j.duration); }}});
+  } else {
+    ps_print_table_v(
+        jobs,
+        {{"Job ID", [](auto &j, auto) { return j.jobid; }},
+         {"User ID",
+          [](auto &j, auto) {
+            return std::to_string(static_cast<uint64_t>(j.userid));
+          }},
+         {"t_inactive (s)",
+          [](auto &j, auto) { return std::to_string(j.t_inactive); }},
+         {"Score", [](auto &j, auto) { return std::to_string(j.score); }},
+         {"Duration (s)",
+          [](auto &j, auto) { return std::to_string(j.duration); }},
+         {"Score formula", [](auto &j, auto) { return j.s_expr; }},
+         {"Score defaults",
+          [](auto &j, auto) {
+            return ps_formula_vars_to_string(j.s_defaults);
+          }},
+         {"Score variables",
+          [](auto &j, auto) { return ps_formula_vars_to_string(j.s_values); }},
+         {"Weight",
+          [](auto &j, auto) {
+            if (j.weight) {
+              return std::to_string(*j.weight);
+            } else {
+              return std::string("/");
+            }
+          }},
+         {"Weight variables", [](auto &j, auto) {
+            if (j.w_values) {
+              return ps_formula_vars_to_string(*j.w_values);
+            } else {
+              return std::string("/");
+            }
+          }}});
+  }
+}

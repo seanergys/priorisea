@@ -5,6 +5,7 @@
 #include "src/database/sqlite/user.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/formula.hpp"
+#include "src/lib/job.hpp"
 #include "src/lib/types.hpp"
 #include "src/lib/user.hpp"
 #include "src/lib/util.hpp"
@@ -69,7 +70,7 @@ ps_collect_users(sqlite3 *db, json_t *data_json, bool create_missing = false) {
         if (!create_missing) {
           return ps_forward_error<std::vector<ps_user_t>>(user_res);
         }
-        users.push_back({.userid = userid, .has_score = false});
+        users.push_back({.userid = userid});
         continue;
       }
       users.push_back(ps_unwrap(user_res));
@@ -87,12 +88,18 @@ ps_collect_users(sqlite3 *db, json_t *data_json, bool create_missing = false) {
  * @param jobs The jobs to use for computing the score.
  * @param max_duration_by_user For each user, the longest job duration among
  *        their jobs, used to weight each job's score by its duration.
- * @return A map of user IDs and their computed scores.
+ * @return A result containing the score per user and the updated jobs
  */
-static ps_result_t<std::map<uid_t, double>>
+struct ps_compute_users_score_t {
+  std::map<uid_t, double> users_score;
+  std::vector<ps_job_t> jobs;
+};
+static ps_result_t<ps_compute_users_score_t>
 ps_compute_users_score(const ps_formula_t &formula, std::vector<ps_job_t> jobs,
                        const std::map<uid_t, double> &max_duration_by_user) {
+  ps_compute_users_score_t res;
   std::map<uid_t, std::pair<double, double>> user_scores;
+
   auto now = std::chrono::system_clock::now();
   auto now_ts = std::chrono::duration<double>(
                     std::chrono::system_clock::now().time_since_epoch())
@@ -122,9 +129,14 @@ ps_compute_users_score(const ps_formula_t &formula, std::vector<ps_job_t> jobs,
         {"var:max_duration_hours", max_duration_hours}};
     auto weight_res = ps_eval_formula(formula, vars_over);
     if (!ps_is_ok(weight_res)) {
-      return ps_forward_error<std::map<uid_t, double>>(weight_res);
+      return ps_forward_error<ps_compute_users_score_t>(weight_res);
     }
     auto weight = ps_unwrap(weight_res);
+
+    auto job_cpy = job;
+    job_cpy.weight = weight;
+    job_cpy.w_values = vars_over;
+    res.jobs.push_back(job_cpy);
 
     auto it = user_scores.find(job.userid);
     if (it == user_scores.end()) {
@@ -136,12 +148,11 @@ ps_compute_users_score(const ps_formula_t &formula, std::vector<ps_job_t> jobs,
     }
   }
 
-  std::map<uid_t, double> res;
   for (const auto &[user, pair] : user_scores) {
     if (pair.second != 0) {
       auto score = pair.first / pair.second;
       if (!std::isinf(score)) {
-        res[user] = score;
+        res.users_score[user] = score;
       }
     }
   }
@@ -150,22 +161,16 @@ ps_compute_users_score(const ps_formula_t &formula, std::vector<ps_job_t> jobs,
 
 int ps_daemon_endpoint_flux_user_get(
     const ps_daemon_endpoint_flux_callback_args_t &args) {
-  // Retrieve the user id from the payload
+  // Retrieve the user id and the complexity from the payload
   int userid_in;
-  if (flux_request_unpack(args.msg, NULL, "{s:i}", "data", &userid_in) < 0) {
+  bool plain = true;
+  if (flux_request_unpack(args.msg, NULL, "{s:{s:i s?b}}", "data", "userid",
+                          &userid_in, "plain", &plain) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
   }
   auto userid = static_cast<uid_t>(userid_in);
-
-  // Retrieve the user from the database
-  auto get_res = ps_db_sqlite_user_get(args.db, userid);
-  if (!ps_is_ok(get_res)) {
-    return flux_respond_error(args.h, args.msg, 0,
-                              ps_error_message(get_res).c_str());
-  }
-  auto user = ps_unwrap(get_res);
 
   // Authorize: owners may read any user, others only themselves
   uint32_t caller_userid;
@@ -177,14 +182,35 @@ int ps_daemon_endpoint_flux_user_get(
                               ps_error_message(err).c_str());
   }
   if (!(rolemask & FLUX_ROLE_OWNER) &&
-      user.userid != static_cast<uid_t>(caller_userid)) {
+      userid != static_cast<uid_t>(caller_userid)) {
     auto err = ps_access_denied_t{.key = "user." + std::to_string(userid)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
   }
 
-  return flux_respond_pack(args.h, args.msg, "{s:o}", "data",
-                           ps_user_to_json(user));
+  // Retrieve the user from the database
+  auto user_res = ps_db_sqlite_user_get(args.db, userid);
+  if (!ps_is_ok(user_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(user_res).c_str());
+  }
+  auto user = ps_unwrap(user_res);
+
+  if (plain) {
+    // Immediatly respond
+    return flux_respond_pack(args.h, args.msg, "{s:{s:o}}", "data", "user",
+                             ps_user_to_json(user));
+  }
+  auto jobs_res = ps_db_sqlite_jobs_list(args.db, userid, user.t_inactive_min,
+                                         user.t_executed);
+  if (!ps_is_ok(jobs_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(jobs_res).c_str());
+  }
+  auto jobs = ps_unwrap(jobs_res);
+  return flux_respond_pack(args.h, args.msg, "{s:{s:o s:o}}", "data", "user",
+                           ps_user_to_json(user), "jobs",
+                           ps_jobs_to_json(jobs));
 }
 
 int ps_daemon_endpoint_flux_user_list(
@@ -293,6 +319,9 @@ int ps_daemon_endpoint_flux_user_update(
   auto now_ts = std::chrono::duration<double>(now.time_since_epoch()).count();
   auto t_inactive_min = now_ts - ps_unwrap(info_res).user_period;
 
+  std::vector<ps_user_t> users;
+  std::vector<ps_job_t> jobs;
+
   if (data_json == nullptr) {
     // Retrieve all jobs
     // Retrieve all users
@@ -310,34 +339,36 @@ int ps_daemon_endpoint_flux_user_update(
       return flux_respond_error(args.h, args.msg, 0,
                                 ps_error_message(users_res).c_str());
     }
-    auto users = ps_unwrap(users_res);
+    auto users_list = ps_unwrap(users_res);
 
-    auto scores_res = ps_compute_users_score(formula, jobs_list.jobs,
-                                             jobs_list.max_duration_by_user);
-    if (!ps_is_ok(scores_res)) {
+    auto compute_res = ps_compute_users_score(formula, jobs_list.jobs,
+                                              jobs_list.max_duration_by_user);
+    if (!ps_is_ok(compute_res)) {
       return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(scores_res).c_str());
+                                ps_error_message(compute_res).c_str());
     }
-    auto scores = ps_unwrap(scores_res);
+    auto compute = ps_unwrap(compute_res);
+    jobs = compute.jobs;
 
-    std::vector<ps_user_t> updated;
-    for (const auto &user : users) {
+    for (const auto &user : users_list) {
       // Users who did not compute a user score
-      if (scores.find(user.userid) == scores.end()) {
-        updated.push_back({.userid = user.userid, .has_score = false});
+      if (compute.users_score.find(user.userid) == compute.users_score.end()) {
+        users.push_back({.userid = user.userid,
+                         .w_expr = formula.expr,
+                         .w_defaults = formula.defaults,
+                         .t_executed = now_ts,
+                         .t_inactive_min = t_inactive_min});
       }
     }
 
-    for (const auto &[user, score] : scores) {
-      // Users who ran a job are updated
-      updated.push_back({.userid = user, .has_score = true, .score = score});
-    }
-
-    // Update every new and existing users
-    auto update_res = ps_db_sqlite_users_set(args.db, updated);
-    if (!ps_is_ok(update_res)) {
-      return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(update_res).c_str());
+    // Users who ran a job are updated
+    for (const auto &[user, score] : compute.users_score) {
+      users.push_back({.userid = user,
+                       .score = score,
+                       .w_expr = formula.expr,
+                       .w_defaults = formula.defaults,
+                       .t_executed = now_ts,
+                       .t_inactive_min = t_inactive_min});
     }
   } else {
     if (!json_is_array(data_json)) {
@@ -369,34 +400,65 @@ int ps_daemon_endpoint_flux_user_update(
     }
     auto jobs_list = ps_unwrap(jobs_res);
 
-    auto scores_res = ps_compute_users_score(formula, jobs_list.jobs,
-                                             jobs_list.max_duration_by_user);
-    if (!ps_is_ok(scores_res)) {
+    auto compute_res = ps_compute_users_score(formula, jobs_list.jobs,
+                                              jobs_list.max_duration_by_user);
+    if (!ps_is_ok(compute_res)) {
       return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(scores_res).c_str());
+                                ps_error_message(compute_res).c_str());
     }
-    auto scores = ps_unwrap(scores_res);
+    auto compute = ps_unwrap(compute_res);
+    jobs = compute.jobs;
 
     // A user may not appear in the list of jobs
     // Their score is unset
-    std::vector<ps_user_t> users;
     for (auto &userid : userids) {
-      ps_user_t user = {.userid = userid};
-      auto it = scores.find(userid);
-      if (it == scores.end()) {
-        user.has_score = false;
-      } else {
-        user.has_score = true;
+      ps_user_t user = {.userid = userid,
+                        .w_expr = formula.expr,
+                        .w_defaults = formula.defaults,
+                        .t_executed = now_ts,
+                        .t_inactive_min = t_inactive_min};
+      auto it = compute.users_score.find(userid);
+      if (it != compute.users_score.end()) {
         user.score = it->second;
       }
       users.push_back(user);
     }
-
-    auto update_res = ps_db_sqlite_users_set(args.db, users);
-    if (!ps_is_ok(update_res)) {
-      return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(update_res).c_str());
-    }
   }
+
+  auto abort = [&] {
+    sqlite3_exec(args.db, "ROLLBACK", nullptr, nullptr, nullptr);
+  };
+
+  if (sqlite3_exec(args.db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
+    auto err =
+        ps_db_query_err_t{.query = "BEGIN", .message = sqlite3_errmsg(args.db)};
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(err).c_str());
+  }
+
+  // Update existing jobs
+  auto jobs_res = ps_db_sqlite_jobs_update(args.db, jobs);
+  if (!ps_is_ok(jobs_res)) {
+    abort();
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(jobs_res).c_str());
+  }
+
+  // Update every new and existing users
+  auto users_res = ps_db_sqlite_users_set(args.db, users);
+  if (!ps_is_ok(users_res)) {
+    abort();
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(users_res).c_str());
+  }
+
+  if (sqlite3_exec(args.db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+    abort();
+    auto err = ps_db_query_err_t{.query = "COMMIT",
+                                 .message = sqlite3_errmsg(args.db)};
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(err).c_str());
+  }
+
   return flux_respond(args.h, args.msg, NULL);
 }

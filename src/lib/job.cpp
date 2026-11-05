@@ -1,6 +1,7 @@
 #include "src/lib/job.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/formula.hpp"
+#include <jansson.h>
 #include <sys/types.h>
 
 json_t *ps_job_to_json(const ps_job_t &job) {
@@ -14,6 +15,14 @@ json_t *ps_job_to_json(const ps_job_t &job) {
   json_object_set_new(obj, "s_values", ps_formula_vars_to_json(job.s_values));
   json_object_set_new(obj, "s_defaults",
                       ps_formula_vars_to_json(job.s_defaults));
+  if (job.weight) {
+    json_object_set_new(obj, "weight", json_real(*job.weight));
+  }
+  if (job.w_values) {
+    json_object_set_new(obj, "w_values",
+                        ps_formula_vars_to_json(*job.w_values));
+  }
+
   return obj;
 }
 
@@ -24,6 +33,14 @@ json_t *ps_job_to_json_plain(const ps_job_t &job) {
   json_object_set_new(obj, "t_inactive", json_real(job.t_inactive));
   json_object_set_new(obj, "score", json_real(job.score));
   json_object_set_new(obj, "duration", json_real(job.duration));
+  return obj;
+}
+
+json_t *ps_jobs_to_json(const std::vector<ps_job_t> &jobs) {
+  json_t *obj = json_array();
+  for (const auto &job : jobs) {
+    json_array_append(obj, ps_job_to_json(job));
+  }
   return obj;
 }
 
@@ -80,38 +97,77 @@ ps_result_t<ps_job_t> ps_job_from_json(json_t *obj) {
   res.duration = json_number_value(duration_j);
 
   json_t *s_expr_j = json_object_get(obj, "s_expr");
-  if (s_expr_j) {
-    if (!json_is_string(s_expr_j)) {
+  if (!s_expr_j) {
+    return ps_error(ps_field_missing_t{.field = "s_expr"});
+  }
+  if (!json_is_string(s_expr_j)) {
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "s_expr", .expected = "string"});
+  }
+  res.s_expr = json_string_value(s_expr_j);
+
+  json_t *s_defaults_obj = json_object_get(obj, "s_defaults");
+  if (!s_defaults_obj) {
+    return ps_error(ps_field_missing_t{.field = "s_defaults"});
+  }
+  if (!json_is_object(s_defaults_obj)) {
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "s_defaults", .expected = "object"});
+  }
+  auto s_defaults_res = ps_formula_vars_from_json(s_defaults_obj);
+  if (!ps_is_ok(s_defaults_res)) {
+    return ps_forward_error<ps_job_t>(s_defaults_res);
+  }
+  res.s_defaults = ps_unwrap(s_defaults_res);
+
+  json_t *s_values_obj = json_object_get(obj, "s_values");
+  if (!s_values_obj) {
+    return ps_error(ps_field_missing_t{.field = "s_values"});
+  }
+  if (!json_is_object(s_values_obj)) {
+    return ps_error(
+        ps_field_type_mismatch_t{.field = "s_values", .expected = "object"});
+  }
+  auto s_values_res = ps_formula_vars_from_json(s_values_obj);
+  if (!ps_is_ok(s_values_res)) {
+    return ps_forward_error<ps_job_t>(s_values_res);
+  }
+  res.s_values = ps_unwrap(s_values_res);
+
+  json_t *weight_obj = json_object_get(obj, "weight");
+  if (weight_obj) {
+    if (!json_is_real(weight_obj)) {
       return ps_error(
-          ps_field_type_mismatch_t{.field = "s_expr", .expected = "string"});
+          ps_field_type_mismatch_t{.field = "weight", .expected = "double"});
     }
-    res.s_expr = json_string_value(s_expr_j);
+    res.weight = json_real_value(weight_obj);
   }
 
-  json_t *defaults_obj = json_object_get(obj, "s_defaults");
-  if (defaults_obj) {
-    if (!json_is_object(defaults_obj)) {
-      return ps_error(ps_field_type_mismatch_t{.field = "s_defaults",
-                                               .expected = "object"});
-    }
-    auto defaults_res = ps_formula_vars_from_json(defaults_obj);
-    if (!ps_is_ok(defaults_res)) {
-      return ps_forward_error<ps_job_t>(defaults_res);
-    }
-    res.s_defaults = ps_unwrap(defaults_res);
-  }
-
-  json_t *values_obj = json_object_get(obj, "s_values");
-  if (values_obj) {
-    if (!json_is_object(values_obj)) {
+  json_t *w_values_obj = json_object_get(obj, "w_values");
+  if (w_values_obj) {
+    if (!json_is_object(w_values_obj)) {
       return ps_error(
-          ps_field_type_mismatch_t{.field = "s_values", .expected = "object"});
+          ps_field_type_mismatch_t{.field = "w_values", .expected = "object"});
     }
-    auto values_res = ps_formula_vars_from_json(values_obj);
-    if (!ps_is_ok(values_res)) {
-      return ps_forward_error<ps_job_t>(values_res);
+    auto w_values_res = ps_formula_vars_from_json(w_values_obj);
+    if (!ps_is_ok(w_values_res)) {
+      return ps_forward_error<ps_job_t>(w_values_res);
     }
-    res.s_values = ps_unwrap(values_res);
+    res.w_values = ps_unwrap(w_values_res);
   }
   return res;
+}
+
+ps_result_t<std::vector<ps_job_t>> ps_jobs_from_json(json_t *obj) {
+  std::vector<ps_job_t> jobs;
+  size_t index;
+  json_t *value;
+  json_array_foreach(obj, index, value) {
+    auto job_res = ps_job_from_json(value);
+    if (!ps_is_ok(job_res)) {
+      return ps_forward_error<std::vector<ps_job_t>>(job_res);
+    }
+    jobs.push_back(ps_unwrap(job_res));
+  }
+  return jobs;
 }

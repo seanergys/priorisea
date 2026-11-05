@@ -59,6 +59,26 @@ ps_db_sqlite_jobs_list(sqlite3 *db, size_t limit, uid_t userid,
                        ps_job_sort_t sort = ps_job_sort_t::t_inactive);
 
 /**
+ * Lists the jobs owned by a user whose t_inactive falls within a range
+ *
+ * Both bounds are inclusive: a job is listed when
+ * min_t_inactive <= t_inactive <= max_t_inactive
+ *
+ * @param db The SQLite database
+ * @param userid The owner id to filter by
+ * @param min_t_inactive The minimum t_inactive of the jobs to list (inclusive)
+ * @param max_t_inactive The maximum t_inactive of the jobs to list (inclusive)
+ * @param order The sort order of the listing (defaults to descending)
+ * @param sort The column to sort by (defaults to t_inactive)
+ * @return The jobs
+ */
+ps_result_t<std::vector<ps_job_t>>
+ps_db_sqlite_jobs_list(sqlite3 *db, uid_t userid, double min_t_inactive,
+                       double max_t_inactive,
+                       ps_db_order_t order = ps_db_order_t::desc,
+                       ps_job_sort_t sort = ps_job_sort_t::t_inactive);
+
+/**
  * Lists the jobs inactive for at least min_t_inactive
  *
  * Also returns, per user, the maximum job duration in the listing
@@ -127,26 +147,6 @@ ps_db_sqlite_jobs_set(sqlite3 *db, const std::vector<ps_job_t> &jobs,
  */
 ps_result_t<ps_success_t> ps_db_sqlite_job_set(sqlite3 *db,
                                                const ps_job_t &job);
-
-/**
- * Inserts new jobs, failing if any of them already exists
- *
- * @param db The SQLite database
- * @param jobs The jobs to insert
- * @return A result indicating the success of the operation
- */
-ps_result_t<ps_success_t>
-ps_db_sqlite_jobs_insert(sqlite3 *db, const std::vector<ps_job_t> &jobs);
-
-/**
- * Inserts a new job, failing if it already exists
- *
- * @param db The SQLite database
- * @param job The job to insert
- * @return A result indicating the success of the operation
- */
-ps_result_t<ps_success_t> ps_db_sqlite_job_insert(sqlite3 *db,
-                                                  const ps_job_t &job);
 
 /**
  * Updates existing jobs, failing if any of them is missing

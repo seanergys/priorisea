@@ -121,3 +121,8 @@ void ps_print_table_h(const std::vector<T> &rows,
  * @param json Whether to print the formula as JSON
  */
 void ps_print_formula(const ps_formula_t &formula, bool json);
+
+std::string
+ps_formula_vars_to_string(const std::map<std::string, double> variables);
+
+void print_jobs_table(const std::vector<ps_job_t> &jobs, bool plain);

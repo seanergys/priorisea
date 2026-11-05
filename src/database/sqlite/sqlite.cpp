@@ -96,7 +96,11 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
 
     CREATE TABLE IF NOT EXISTS users (
         userid INTEGER PRIMARY KEY,
-        score REAL
+        score REAL,
+        w_expr TEXT NOT NULL,
+        w_defaults TEXT,
+        t_executed REAL NOT NULL,
+        t_inactive_min REAL NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS jobs (
@@ -107,7 +111,9 @@ ps_result_t<ps_success_t> ps_db_sqlite_create_schema(sqlite3 *db) {
         duration REAL NOT NULL,
         s_expr TEXT NOT NULL,
         s_defaults TEXT,
-        s_values TEXT
+        s_values TEXT,
+        weight REAL,
+        w_values TEXT
     );
 
     CREATE TABLE IF NOT EXISTS formulas (

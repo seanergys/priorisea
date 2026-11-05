@@ -595,12 +595,8 @@ int ps_daemon_endpoint_flux_job_list(
     job.jobid = ps_unwrap(fmt_res);
   }
 
-  // Return as an array of jobs
-  json_t *jobs_json = json_array();
-  for (const auto &job : jobs) {
-    json_array_append(jobs_json, ps_job_to_json(job));
-  }
-  return flux_respond_pack(args.h, args.msg, "{s:o}", "data", jobs_json);
+  return flux_respond_pack(args.h, args.msg, "{s:o}", "data",
+                           ps_jobs_to_json(jobs));
 }
 
 int ps_daemon_endpoint_flux_job_update(

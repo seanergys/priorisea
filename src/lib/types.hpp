@@ -2,6 +2,7 @@
 
 #include <flux/core.h>
 #include <map>
+#include <optional>
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,6 +38,8 @@ struct ps_job_t {
   std::string s_expr;
   std::map<std::string, double> s_defaults;
   std::map<std::string, double> s_values;
+  std::optional<double> weight;
+  std::optional<std::map<std::string, double>> w_values;
 };
 
 /**
@@ -44,8 +47,11 @@ struct ps_job_t {
  */
 struct ps_user_t {
   uid_t userid;
-  bool has_score;
-  double score;
+  std::optional<double> score;
+  std::string w_expr;
+  std::map<std::string, double> w_defaults;
+  double t_executed;
+  double t_inactive_min;
 };
 
 /**

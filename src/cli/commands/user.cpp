@@ -2,6 +2,7 @@
 #include "src/cli/endpoint/flux/user.hpp"
 #include "src/cli/util.hpp"
 #include "src/lib/error.hpp"
+#include "src/lib/job.hpp"
 #include "src/lib/user.hpp"
 #include "src/lib/util.hpp"
 #include <jansson.h>
@@ -19,9 +20,60 @@ static std::string display_username(const ps_user_t &user) {
   return std::to_string(static_cast<uint64_t>(user.userid));
 }
 
-static void print_user(const ps_user_t &user, bool json) {
+static void print_users_table(std::vector<ps_user_t> users, bool plain) {
+  if (plain) {
+    ps_print_table_v(
+        users, {{"Username", [](auto &u, auto) { return display_username(u); }},
+                {"User ID",
+                 [](auto &u, auto) {
+                   return std::to_string(static_cast<uint64_t>(u.userid));
+                 }},
+                {"Score", [](auto &u, auto) {
+                   if (!u.score) {
+                     return std::string("/");
+                   } else {
+                     return std::to_string(*u.score);
+                   }
+                 }}});
+  } else {
+    ps_print_table_v(
+        users, {{"Username", [](auto &u, auto) { return display_username(u); }},
+                {"User ID",
+                 [](auto &u, auto) {
+                   return std::to_string(static_cast<uint64_t>(u.userid));
+                 }},
+                {"Score",
+                 [](auto &u, auto) {
+                   if (!u.score) {
+                     return std::string("/");
+                   } else {
+                     return std::to_string(*u.score);
+                   }
+                 }},
+                {"Formula", [](auto &u, auto) { return u.w_expr; }},
+                {"Formula defaults",
+                 [](auto &u, auto) {
+                   return ps_formula_vars_to_string(u.w_defaults);
+                 }},
+                {"t_executed",
+                 [](auto &u, auto) { return std::to_string(u.t_executed); }},
+                {"t_inactive_min", [](auto &u, auto) {
+                   return std::to_string(u.t_inactive_min);
+                 }}});
+  }
+}
+
+static void print_user(const ps_cli_endpoint_user_get_t &get, bool json,
+                       bool plain) {
   if (json) {
-    auto obj = ps_user_to_json(user);
+    json_t *obj;
+    if (plain) {
+      obj = ps_user_to_json_plain(get.user);
+    } else {
+      obj = json_object();
+      json_object_set(obj, "user", ps_user_to_json(get.user));
+      json_object_set(obj, "jobs", ps_jobs_to_json(get.jobs));
+    }
     char *dump = json_dumps(obj, JSON_INDENT(2));
     if (dump) {
       std::cout << dump << std::endl;
@@ -30,20 +82,10 @@ static void print_user(const ps_user_t &user, bool json) {
     json_decref(obj);
     return;
   }
-  ps_print_table_v(
-      std::vector<ps_user_t>{user},
-      {{"Username", [](auto &u, auto) { return display_username(u); }},
-       {"User ID",
-        [](auto &u, auto) {
-          return std::to_string(static_cast<uint64_t>(u.userid));
-        }},
-       {"Score", [](auto &u, auto) {
-          if (!u.has_score) {
-            return std::string("/");
-          } else {
-            return std::to_string(u.score);
-          }
-        }}});
+  print_users_table(std::vector<ps_user_t>{get.user}, plain);
+  if(!plain) {
+      print_jobs_table(get.jobs, plain);
+  }
 }
 
 static void print_users(const std::vector<ps_user_t> &users, bool json) {
@@ -60,19 +102,7 @@ static void print_users(const std::vector<ps_user_t> &users, bool json) {
     json_decref(arr);
     return;
   }
-  ps_print_table_v(
-      users, {{"Username", [](auto &u, auto) { return display_username(u); }},
-              {"User ID",
-               [](auto &u, auto) {
-                 return std::to_string(static_cast<uint64_t>(u.userid));
-               }},
-              {"Score", [](auto &u, auto) {
-                 if (!u.has_score) {
-                   return std::string("/");
-                 } else {
-                   return std::to_string(u.score);
-                 }
-               }}});
+  print_users_table(users, true);
 }
 
 static void register_get_command(CLI::App *app) {
@@ -80,17 +110,19 @@ static void register_get_command(CLI::App *app) {
   get_cmd->set_help_flag("-h,--help", "Show help for get command");
   struct options {
     std::string username;
+    bool detail;
     bool json;
   };
   auto opts = std::make_shared<options>();
   get_cmd->add_option("username", opts->username, "Username")->required(true);
+  get_cmd->add_flag("-d,--detail", opts->detail, "Show additional details");
   get_cmd->add_flag("-j,--json", opts->json, "Output JSON");
   get_cmd->callback([opts] {
-    auto get_res = ps_cli_endpoint_flux_user_get(opts->username);
+    auto get_res = ps_cli_endpoint_flux_user_get(opts->username, !opts->detail);
     if (!ps_is_ok(get_res)) {
       ps_exit_error(get_res);
     }
-    print_user(ps_unwrap(get_res), opts->json);
+    print_user(ps_unwrap(get_res), opts->json, !opts->detail);
   });
 }
 
