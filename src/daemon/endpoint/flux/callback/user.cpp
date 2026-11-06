@@ -163,7 +163,7 @@ int ps_daemon_endpoint_flux_user_get(
     const ps_daemon_endpoint_flux_callback_args_t &args) {
   // Retrieve the user id and the complexity from the payload
   int userid_in;
-  bool plain = true;
+  int plain = true;
   if (flux_request_unpack(args.msg, NULL, "{s:{s:i s?b}}", "data", "userid",
                           &userid_in, "plain", &plain) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};

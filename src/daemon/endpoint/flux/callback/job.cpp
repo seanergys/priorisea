@@ -20,6 +20,7 @@
 #include <seanerbus/helpers/resolve.hpp>
 #include <seanerbus/msg/message.hpp>
 #include <set>
+#include <stdexcept>
 #include <string>
 
 struct ps_flux_job_t {
@@ -70,6 +71,7 @@ static ps_result_t<ps_success_t> ps_flux_job_ok(json_t *job_json) {
 
 static ps_result_t<ps_flux_job_t> ps_flux_job_unpack(json_t *job_json) {
   ps_flux_job_t job;
+  int success, exception_occured;
   const char *name, *cwd, *ranks, *nodelist;
   if (json_unpack(job_json,
                   "{s:I s:i s:i s:i s:f s:f s:f s:f s:f s:i s:s s:s s:i s:i "
@@ -81,13 +83,14 @@ static ps_result_t<ps_flux_job_t> ps_flux_job_unpack(json_t *job_json) {
                   &job.state, "name", &name, "cwd", &cwd, "ntasks", &job.ntasks,
                   "ncores", &job.ncores, "duration", &job.duration, "nnodes",
                   &job.nnodes, "ranks", &ranks, "nodelist", &nodelist,
-                  "success", &job.success, "exception_occurred",
-                  &job.exception_occured, "result", &job.result, "expiration",
-                  &job.expiration) < 0) {
+                  "success", &success, "exception_occurred", &exception_occured,
+                  "result", &job.result, "expiration", &job.expiration) < 0) {
     return ps_error(
         ps_unexpected_err_t{.msg = "Failed to unpack job: " +
                                    std::string(json_dumps(job_json, 0))});
   }
+  job.success = success;
+  job.exception_occured = exception_occured;
   job.name = name;
   job.cwd = cwd;
   job.ranks = ranks;
@@ -339,8 +342,8 @@ static ps_result_t<ps_job_score_compute_t> ps_job_score_compute(
 
   if (sb_entities.size() > 0) {
     for (const auto &[var, entity] : sb_entities) {
-      seanerbus::client::Connection req_conn(seanerbus_url, seanerbus_url);
       try {
+        seanerbus::client::Connection req_conn(seanerbus_url, seanerbus_url);
         seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
         bd.builder().setMsg(std::to_string(job.id));
         req_conn.request(
@@ -374,6 +377,10 @@ static ps_result_t<ps_job_score_compute_t> ps_job_score_compute(
             });
         seanerbus::client::SimpleEventLoop req_sel(req_conn);
         req_sel.run();
+      } catch (std::runtime_error) {
+        // terminate called after throwing an instance of 'std::runtime_error'
+        // what():  Could not open connection to SeanerBUS!
+        continue;
       } catch (const seanerbus::Expected<seanerbus::msg::Message,
                                          seanerbus::Error>) {
         // The variable resolution silently fails
@@ -601,7 +608,7 @@ int ps_daemon_endpoint_flux_job_list(
 
 int ps_daemon_endpoint_flux_job_update(
     const ps_daemon_endpoint_flux_callback_args_t &args) {
-  bool _new;
+  int _new;
   json_t *jobids_json = nullptr;
   if (flux_request_unpack(args.msg, NULL, "{s:{s:b s?o}}", "data", "new", &_new,
                           "jobids", &jobids_json) < 0) {
