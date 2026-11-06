@@ -82,13 +82,12 @@ The full documentation lives in [docs/](docs/):
 
 - [Architecture](docs/architecture.rst) — how the components fit together
 - [Getting started](docs/getstarted.rst) — build, install and first steps
-- [Daemon](docs/daemon.rst) — business logic, state and plugin synchronisation
-- [CLI reference](docs/cli.rst) — every `priorisea` command and subcommand
+- [Daemon](docs/daemon.rst) — business logic, state, plugin synchronisation and commands
 - [Database](docs/database.rst) — the SQLite schema and its contents
 - [Flux plugin](docs/plugin.rst) — the `sea_priority` jobtap plugin
-- [Formula](docs/formula.rst) — formula syntax, variables and SeanerBUS
+- [Formula](docs/formula.rst) — formula syntax, variables, SeanerBUS and commands
 - [Job score](docs/job.rst), [User score](docs/user.rst) and
-  [Time window](docs/timewin.rst) — the scoring concepts
+  [Time window](docs/timewin.rst) — the scoring concepts and their commands
 
 ## Tests
 
@@ -98,8 +97,8 @@ Unit tests live under `src/lib/test/` and are written with
 The user-facing behaviour tests live under `tests/` and are TAP tests using
 [sharness](tests/sharness.sh).
 
-To run both the unit tests and the user-facing behaviour tests, run:
+To both build the software and run the tests, run:
 ```sh
 git submodule update --init --recursive
-cmake -S . -B build && cmake --build build -j && ctest --test-dir build
+cmake -S . -B build && cmake --build build -j && ctest --test-dir build --parallel 0
 ```

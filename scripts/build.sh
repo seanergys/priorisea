@@ -8,4 +8,6 @@ rm -r build
 
 cmake -S . -B build -DENABLE_COVERAGE=ON
 
-cmake --build build -j$(nproc)
+cmake --build build -j
+
+cmake --build build --target docs
