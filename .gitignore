@@ -56,3 +56,4 @@ install.tar.gz
 .vscode/
 .cache
 .DS_Store
+__pycache__

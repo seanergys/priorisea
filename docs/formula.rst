@@ -73,4 +73,73 @@ the ``--default`` keyword when defining formulas. This default value will be use
 variable is not defined. For example, a job score formula can be:
 ``priorisea formula update job_score "<var:timewin_score>" --default var:timewin_score 0``.
 
+Commands
+--------
+
+Administrators interact with the formulas through the ``priorisea formula``
+subcommand. A formula must evaluate to a ``double``.
+
+.. code-block:: bash
+
+    priorisea formula get NAME [--json]
+    priorisea formula list [NAME...] [--json]
+    priorisea formula update NAME -e EXPR [-d NAME VALUE]...
+    priorisea formula reset NAME...
+
+``get`` NAME
+    Print the formula named ``NAME``. ``--json`` outputs the formula as a JSON
+    object with the keys ``name``, ``expr`` and ``defaults``.
+
+    .. code-block:: bash
+
+        priorisea formula get job_priority --json
+
+    .. code-block:: json
+
+        {
+          "name": "job_priority",
+          "expr": "<var:prev_priority> * 0.5 + <var:user_score> * 0.5",
+          "defaults": {}
+        }
+
+    Without ``--json`` the formula is printed as a table:
+
+    .. code-block:: text
+
+        Name          Expression                                          Defaults
+        job_priority  <var:prev_priority> * 0.5 + <var:user_score> * 0.5
+
+``list`` [NAME...]
+    List the configured formulas. When one or more names are given, only those
+    are printed. ``--json`` outputs a JSON array (one object per formula, with
+    the same keys as ``get``).
+
+    .. code-block:: bash
+
+        priorisea formula list
+
+    .. code-block:: text
+
+        Name          Expression                                          Defaults
+        job_priority  <var:prev_priority> * 0.5 + <var:user_score> * 0.5
+        job_score     <var:duration_ratio> + <var:timewin_score>
+        job_weight    max(0, 1 - <var:age_days> / 90)
+
+``update`` NAME
+    Update the formula named ``NAME``. ``-e, --expr`` sets the expression to
+    evaluate and ``-d, --default`` (given as repeated ``NAME VALUE`` pairs)
+    defines the value used when a variable becomes null.
+
+    .. code-block:: bash
+
+        priorisea formula update job_priority "<var:prev_priority> * 2" --default var:prev_priority 5
+
+    The command produces no output on success. Synchronise the plugin afterwards
+    (see :doc:`../plugin`) for the change to take effect.
+
+``reset`` NAME...
+    Reset the named formula(s) to their default values. This command produces no
+    output. Synchronise the plugin afterwards (see :doc:`../plugin`) for the
+    change to take effect.
+
 .. [#] {{SB_NAME}} must be a valid `SeanerBUS name <https://software.pages.seanergys.fz-juelich.de/seanerbus/addressing.html>`__ such as ``{"my-key-1": "my-value-1", "my-key-2": "my-value-2"}``.

@@ -2,6 +2,7 @@
 #include "src/database/user.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/types.hpp"
+#include "src/lib/util.hpp"
 #include <flux/core.h>
 #include <sqlite3.h>
 #include <vector>
@@ -31,9 +32,11 @@ ps_db_sqlite_users_get(sqlite3 *db, const std::vector<uid_t> &userids);
  * Lists every user stored in the database
  *
  * @param db The SQLite database
+ * @param order The order of the listing (defaults to descending)
  * @return The users
  */
-ps_result_t<std::vector<ps_user_t>> ps_db_sqlite_users_list(sqlite3 *db);
+ps_result_t<std::vector<ps_user_t>>
+ps_db_sqlite_users_list(sqlite3 *db, ps_db_order_t order = ps_db_order_t::desc);
 
 /**
  * Inserts new users, failing if any of them already exists

@@ -5,7 +5,16 @@ path = [
     "**",
    ]
 SPDX-FileCopyrightText = "Copyright (c) 2026 SEANERGYS Partners <https://seanergys.eu>"
-SPDX-License-Identifier = "GPL-3.0-only"
+SPDX-License-Identifier = "LGPL-3.0-only"
+
+[[annotations]]
+path = [
+    "tests/sharness.d/*.sh",
+    "tests/*.t"
+   ]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) 2026 SEANERGYS Partners <https://seanergys.eu>"
+SPDX-License-Identifier = "GPL-2.0-or-later"
 
 [[annotations]]
 path = [

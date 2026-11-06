@@ -1,5 +1,6 @@
 #include "src/daemon/endpoint/flux/callback/job.hpp"
 #include "croncpp.h"
+#include "src/daemon/endpoint/error.hpp"
 #include "src/database/sqlite/formula.hpp"
 #include "src/database/sqlite/info.hpp"
 #include "src/database/sqlite/job.hpp"
@@ -8,6 +9,7 @@
 #include "src/lib/formula.hpp"
 #include "src/lib/job.hpp"
 #include "src/lib/types.hpp"
+#include "src/lib/util.hpp"
 #include <climits>
 #include <cmath>
 #include <flux/core.h>
@@ -18,7 +20,7 @@
 #include <seanerbus/helpers/resolve.hpp>
 #include <seanerbus/msg/message.hpp>
 #include <set>
-#include <src/daemon/endpoint/error.hpp>
+#include <stdexcept>
 #include <string>
 
 struct ps_flux_job_t {
@@ -69,6 +71,7 @@ static ps_result_t<ps_success_t> ps_flux_job_ok(json_t *job_json) {
 
 static ps_result_t<ps_flux_job_t> ps_flux_job_unpack(json_t *job_json) {
   ps_flux_job_t job;
+  int success, exception_occured;
   const char *name, *cwd, *ranks, *nodelist;
   if (json_unpack(job_json,
                   "{s:I s:i s:i s:i s:f s:f s:f s:f s:f s:i s:s s:s s:i s:i "
@@ -80,13 +83,14 @@ static ps_result_t<ps_flux_job_t> ps_flux_job_unpack(json_t *job_json) {
                   &job.state, "name", &name, "cwd", &cwd, "ntasks", &job.ntasks,
                   "ncores", &job.ncores, "duration", &job.duration, "nnodes",
                   &job.nnodes, "ranks", &ranks, "nodelist", &nodelist,
-                  "success", &job.success, "exception_occurred",
-                  &job.exception_occured, "result", &job.result, "expiration",
-                  &job.expiration) < 0) {
+                  "success", &success, "exception_occurred", &exception_occured,
+                  "result", &job.result, "expiration", &job.expiration) < 0) {
     return ps_error(
         ps_unexpected_err_t{.msg = "Failed to unpack job: " +
                                    std::string(json_dumps(job_json, 0))});
   }
+  job.success = success;
+  job.exception_occured = exception_occured;
   job.name = name;
   job.cwd = cwd;
   job.ranks = ranks;
@@ -310,7 +314,11 @@ ps_formula_sb_entities(const ps_formula_t &formula,
   return res;
 }
 
-static ps_result_t<double> ps_job_score_compute(
+struct ps_job_score_compute_t {
+  double result;
+  std::map<std::string, double> vars_over;
+};
+static ps_result_t<ps_job_score_compute_t> ps_job_score_compute(
     ps_flux_job_t job, const ps_formula_t &formula,
     const std::vector<ps_timewin_t> &timewins, const std::string &seanerbus_url,
     std::map<std::string, seanerbus::msg::Entity> sb_entities) {
@@ -334,8 +342,8 @@ static ps_result_t<double> ps_job_score_compute(
 
   if (sb_entities.size() > 0) {
     for (const auto &[var, entity] : sb_entities) {
-      seanerbus::client::Connection req_conn(seanerbus_url, seanerbus_url);
       try {
+        seanerbus::client::Connection req_conn(seanerbus_url, seanerbus_url);
         seanerbus::msg::MessageBuilder<HelloWorldReqV1> bd;
         bd.builder().setMsg(std::to_string(job.id));
         req_conn.request(
@@ -369,6 +377,10 @@ static ps_result_t<double> ps_job_score_compute(
             });
         seanerbus::client::SimpleEventLoop req_sel(req_conn);
         req_sel.run();
+      } catch (std::runtime_error) {
+        // terminate called after throwing an instance of 'std::runtime_error'
+        // what():  Could not open connection to SeanerBUS!
+        continue;
       } catch (const seanerbus::Expected<seanerbus::msg::Message,
                                          seanerbus::Error>) {
         // The variable resolution silently fails
@@ -380,10 +392,11 @@ static ps_result_t<double> ps_job_score_compute(
 
   auto eval_res = ps_eval_formula(formula, vars_over);
   if (!ps_is_ok(eval_res)) {
-    return eval_res;
+    return ps_forward_error<ps_job_score_compute_t>(eval_res);
   }
 
-  return ps_unwrap(eval_res);
+  return ps_job_score_compute_t{.result = ps_unwrap(eval_res),
+                                .vars_over = vars_over};
 }
 
 static ps_result_t<std::string>
@@ -477,12 +490,31 @@ int ps_daemon_endpoint_flux_job_list(
   json_t *data_json = nullptr;
   const char *format;
   int limit;
-  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i}", "data", &data_json,
-                          "format", &format, "limit", &limit) < 0) {
+  const char *order = "desc";
+  const char *sort = "t_inactive";
+  if (flux_request_unpack(args.msg, NULL, "{s?o s:s s:i s?s s?s}", "data",
+                          &data_json, "format", &format, "limit", &limit,
+                          "order", &order, "sort", &sort) < 0) {
     auto err = ps_flux_rpc_err_t{.strerror = strerror(errno)};
     return flux_respond_error(args.h, args.msg, 0,
                               ps_error_message(err).c_str());
   }
+
+  // Map the requested order ("asc"/"desc") to the database sort order.
+  auto db_order_res = ps_db_order_from_str(order);
+  if (!ps_is_ok(db_order_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(db_order_res).c_str());
+  }
+  auto db_order = ps_unwrap(db_order_res);
+
+  // Map the requested sort column to the database sort column.
+  auto db_sort_res = ps_db_sort_from_str(sort);
+  if (!ps_is_ok(db_sort_res)) {
+    return flux_respond_error(args.h, args.msg, 0,
+                              ps_error_message(db_sort_res).c_str());
+  }
+  auto db_sort = ps_unwrap(db_sort_res);
 
   std::vector<ps_job_t> jobs;
   if (data_json == nullptr) {
@@ -491,10 +523,12 @@ int ps_daemon_endpoint_flux_job_list(
     size_t limit_entries = limit > 0 ? static_cast<size_t>(limit) : SIZE_MAX;
     ps_result_t<std::vector<ps_job_t>> list_res;
     if (is_owner) {
-      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries);
+      list_res =
+          ps_db_sqlite_jobs_list(args.db, limit_entries, db_order, db_sort);
     } else {
       // Non-owners only see their own jobs
-      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, userid);
+      list_res = ps_db_sqlite_jobs_list(args.db, limit_entries, userid,
+                                        db_order, db_sort);
     }
     if (!ps_is_ok(list_res)) {
       return flux_respond_error(args.h, args.msg, 0,
@@ -568,17 +602,13 @@ int ps_daemon_endpoint_flux_job_list(
     job.jobid = ps_unwrap(fmt_res);
   }
 
-  // Return as an array of jobs
-  json_t *jobs_json = json_array();
-  for (const auto &job : jobs) {
-    json_array_append(jobs_json, ps_job_to_json(job));
-  }
-  return flux_respond_pack(args.h, args.msg, "{s:o}", "data", jobs_json);
+  return flux_respond_pack(args.h, args.msg, "{s:o}", "data",
+                           ps_jobs_to_json(jobs));
 }
 
 int ps_daemon_endpoint_flux_job_update(
     const ps_daemon_endpoint_flux_callback_args_t &args) {
-  bool _new;
+  int _new;
   json_t *jobids_json = nullptr;
   if (flux_request_unpack(args.msg, NULL, "{s:{s:b s?o}}", "data", "new", &_new,
                           "jobids", &jobids_json) < 0) {
@@ -676,18 +706,22 @@ int ps_daemon_endpoint_flux_job_update(
 
   std::vector<ps_job_t> _jobs;
   for (const auto &[jobid, job] : jobs) {
-    auto score_res = ps_job_score_compute(job, formula, timewins,
-                                          args.seanerbus_url, sb_entities);
-    if (!ps_is_ok(score_res)) {
+    auto compute_res = ps_job_score_compute(job, formula, timewins,
+                                            args.seanerbus_url, sb_entities);
+    if (!ps_is_ok(compute_res)) {
       return flux_respond_error(args.h, args.msg, 0,
-                                ps_error_message(score_res).c_str());
+                                ps_error_message(compute_res).c_str());
     }
+    auto compute = ps_unwrap(compute_res);
     auto uid = static_cast<uid_t>(job.userid);
     _jobs.push_back({.jobid = std::to_string(jobid),
                      .userid = uid,
                      .t_inactive = job.t_inactive,
-                     .score = ps_unwrap(score_res),
-                     .duration = job.t_inactive - job.t_run});
+                     .score = compute.result,
+                     .duration = job.t_inactive - job.t_run,
+                     .s_expr = formula.expr,
+                     .s_defaults = formula.defaults,
+                     .s_values = compute.vars_over});
   }
 
   // Store the scored jobs and, when scanning newly inactive jobs, advance the

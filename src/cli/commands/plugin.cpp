@@ -39,6 +39,7 @@ static void print_debug(const ps_cli_endpoint_plugin_debug_t &debug,
                         bool json) {
   if (!json) {
     ps_print_formula(debug.formula, false);
+    std::cout << '\n';
     print_scores(debug.scores, false);
     return;
   }

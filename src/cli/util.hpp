@@ -19,10 +19,13 @@ template <typename T> struct ps_column_t {
  *
  * @param rows The rows of the table.
  * @param columns The columns of the table.
+ * @param separators Whether to draw separators between columns and under the
+ * header.
  */
 template <typename T>
 void ps_print_table_v(const std::vector<T> &rows,
-                      const std::vector<ps_column_t<T>> &columns) {
+                      const std::vector<ps_column_t<T>> &columns,
+                      bool separators = false) {
   std::vector<std::size_t> widths;
 
   // Compute column widths
@@ -36,40 +39,48 @@ void ps_print_table_v(const std::vector<T> &rows,
     widths.push_back(width);
   }
 
+  const std::string gap = separators ? " | " : "  ";
+
   // Print header
   for (std::size_t i = 0; i < columns.size(); ++i) {
-    std::cout << std::left << std::setw(widths[i]) << columns[i].header;
+    if (i + 1 < columns.size())
+      std::cout << std::left << std::setw(widths[i]) << columns[i].header;
+    else
+      std::cout << columns[i].header;
 
     if (i + 1 < columns.size())
-      std::cout << " | ";
+      std::cout << gap;
   }
 
   std::cout << '\n';
 
   // Print separator
-  for (std::size_t i = 0; i < columns.size(); ++i) {
-    std::cout << std::string(widths[i], '-');
+  if (separators) {
+    for (std::size_t i = 0; i < columns.size(); ++i) {
+      std::cout << std::string(widths[i], '-');
 
-    if (i + 1 < columns.size())
-      std::cout << "-+-";
-  }
-
-  std::cout << '\n';
-
-  // Print rows
-  for (std::size_t row = 0; row < rows.size(); ++row) {
-    for (std::size_t col = 0; col < columns.size(); ++col) {
-      std::cout << std::left << std::setw(widths[col])
-                << columns[col].getter(rows[row], row);
-
-      if (col + 1 < columns.size())
-        std::cout << " | ";
+      if (i + 1 < columns.size())
+        std::cout << "-+-";
     }
 
     std::cout << '\n';
   }
 
-  std::cout << std::endl;
+  // Print rows
+  for (std::size_t row = 0; row < rows.size(); ++row) {
+    for (std::size_t col = 0; col < columns.size(); ++col) {
+      if (col + 1 < columns.size())
+        std::cout << std::left << std::setw(widths[col])
+                  << columns[col].getter(rows[row], row);
+      else
+        std::cout << columns[col].getter(rows[row], row);
+
+      if (col + 1 < columns.size())
+        std::cout << gap;
+    }
+
+    std::cout << '\n';
+  }
 }
 
 /**
@@ -104,14 +115,16 @@ void ps_print_table_h(const std::vector<T> &rows,
     std::cout << std::left << std::setw(widths[0]) << columns[col].header;
 
     for (std::size_t row = 0; row < rows.size(); ++row) {
-      std::cout << " | " << std::left << std::setw(widths[row + 1])
-                << columns[col].getter(rows[row], row);
+      std::cout << " | ";
+      if (row + 1 < rows.size())
+        std::cout << std::left << std::setw(widths[row + 1])
+                  << columns[col].getter(rows[row], row);
+      else
+        std::cout << columns[col].getter(rows[row], row);
     }
 
     std::cout << '\n';
   }
-
-  std::cout << std::endl;
 }
 
 /**
@@ -121,3 +134,8 @@ void ps_print_table_h(const std::vector<T> &rows,
  * @param json Whether to print the formula as JSON
  */
 void ps_print_formula(const ps_formula_t &formula, bool json);
+
+std::string
+ps_formula_vars_to_string(const std::map<std::string, double> variables);
+
+void print_jobs_table(const std::vector<ps_job_t> &jobs, bool plain);

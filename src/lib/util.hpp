@@ -1,23 +1,25 @@
 #pragma once
-#include <cstdint>
-#include <cxxabi.h>
-#include <memory>
+#include "src/lib/error.hpp"
 #include <string>
 #include <sys/types.h>
 
 /**
- * Extract the type name of a variable or object
- *
- * @param value The variable or object to extract the type name from
- * @return The type name as a string
+ * Sort order of a listing, ascending or descending
  */
-template <typename T> std::string ps_type_name(const T &value) {
-  int status = 0;
-  std::unique_ptr<char, void (*)(void *)> res{
-      abi::__cxa_demangle(typeid(value).name(), nullptr, nullptr, &status),
-      std::free};
-  return (status == 0) ? res.get() : typeid(T).name();
-}
+enum class ps_db_order_t {
+  asc,
+  desc,
+};
+
+/**
+ * Column to sort a job listing by
+ */
+enum class ps_job_sort_t {
+  userid,
+  t_inactive,
+  score,
+  duration,
+};
 
 /**
  * Parse a string into an integer
@@ -72,3 +74,35 @@ bool uid_from_username(const std::string &name, uid_t &out);
  * @return True if conversion was successful, false otherwise
  */
 bool username_from_uid(uid_t uid, std::string &out);
+
+/**
+ * Convert a sort order to its SQL keyword ("ASC" or "DESC")
+ *
+ * @param order The sort order to convert
+ * @return The corresponding SQL keyword as a string
+ */
+std::string ps_db_order_to_str(ps_db_order_t order);
+
+/**
+ * Convert a sort order string to the enum type
+ *
+ * @param order The sort order string to convert
+ * @return The corresponding enum type or an error if the string is invalid
+ */
+ps_result_t<ps_db_order_t> ps_db_order_from_str(std::string order);
+
+/**
+ * Convert a sort column to its SQL column name
+ *
+ * @param sort The sort column to convert
+ * @return The corresponding SQL column name as a string
+ */
+std::string ps_job_sort_to_str(ps_job_sort_t sort);
+
+/**
+ * Parse a sort column string into the enum type
+ *
+ * @param sort The sort column string to parse
+ * @return The corresponding enum type or an error if the string is invalid
+ */
+ps_result_t<ps_job_sort_t> ps_db_sort_from_str(std::string sort);

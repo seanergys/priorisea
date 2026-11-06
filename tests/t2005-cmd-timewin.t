@@ -66,4 +66,19 @@ test_expect_success 'list/delete fail if one time window is unknown' '
     test_must_fail priorisea timewin delete testwin NOT_A_TIMEWIN
 '
 
+test_expect_success 'list a single time window by name' '
+    priorisea timewin create pickwin -c "*/5 * * * * *" -d 60 -s 3 &&
+    priorisea timewin list pickwin --json >one.json &&
+    jq -e "length == 1" one.json &&
+    jq -e ".[0].name == \"pickwin\"" one.json &&
+    priorisea timewin delete pickwin
+'
+
+test_expect_success 'a time window score may be negative' '
+    priorisea timewin create negwin -c "*/5 * * * * *" -d 60 --score=-5 &&
+    priorisea timewin get negwin --json >neg.json &&
+    jq -e ".score == -5" neg.json &&
+    priorisea timewin delete negwin
+'
+
 test_done

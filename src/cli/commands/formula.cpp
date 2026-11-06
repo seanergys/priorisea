@@ -3,6 +3,7 @@
 #include "src/cli/util.hpp"
 #include "src/lib/error.hpp"
 #include "src/lib/formula.hpp"
+#include "src/lib/util.hpp"
 #include <jansson.h>
 #include <map>
 #include <memory>

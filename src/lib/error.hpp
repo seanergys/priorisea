@@ -3,9 +3,10 @@
 #include "src/daemon/endpoint/error.hpp"
 #include "src/database/error.hpp"
 #include "src/lib/types.hpp"
-#include "src/lib/util.hpp"
+#include <cxxabi.h>
 #include <flux/core.h>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
@@ -161,6 +162,20 @@ template <typename T> const T &ps_unwrap(const ps_result_t<T> &r) {
 }
 
 /**
+ * Extract the type name of a variable or object
+ *
+ * @param value The variable or object to extract the type name from
+ * @return The type name as a string
+ */
+template <typename T> std::string ps_type_name(const T &value) {
+  int status = 0;
+  std::unique_ptr<char, void (*)(void *)> res{
+      abi::__cxa_demangle(typeid(value).name(), nullptr, nullptr, &status),
+      std::free};
+  return (status == 0) ? res.get() : typeid(T).name();
+}
+
+/**
  * Unwraps the error from a failed result
  *
  * @param r The result to unwrap
@@ -219,7 +234,7 @@ template <typename T> std::string ps_error_message(const ps_result_t<T> &r) {
 /**
  * Unwrap the error from a failed result, print it and terminate the program
  */
-template <typename T> std::string ps_exit_error(const ps_result_t<T> &r) {
+template <typename T> void ps_exit_error(const ps_result_t<T> &r) {
   ps_exit_error(ps_unwrap_error(r));
 }
 

@@ -1,0 +1,2 @@
+Username  User ID  Score
+root      0        55.500000

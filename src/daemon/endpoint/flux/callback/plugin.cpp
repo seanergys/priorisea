@@ -28,13 +28,11 @@ int ps_daemon_endpoint_flux_plugin_sync(
 
   auto scores_json = json_object();
   for (const auto &user : users) {
-    // A user who does not have a score shall use the default "user_score" value
-    // of the priority formula
-    if (!user.has_score) {
+    if (!user.score) {
       continue;
     }
     auto userid_str = std::to_string(user.userid);
-    json_object_set(scores_json, userid_str.c_str(), json_real(user.score));
+    json_object_set(scores_json, userid_str.c_str(), json_real(*user.score));
   }
 
   auto f = flux_rpc_pack(args.h, "job-manager.priorisea.plugin.sync",

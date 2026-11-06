@@ -12,6 +12,14 @@
 json_t *ps_user_to_json(const ps_user_t &user);
 
 /**
+ * Converts a user to a simpler JSON object
+ *
+ * @param user The user to convert
+ * @return A JSON object representing the user
+ */
+json_t *ps_user_to_json_plain(const ps_user_t &user);
+
+/**
  * Converts a JSON object to a user
  *
  * @param obj The JSON object to convert

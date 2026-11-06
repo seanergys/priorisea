@@ -1,6 +1,5 @@
 #pragma once
 #include "src/lib/types.hpp"
-#include <sys/types.h>
 
 /**
  * Plugin debug data with the formula and per-user scores

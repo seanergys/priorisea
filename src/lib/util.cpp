@@ -1,7 +1,9 @@
 #include "src/lib/util.hpp"
+#include "src/lib/error.hpp"
 #include <cmath>
 #include <pwd.h>
 #include <stdexcept>
+#include <string>
 
 bool parse_int(const std::string &s, int &out) {
   try {
@@ -84,4 +86,50 @@ bool username_from_uid(uid_t uid, std::string &out) {
   }
   out = pw->pw_name;
   return true;
+}
+
+std::string ps_db_order_to_str(ps_db_order_t order) {
+  return order == ps_db_order_t::asc ? "ASC" : "DESC";
+}
+
+ps_result_t<ps_db_order_t> ps_db_order_from_str(std::string order) {
+  if (order == "asc" || order == "ASC") {
+    return ps_db_order_t::asc;
+  }
+  if (order == "desc" || order == "DESC") {
+    return ps_db_order_t::desc;
+  }
+  return ps_error(
+      ps_string_parse_err_t{.msg = "Invalid order string: " + order});
+}
+
+std::string ps_job_sort_to_str(ps_job_sort_t sort) {
+  switch (sort) {
+  case ps_job_sort_t::userid:
+    return "userid";
+  case ps_job_sort_t::t_inactive:
+    return "t_inactive";
+  case ps_job_sort_t::score:
+    return "score";
+  case ps_job_sort_t::duration:
+    return "duration";
+  default:
+    return "t_inactive";
+  }
+}
+
+ps_result_t<ps_job_sort_t> ps_db_sort_from_str(std::string sort) {
+  if (sort == "userid") {
+    return ps_job_sort_t::userid;
+  }
+  if (sort == "t_inactive") {
+    return ps_job_sort_t::t_inactive;
+  }
+  if (sort == "score") {
+    return ps_job_sort_t::score;
+  }
+  if (sort == "duration") {
+    return ps_job_sort_t::duration;
+  }
+  return ps_error(ps_string_parse_err_t{.msg = "Invalid sort column: " + sort});
 }

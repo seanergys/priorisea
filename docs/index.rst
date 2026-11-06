@@ -18,10 +18,9 @@ SEANERGYS components to retrieve meaningful information about jobs.
    :maxdepth: 2
    :caption: Contents
 
-   architecture
    getstarted
+   architecture
    daemon
-   cli
    database
    plugin
    formula

@@ -64,4 +64,10 @@ test_expect_success 'reset restores the default formulas' '
     jq -e ".defaults[\"var:user_score\"] == 16" job_priority.json
 '
 
+test_expect_success 'list a single formula by name' '
+    priorisea formula list job_score --json >one.json &&
+    jq -e "length == 1" one.json &&
+    jq -e ".[0].name == \"job_score\"" one.json
+'
+
 test_done
