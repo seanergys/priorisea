@@ -13,7 +13,7 @@ test_expect_success 'create the database twice' '
 '
 
 test_expect_success 'database has the expected schema version' '
-    echo 4 >expected_version.out &&
+    echo 5 >expected_version.out &&
     sqlite3 ./priorisea.db "PRAGMA user_version;" >version.out &&
     test_cmp expected_version.out version.out
 '
@@ -28,6 +28,13 @@ users
 EOF
     sqlite3 ./priorisea.db "SELECT name FROM sqlite_master WHERE type = '"'"'table'"'"' ORDER BY name;" >tables.out &&
     test_cmp expected_tables.out tables.out
+'
+
+test_expect_success 'create stores a custom user period' '
+    priorisea database create ./period.db 12345 &&
+    sqlite3 ./period.db "SELECT CAST(user_period AS INTEGER) FROM database_info WHERE id = 1;" >period.out &&
+    echo 12345 >period.expected &&
+    test_cmp period.expected period.out
 '
 
 test_done

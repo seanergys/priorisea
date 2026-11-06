@@ -1,0 +1,4 @@
+Name          Expression   Defaults
+job_priority  1 + <var:x>  var:x=10
+job_score     1 + <var:y>  var:y=20
+job_weight    1 + <var:z>  var:z=30
