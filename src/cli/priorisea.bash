@@ -15,6 +15,14 @@ _priorisea() {
             COMPREPLY=( $(compgen -W "dec hex kvs dothex words f58 f58plain" -- "$cur") )
             return 0
             ;;
+        --order)
+            COMPREPLY=( $(compgen -W "asc desc" -- "$cur") )
+            return 0
+            ;;
+        --sort)
+            COMPREPLY=( $(compgen -W "userid t_inactive score duration" -- "$cur") )
+            return 0
+            ;;
         --seanerbus|--expr|--cron|--duration|--score|--default)
             return 0
             ;;
@@ -66,7 +74,7 @@ _priorisea() {
             fi
             case "$cmd2" in
                 get)    COMPREPLY=( $(compgen -W "--json --detail --format --help" -- "$cur") ) ;;
-                list)   COMPREPLY=( $(compgen -W "--json --detail --format --limit --order --help" -- "$cur") ) ;;
+                list)   COMPREPLY=( $(compgen -W "--json --detail --format --limit --order --sort --help" -- "$cur") ) ;;
                 update) COMPREPLY=( $(compgen -W "--new --help" -- "$cur") ) ;;
                 *)      COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac
@@ -103,9 +111,10 @@ _priorisea() {
                 return 0
             fi
             case "$cmd2" in
-                update)   COMPREPLY=( $(compgen -W "--all --help" -- "$cur") ) ;;
-                get|list) COMPREPLY=( $(compgen -W "--json --help" -- "$cur") ) ;;
-                *)        COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
+                update) COMPREPLY=( $(compgen -W "--all --help" -- "$cur") ) ;;
+                get)    COMPREPLY=( $(compgen -W "--detail --json --help" -- "$cur") ) ;;
+                list)   COMPREPLY=( $(compgen -W "--json --order --help" -- "$cur") ) ;;
+                *)      COMPREPLY=( $(compgen -W "--help" -- "$cur") ) ;;
             esac
             return 0
             ;;

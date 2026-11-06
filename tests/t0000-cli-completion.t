@@ -116,7 +116,7 @@ test_expect_success 'job get flags' '
 
 test_expect_success 'job list flags' '
 	_comp_run 3 priorisea job list &&
-	_comp_has --json --detail --format --limit --help
+	_comp_has --json --detail --format --limit --order --sort --help
 '
 
 test_expect_success 'job update flags' '
@@ -132,6 +132,16 @@ test_expect_success 'job get --format values' '
 test_expect_success 'job list --format values' '
 	_comp_run 4 priorisea job list --format &&
 	_comp_has dec hex kvs dothex words f58 f58plain
+'
+
+test_expect_success 'job list --order values' '
+	_comp_run 4 priorisea job list --order &&
+	_comp_has asc desc
+'
+
+test_expect_success 'job list --sort values' '
+	_comp_run 4 priorisea job list --sort &&
+	_comp_has userid t_inactive score duration
 '
 
 # plugin subcommands
@@ -189,12 +199,17 @@ test_expect_success 'user subcommands' '
 
 test_expect_success 'user get flags' '
 	_comp_run 3 priorisea user get &&
-	_comp_has --json --help
+	_comp_has --detail --json --help
 '
 
 test_expect_success 'user list flags' '
 	_comp_run 3 priorisea user list &&
-	_comp_has --json --help
+	_comp_has --json --order --help
+'
+
+test_expect_success 'user list --order values' '
+	_comp_run 4 priorisea user list --order &&
+	_comp_has asc desc
 '
 
 test_expect_success 'user update flags' '
