@@ -73,9 +73,8 @@ static bool ps_db_sqlite_job_bind(sqlite3_stmt *stmt, const ps_job_t &job,
   int w_values_bind;
   if (job.w_values.has_value()) {
     auto w_values_json = ps_formula_vars_to_json_str(*job.w_values);
-    w_values_bind = sqlite3_bind_text(stmt, 9 + update_int,
-                                      w_values_json.c_str(), -1,
-                                      SQLITE_TRANSIENT);
+    w_values_bind = sqlite3_bind_text(
+        stmt, 9 + update_int, w_values_json.c_str(), -1, SQLITE_TRANSIENT);
   } else {
     w_values_bind = sqlite3_bind_null(stmt, 9 + update_int);
   }
@@ -92,8 +91,7 @@ static bool ps_db_sqlite_job_bind(sqlite3_stmt *stmt, const ps_job_t &job,
                         SQLITE_TRANSIENT) != SQLITE_OK ||
       sqlite3_bind_text(stmt, 7 + update_int, values_json.c_str(), -1,
                         SQLITE_TRANSIENT) != SQLITE_OK ||
-      weight_bind != SQLITE_OK ||
-      w_values_bind != SQLITE_OK) {
+      weight_bind != SQLITE_OK || w_values_bind != SQLITE_OK) {
     return false;
   }
   return true;

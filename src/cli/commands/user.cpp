@@ -83,8 +83,9 @@ static void print_user(const ps_cli_endpoint_user_get_t &get, bool json,
     return;
   }
   print_users_table(std::vector<ps_user_t>{get.user}, plain);
-  if(!plain) {
-      print_jobs_table(get.jobs, plain);
+  if (!plain) {
+    std::cout << '\n';
+    print_jobs_table(get.jobs, plain);
   }
 }
 
