@@ -57,29 +57,19 @@ set(PRIORISEA_EXT_INCLUDES
 
 if(BUILD_TESTING)
   # demobus
-  find_program(DEMOBUS_EXECUTABLE
-    NAMES demobus
-    PATHS /usr/local/bin
-    DOC "demobus server binary used by the sharness tests")
-
-  if(NOT DEMOBUS_EXECUTABLE AND NOT DEFINED ENV{DEMOBUS_BIN})
+  if(NOT DEFINED ENV{DEMOBUS_BIN})
     message(WARNING
-      "demobus (seanerbus server) not found. Set DEMOBUS_BIN or install "
-      "demobus to run the SeanerBUS integration tests "
-      "(e.g. tests/t3003-seanerbus.t); skipping them for now.")
+      "demobus not found. Set DEMOBUS_BIN "
+      "to run the SeanerBUS integration tests "
+      "(e.g. tests/t3003-seanerbus.t); skipping for now.")
   endif()
 
   # naming server
-  find_program(NAMING_SERVER_EXECUTABLE
-    NAMES naming_server
-    PATHS /usr/local/bin
-    DOC "seanerbus naming server binary used by the sharness tests")
-
-  if(NOT NAMING_SERVER_EXECUTABLE AND NOT DEFINED ENV{NAMING_SERVER_BIN})
+  if(NOT DEFINED ENV{NAMING_SERVER_BIN})
     message(WARNING
       "naming server binary not found. Set NAMING_SERVER_BIN to run the "
       "naming-server integration tests (e.g. tests/t3003-seanerbus.t); "
-      "skipping them for now.")
+      "skipping for now.")
   endif()
 endif()
 
