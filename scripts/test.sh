@@ -4,8 +4,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-export DEMOBUS_BIN=$(which demobus)
-export NAMING_SERVER_BIN=$(which naming_server)
+export DEMOBUS_BIN=$(command -v demobus)
+export NAMING_SERVER_BIN=$(command -v naming_server)
 
 if [ "$#" -eq 0 ]; then
   ctest --test-dir build --parallel 0 --output-on-failure -V
