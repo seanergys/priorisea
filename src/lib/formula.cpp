@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <math.h>
 #include <regex>
+#include <unordered_map>
 #include <utility>
 
 json_t *ps_formula_to_json(const ps_formula_t &formula) {
