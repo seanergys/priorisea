@@ -56,10 +56,10 @@ set(PRIORISEA_EXT_INCLUDES
   ${CMAKE_CURRENT_SOURCE_DIR}/external/croncpp/include)
 
 if(BUILD_TESTING)
-  # demobus
-  if(NOT DEFINED ENV{DEMOBUS_BIN})
+  # seanerbroker
+  if(NOT DEFINED ENV{SEANERBROKER_BIN})
     message(WARNING
-      "demobus not found. Set DEMOBUS_BIN "
+      "seanerbroker not found. Set SEANERBROKER_BIN "
       "to run the SeanerBUS integration tests "
       "(e.g. tests/t3003-seanerbus.t); skipping for now.")
   endif()

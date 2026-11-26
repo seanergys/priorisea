@@ -1,2 +1,2 @@
-Version  Seanerbus URL             t_inactive  user_period
-5        demobus://localhost:5398  0.000000    12345.000000
+Version  Seanerbus URL                  t_inactive  user_period
+5        seanerbroker://localhost:5398  0.000000    12345.000000

@@ -16,7 +16,7 @@
 #  naming server is built in your image, e.g.
 #  NAMING_SERVER_BIN=/opt/seanerbus/bin/naming_server.
 #
-#  Unlike the demobus helper (a single server for the whole file), the naming
+#  Unlike the seanerbroker helper (a single server for the whole file), the naming
 #  server is started and stopped per test, so cleanup is left to the caller's
 #  test_when_finished - mirroring the sb_response helpers.
 
@@ -41,7 +41,7 @@ test_stop_naming_server() {
 #  waiting for EOF).
 #
 #  $1 - RPC UUID (entity) to register in services.json
-#  $2 - seanerbus url the server connects to (mandatory, demobus://host:port)
+#  $2 - seanerbus url the server connects to (mandatory, seanerbroker://host:port)
 #
 test_start_naming_server() {
     entity=$1
@@ -49,7 +49,7 @@ test_start_naming_server() {
 
     if test -z "$url"; then
         error "test_start_naming_server: missing seanerbus url; pass it as the \
-second argument, e.g. demobus://127.0.0.1:3003 (see sharness.d/naming_server.sh)"
+second argument, e.g. seanerbroker://127.0.0.1:3003 (see sharness.d/naming_server.sh)"
     fi
 
     if test -z "$NAMING_SERVER_BIN"; then
@@ -62,8 +62,8 @@ launch command (see sharness.d/naming_server.sh)"
     echo "[{\"entity\":\"$entity\", \"name\":{\"service\": \"test\"}}]" > services.json
 
     # The naming server takes the endpoint as a positional argument, without
-    # the demobus:// scheme - crop it out of the url to get host:port.
-    addr=${url#demobus://}
+    # the seanerbroker:// scheme - crop it out of the url to get host:port.
+    addr=${url#seanerbroker://}
 
     # Intentionally unquoted: NAMING_SERVER_BIN holds the command + its flags.
     # shellcheck disable=SC2086

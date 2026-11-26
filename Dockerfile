@@ -79,9 +79,9 @@ WORKDIR /opt
 RUN dnf install -y \
     capnproto \
     capnproto-devel
-RUN git clone --recurse-submodules --revision 06aed34cc69e3de66e0e6587d786d58423a1dc30 \
-    git@gitlab.seanergys.fz-juelich.de:software/demobus.git
-WORKDIR /opt/demobus
+RUN git clone --recurse-submodules --revision e7b26f03bb92245555d8369202f3097a600d93bd \
+    git@gitlab.seanergys.fz-juelich.de:software/seanerbroker.git
+WORKDIR /opt/seanerbroker
 RUN cargo install --path . --root /usr/local
 
 #
@@ -98,7 +98,7 @@ RUN printf '%s\n' /usr/local/lib /usr/local/lib64 > /etc/ld.so.conf.d/local.conf
 # Build seanerbus cpp
 #
 WORKDIR /opt
-RUN git clone --recurse-submodules --revision 3075f14aa9b75ac8020d8a4c0dd09f7dae3c251d \
+RUN git clone --recurse-submodules --revision d369a251afd2849b5120b73a46d6f49ae33c65f0 \
     git@gitlab.seanergys.fz-juelich.de:software/seanerbus-cpp.git
 WORKDIR /opt/seanerbus-cpp
 RUN mkdir build

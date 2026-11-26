@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+export SEANERBROKER_BIN=$(command -v seanerbroker)
+export NAMING_SERVER_BIN=$(command -v naming_server)
+
 cd "$(dirname "$0")/.."
 
 rm -r build
