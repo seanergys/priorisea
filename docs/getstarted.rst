@@ -17,7 +17,7 @@ To build the software from source, the following dependencies are required:
 
 Optional dependencies (used in testing):
 
-- demobus (seanerbus)
+- seanerbroker (seanerbus)
 - naming-service (seanerbus)
 
 The software can then be built by running:

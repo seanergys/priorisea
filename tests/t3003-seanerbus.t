@@ -6,13 +6,13 @@ test_description="test seanerbus communication"
 
 SUBMIT=${SHARNESS_TEST_SRCDIR}/scripts/submit.sh
 SEANERBUS_PORT=3003
-SEANERBUS_URL="demobus://127.0.0.1:${SEANERBUS_PORT}"
+SEANERBUS_URL="seanerbroker://127.0.0.1:${SEANERBUS_PORT}"
 RPC_UUID="11111111-1111-1111-1111-111111111111"
 NO_RPC_UUID="01111111-1111-1111-1111-111111111111"
 
 test_under_flux 1
 test_start_priorisea priorisea_test_db "$SEANERBUS_URL"
-test_start_demobus "$SEANERBUS_URL"
+test_start_seanerbroker "$SEANERBUS_URL"
 test_start_sb_response "$RPC_UUID" 100 "$SEANERBUS_URL"
 test_start_naming_server "$RPC_UUID" "$SEANERBUS_URL"
 

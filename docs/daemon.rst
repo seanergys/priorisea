@@ -30,7 +30,7 @@ The daemon is managed through the ``priorisea daemon`` subcommand.
 ``start`` [PATH]
     Start the daemon. The optional ``PATH`` argument sets the database path
     (default ``/var/lib/priorisea/priorisea.db``). ``-s, --seanerbus`` sets the
-    SeanerBUS endpoint (default ``demobus://localhost:5398``) and ``-b,
+    SeanerBUS endpoint (default ``seanerbroker://localhost:5398``) and ``-b,
     --background`` forks the daemon into the background, printing its PID. This
     command produces no output when run in the foreground.
 
@@ -49,8 +49,8 @@ The daemon is managed through the ``priorisea daemon`` subcommand.
 
     .. code-block:: text
 
-        Version      Seanerbus URL                 t_inactive  user_period
-        1            demobus://localhost:5398      0.0         7776000.0
+        Version      Seanerbus URL                      t_inactive  user_period
+        1            seanerbroker://localhost:5398      0.0         7776000.0
 
     With ``--json``:
 
@@ -58,7 +58,7 @@ The daemon is managed through the ``priorisea daemon`` subcommand.
 
         {
           "version": 1,
-          "seanerbus_url": "demobus://localhost:5398",
+          "seanerbus_url": "seanerbroker://localhost:5398",
           "info": {
             "t_inactive": 0.0,
             "user_period": 7776000.0

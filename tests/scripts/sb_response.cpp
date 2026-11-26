@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
   const auto entity = seanerbus::msg::Entity{seanerbus::msg::Uuid{uuid}};
 
   // Connect to the server.
-  const std::string endpoint = "demobus://" + ip + ":" + port;
+  const std::string endpoint = "seanerbroker://" + ip + ":" + port;
   seanerbus::client::Connection conn(endpoint, endpoint);
 
   conn.register_endpoint(

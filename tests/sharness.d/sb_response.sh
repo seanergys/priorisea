@@ -9,10 +9,10 @@
 #
 #  sb_response is built from the repo (tests/scripts/sb_response.cpp) into
 #  ${SHARNESS_BUILD_DIRECTORY}/tests/scripts/sb_response, so - unlike the
-#  external demobus and naming-server binaries - it is always present after a
+#  external seanerbroker and naming-server binaries - it is always present after a
 #  build and needs no optional-dependency check. It connects to the seanerbus
-#  url (e.g. demobus://127.0.0.1:3003) that
-#  test_start_demobus has already brought up.
+#  url (e.g. seanerbroker://127.0.0.1:3003) that
+#  test_start_seanerbroker has already brought up.
 
 #
 #  Stop the response client started by test_start_sb_response and remove its
@@ -37,7 +37,7 @@ test_stop_sb_response() {
 #
 #  $1 - UUID (entity) to register
 #  $2 - reply message
-#  $3 - seanerbus url to connect to (mandatory, demobus://host:port)
+#  $3 - seanerbus url to connect to (mandatory, seanerbroker://host:port)
 #
 test_start_sb_response() {
     entity=$1
@@ -54,7 +54,7 @@ test_start_sb_response() {
     fi
     if test -z "$url"; then
         error "test_start_sb_response: missing seanerbus url (third argument); \
-pass e.g. demobus://127.0.0.1:3003 (see sharness.d/sb_response.sh)"
+pass e.g. seanerbroker://127.0.0.1:3003 (see sharness.d/sb_response.sh)"
     fi
 
     sb_response_bin="${SHARNESS_BUILD_DIRECTORY}/tests/scripts/sb_response"
@@ -65,7 +65,7 @@ project first (tests/scripts/sb_response.cpp)"
 
     # Parse host and port from the url; the client takes them as positional
     # ip/port arguments.
-    addr=${url#demobus://}
+    addr=${url#seanerbroker://}
     host=${addr%:*}
     port=${addr##*:}
 
@@ -74,7 +74,7 @@ project first (tests/scripts/sb_response.cpp)"
     echo "# test_start_sb_response: started sb_response pid $(cat sb_response.pid) for entity $entity on $url" >&5
 
     # Confirm the client we started did not exit immediately (e.g. it could
-    # not reach the demobus).
+    # not reach the seanerbroker).
     if ! kill -0 "$(cat sb_response.pid)" 2>/dev/null; then
         error "sb_response client (pid $(cat sb_response.pid)) exited early; sb_response.out says:\
 $(sed 's/^/    /' sb_response.out)"

@@ -18,7 +18,7 @@
 #  Default SeanerBUS endpoint the daemon connects to when $SEANERBUS_URL is
 #  unset, matching the priorisea CLI default.
 #
-: "${SEANERBUS_ENDPOINT_DEFAULT:=demobus://localhost:5398}"
+: "${SEANERBUS_ENDPOINT_DEFAULT:=seanerbroker://localhost:5398}"
 
 #
 #  Default path of the test database: inside the trash directory so it is

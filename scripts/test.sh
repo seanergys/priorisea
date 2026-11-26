@@ -4,7 +4,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-export DEMOBUS_BIN=$(command -v demobus)
+export SEANERBROKER_BIN=$(command -v seanerbroker)
 export NAMING_SERVER_BIN=$(command -v naming_server)
 
 if [ "$#" -eq 0 ]; then
