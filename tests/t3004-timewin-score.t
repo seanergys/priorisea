@@ -10,7 +10,7 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'job score is the sum of the matching time windows' '
-    priorisea formula update job_score --expr "<var:timewin_score>" \
+    priorisea formula update job_score "<var:timewin_score>" \
         --default var:timewin_score 0 &&
     priorisea timewin create winpos -c "*/5 * * * * *" -d 3600 -s 10 &&
     job1=$(${SUBMIT} pwd) &&

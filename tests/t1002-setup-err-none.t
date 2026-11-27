@@ -26,7 +26,7 @@ test_expect_success 'every other subcommand fails without flux' '
 
     test_must_fail priorisea formula get NOT_A_FORMULA &&
     test_must_fail priorisea formula list &&
-    test_must_fail priorisea formula update job_score --expr "1" &&
+    test_must_fail priorisea formula update job_score "1" &&
     test_must_fail priorisea formula reset job_score &&
 
     test_must_fail priorisea job get NOT_A_JOB &&

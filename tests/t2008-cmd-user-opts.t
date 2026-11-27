@@ -10,8 +10,8 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'user get --detail exposes the weight formula and jobs' '
-    priorisea formula update job_score --expr "42" &&
-    priorisea formula update job_weight --expr "1" &&
+    priorisea formula update job_score "42" &&
+    priorisea formula update job_weight "1" &&
     jobid=$(${SUBMIT} pwd) &&
     priorisea job update ${jobid} &&
     priorisea user update $(whoami) &&

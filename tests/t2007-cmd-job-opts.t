@@ -10,7 +10,7 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'job get --detail exposes the score formula and weight' '
-    priorisea formula update job_score --expr "42" &&
+    priorisea formula update job_score "42" &&
     jobid=$(${SUBMIT} pwd) &&
     priorisea job update ${jobid} &&
     priorisea job get ${jobid} --detail --json >job.detail.json &&
@@ -43,10 +43,10 @@ test_expect_success 'dec format prints a numeric job id' '
 '
 
 test_expect_success 'job list honours limit, order and sort' '
-    priorisea formula update job_score --expr "10" &&
+    priorisea formula update job_score "10" &&
     job1=$(${SUBMIT} pwd) &&
     priorisea job update ${job1} &&
-    priorisea formula update job_score --expr "90" &&
+    priorisea formula update job_score "90" &&
     job2=$(${SUBMIT} pwd) &&
     priorisea job update ${job2} &&
     priorisea job list --limit 1 --json >lim.json &&

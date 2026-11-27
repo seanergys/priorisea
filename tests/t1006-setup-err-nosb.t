@@ -10,7 +10,7 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'no error is raised if seanerbus is not used' '
-    priorisea formula update job_score --expr "42" &&
+    priorisea formula update job_score "42" &&
     jobid=$(${SUBMIT} pwd) &&
     priorisea job update ${jobid} &&
     priorisea job get ${jobid} --json >job.json &&
@@ -18,7 +18,7 @@ test_expect_success 'no error is raised if seanerbus is not used' '
 '
 
 test_expect_success 'error is raised if seanerbus is used' '
-    priorisea formula update job_score --expr "<rpc:11111111-1111-1111-1111-111111111111>" &&
+    priorisea formula update job_score "<rpc:11111111-1111-1111-1111-111111111111>" &&
     jobid=$(${SUBMIT} pwd) &&
     test_must_fail priorisea job update ${jobid}
 '

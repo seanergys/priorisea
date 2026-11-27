@@ -10,7 +10,7 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'a null variable falls back to its formula default' '
-    priorisea formula update job_score --expr "<var:user_score>" \
+    priorisea formula update job_score "<var:user_score>" \
         --default var:user_score 0.75 &&
     jobid=$(${SUBMIT} pwd) &&
     priorisea job update ${jobid} &&
@@ -19,7 +19,7 @@ test_expect_success 'a null variable falls back to its formula default' '
 '
 
 test_expect_success 'var:duration_ratio resolves to a value in [0,1]' '
-    priorisea formula update job_score --expr "<var:duration_ratio>" \
+    priorisea formula update job_score "<var:duration_ratio>" \
         --default var:duration_ratio 0 &&
     jobid=$(${SUBMIT} "sleep 1") &&
     priorisea job update ${jobid} &&

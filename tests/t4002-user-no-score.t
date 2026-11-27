@@ -18,8 +18,8 @@ test_expect_success 'updating a user without a job creates it without a score' '
 '
 
 test_expect_success 'submit a job and check that the user score take it into account' '
-    priorisea formula update job_score --expr "42" &&
-    priorisea formula update job_weight --expr "1" &&
+    priorisea formula update job_score "42" &&
+    priorisea formula update job_weight "1" &&
     ${SUBMIT} pwd &&
     priorisea job update --new &&
     priorisea user update $(whoami) &&
@@ -36,7 +36,7 @@ test_expect_success 'submit a job and check that the user score take it into acc
 # ran during the user_period
 
 test_expect_success '0 job-weight prevent score computation' '
-    priorisea formula update job_weight --expr "0" &&
+    priorisea formula update job_weight "0" &&
     priorisea user update $(whoami) &&
     priorisea user get $(whoami) --json > user3.json &&
     jq -e ".userid == $(id -u)" user3.json &&
@@ -50,7 +50,7 @@ test_expect_success 'no-score users are not sent to the plugin' '
 '
 
 test_expect_success 'priority plugin use the default user_score' '
-    priorisea formula update job_priority --expr "<var:user_score>" --default var:user_score 100 &&
+    priorisea formula update job_priority "<var:user_score>" --default var:user_score 100 &&
     priorisea plugin sync &&
     jobid=$(${SUBMIT} pwd) &&
     flux job wait-event -t 5 -f json ${jobid} priority \

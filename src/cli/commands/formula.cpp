@@ -94,7 +94,7 @@ static void register_update_command(CLI::App *app) {
   };
   auto opts = std::make_shared<options>();
   update_cmd->add_option("name", opts->name, "Formula name")->required(true);
-  update_cmd->add_option("-e,--expr", opts->expr, "Formula expression")
+  update_cmd->add_option("expr", opts->expr, "Formula expression")
       ->required(true);
   update_cmd
       ->add_option("-d,--default", opts->defaults,

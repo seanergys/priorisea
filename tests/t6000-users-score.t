@@ -12,8 +12,8 @@ test_fake_user_setup
 test_start_priorisea
 
 test_expect_success 'set the job_score and job_weight formulas' '
-    priorisea formula update job_score --expr "42" &&
-    priorisea formula update job_weight --expr "1"
+    priorisea formula update job_score "42" &&
+    priorisea formula update job_weight "1"
 '
 
 test_expect_success 'fake user 424242 submits, runs and scores a job' '
@@ -35,7 +35,7 @@ test_expect_success 'fake user 424242 score is computed independently' '
 '
 
 test_expect_success 'a second fake user scores independently of the first' '
-    priorisea formula update job_score --expr "7" &&
+    priorisea formula update job_score "7" &&
     jobB=$(flux_run_fake 424243 hostname) &&
     flux job wait-event ${jobB} clean &&
     priorisea job update ${jobB} &&
@@ -53,7 +53,7 @@ test_expect_success 'a second fake user scores independently of the first' '
 '
 
 test_expect_success 'a job priority follows the running user score' '
-    priorisea formula update job_priority --expr "<var:user_score>" \
+    priorisea formula update job_priority "<var:user_score>" \
         --default var:user_score 0 &&
     flux jobtap load ${PRIORITY_PLUGIN} &&
     jq -n --argjson a 424242 --argjson b 424243 \

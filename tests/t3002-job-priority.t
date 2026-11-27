@@ -11,15 +11,15 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'set the user score to a known value' '
-    priorisea formula update job_score --expr "42" &&
-    priorisea formula update job_weight --expr "1" &&
+    priorisea formula update job_score "42" &&
+    priorisea formula update job_weight "1" &&
     ${SUBMIT} pwd &&
     priorisea job update --new &&
     priorisea user update $(whoami)
 '
 
 test_expect_success 'set the job_priority formula from the user score' '
-    priorisea formula update job_priority --expr "<var:user_score> * 0.8"
+    priorisea formula update job_priority "<var:user_score> * 0.8"
 '
 
 test_expect_success 'sync the plugin with the formula and user score' '

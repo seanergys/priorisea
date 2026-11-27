@@ -21,14 +21,14 @@ test_fake_user_setup
 test_start_priorisea
 
 test_expect_success 'formula get prints the expected table' '
-    priorisea formula update job_score --expr "1 + <var:y>" --default "var:y" 20 &&
+    priorisea formula update job_score "1 + <var:y>" --default "var:y" 20 &&
     priorisea formula get job_score >job_score.txt &&
     test_cmp job_score.txt $FORMULA_GET
 '
 
 test_expect_success 'formula list prints the expected table' '
-    priorisea formula update job_priority --expr "1 + <var:x>" --default "var:x" 10 &&
-    priorisea formula update job_weight --expr "1 + <var:z>" --default "var:z" 30 &&
+    priorisea formula update job_priority "1 + <var:x>" --default "var:x" 10 &&
+    priorisea formula update job_weight "1 + <var:z>" --default "var:z" 30 &&
     priorisea formula list >formulas.txt &&
     test_cmp formulas.txt $FORMULA_LIST
 '
@@ -46,7 +46,7 @@ test_expect_success 'timewin list prints the expected table' '
 '
 
 #test_expect_success 'job get prints the expected table' '
-#    priorisea formula update job_score --expr "42" &&
+#    priorisea formula update job_score "42" &&
 #    jobid=$(${SUBMIT} pwd) &&
 #    priorisea job update ${jobid} &&
 #    priorisea job get ${jobid} >job.txt &&
@@ -54,7 +54,7 @@ test_expect_success 'timewin list prints the expected table' '
 #'
 #
 #test_expect_success 'job list prints the expected table' '
-#    priorisea formula update job_score --expr "69" &&
+#    priorisea formula update job_score "69" &&
 #    jobid=$(${SUBMIT} pwd) &&
 #    priorisea job update ${jobid} &&
 #    priorisea job list >jobs.txt &&
@@ -62,13 +62,13 @@ test_expect_success 'timewin list prints the expected table' '
 #'
 
 test_expect_success 'user get prints the expected table' '
-    priorisea formula update job_score --expr "42" &&
+    priorisea formula update job_score "42" &&
     jobid=$(${SUBMIT} pwd) &&
     priorisea job update ${jobid} &&
-    priorisea formula update job_score --expr "69" &&
+    priorisea formula update job_score "69" &&
     jobid=$(${SUBMIT} pwd) &&
     priorisea job update ${jobid} &&
-    priorisea formula update job_weight --expr "1" &&
+    priorisea formula update job_weight "1" &&
     priorisea user update $(whoami) &&
     priorisea user get $(whoami) >user.txt &&
     test_cmp user.txt $USER_GET

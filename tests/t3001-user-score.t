@@ -11,7 +11,7 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'set the job_score formula to a known value' '
-    priorisea formula update job_score --expr "42" &&
+    priorisea formula update job_score "42" &&
     priorisea formula get job_score --json > formula.json &&
     jq -e ".expr == \"42\"" formula.json
 '
@@ -24,7 +24,7 @@ test_expect_success 'the running user is scored like their job' '
 '
 
 test_expect_success 'the user score equals the job score with 1 weight' '
-    priorisea formula update job_weight --expr "1" &&
+    priorisea formula update job_weight "1" &&
     priorisea user update $(whoami) &&
     priorisea user get $(whoami) --json > user.json &&
     jq -e ".userid == $(id -u)" user.json &&
@@ -47,11 +47,11 @@ test_expect_success 'syncing pushes the user score into the plugin' '
 test_expect_success 'duration weighting pulls the user score toward longer jobs' '
     jobA=$(${SUBMIT} "sleep 30") &&
     jobB=$(${SUBMIT} "sleep 1") &&
-    priorisea formula update job_score --expr "100" &&
+    priorisea formula update job_score "100" &&
     priorisea job update ${jobA} &&
-    priorisea formula update job_score --expr "2" &&
+    priorisea formula update job_score "2" &&
     priorisea job update ${jobB} &&
-    priorisea formula update job_weight --expr "<var:duration_seconds>" &&
+    priorisea formula update job_weight "<var:duration_seconds>" &&
     priorisea user update $(whoami) &&
     priorisea user get $(whoami) --json >u_w.json &&
     jq -e ".score > 90" u_w.json
