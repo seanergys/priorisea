@@ -10,7 +10,7 @@ test_start_priorisea
 test_expect_success 'formula commands fail for an unknown formula' '
     test_must_fail priorisea formula get NOT_A_FORMULA &&
     test_must_fail priorisea formula list NOT_A_FORMULA &&
-    test_must_fail priorisea formula update NOT_A_FORMULA --expr "10" &&
+    test_must_fail priorisea formula update NOT_A_FORMULA "10" &&
     test_must_fail priorisea formula reset NOT_A_FORMULA &&
 
     test_must_fail priorisea formula list job_score NOT_A_FORMULA &&
@@ -39,14 +39,14 @@ test_expect_success 'default formula expressions and values are as expected' '
 '
 
 test_expect_success 'update a formula (single default) and read it back' '
-    priorisea formula update job_score --expr "<var:duration_ratio> * 2" --default var:duration_ratio 5 &&
+    priorisea formula update job_score "<var:duration_ratio> * 2" --default var:duration_ratio 5 &&
     priorisea formula get job_score --json > job_score.json &&
     jq -e ".expr == \"<var:duration_ratio> * 2\"" job_score.json &&
     jq -e ".defaults[\"var:duration_ratio\"] == 5" job_score.json
 '
 
 test_expect_success 'update a formula with repeatable defaults and read it back' '
-    priorisea formula update job_priority --expr "<var:prev_priority> + <var:user_score>" --default var:prev_priority 10 --default var:user_score 20 &&
+    priorisea formula update job_priority "<var:prev_priority> + <var:user_score>" --default var:prev_priority 10 --default var:user_score 20 &&
     priorisea formula get job_priority --json > job_priority.json &&
     jq -e ".expr == \"<var:prev_priority> + <var:user_score>\"" job_priority.json &&
     jq -e ".defaults[\"var:prev_priority\"] == 10" job_priority.json &&

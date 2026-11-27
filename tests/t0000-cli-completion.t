@@ -95,7 +95,7 @@ test_expect_success 'formula list flags' '
 
 test_expect_success 'formula update flags' '
 	_comp_run 3 priorisea formula update &&
-	_comp_has --expr --default --help
+	_comp_has --default --help
 '
 
 test_expect_success 'formula reset flags' '

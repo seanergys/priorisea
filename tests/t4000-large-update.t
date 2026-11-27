@@ -26,13 +26,13 @@ test_expect_success 'update and read jobs' '
 '
 
 test_expect_success 'use seanerbus rpc' '
-	priorisea formula update job_score --expr "<rpc:$RPC_UUID>" &&
+	priorisea formula update job_score "<rpc:$RPC_UUID>" &&
 	priorisea job update $(cat jobids.txt)
 '
 
 test_expect_success 'use seanerbus naming service' '
     echo "[{\"entity\":\"${RPC_UUID}\", \"name\":{\"service\": \"test\"}}]" > services.json &&
-    priorisea formula update job_score --expr "<rpc_ns:{\"service\": \"test\"}>" &&
+    priorisea formula update job_score "<rpc_ns:{\"service\": \"test\"}>" &&
 	priorisea job update $(cat jobids.txt)
 '
 

@@ -10,7 +10,7 @@ test_under_flux 1
 test_start_priorisea
 
 test_expect_success 'set the job_score formula to a known value' '
-    priorisea formula update job_score --expr "42" &&
+    priorisea formula update job_score "42" &&
     priorisea formula get job_score --json >formula.json &&
     jq -e ".expr == \"42\"" formula.json
 '
@@ -34,7 +34,7 @@ test_expect_success 'check the default t_inactive' '
 '
 
 test_expect_success 'update the "new" jobs' '
-    priorisea formula update job_score --expr "67" &&
+    priorisea formula update job_score "67" &&
     priorisea job update --new &&
     priorisea job get ${jobid} --json >job.json &&
     jq -e ".score == 67" job.json
@@ -46,7 +46,7 @@ test_expect_success 'check t_inactive has changed' '
 '
 
 test_expect_success 'old jobs are unchanged when new jobs are updated' '
-    priorisea formula update job_score --expr "69" &&
+    priorisea formula update job_score "69" &&
     jobid2=$(${SUBMIT} pwd) &&
     priorisea job update --new &&
     priorisea job get ${jobid} --json >job.json &&
