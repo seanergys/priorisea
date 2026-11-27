@@ -7,6 +7,11 @@ PrioriSea is split between five components:
 - a daemon connected to the Flux data-plane
 - the CLI (command-line interface) tool.
 
+.. image:: /_static/architecture.png
+   :alt: PrioriSea architecture: CLI, daemon, priority plugin and SQLite database
+   :width: 100%
+   :align: center
+
 The daemon is the main component of PrioriSea: it is connected to the database and receive RPC commands from
 the CLI to both update the database and sync the data with the priority plugin.
 
