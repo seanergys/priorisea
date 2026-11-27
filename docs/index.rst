@@ -15,15 +15,39 @@ PrioriSea integrates with SeanerBUS inside formulas to enable communication with
 SEANERGYS components to retrieve meaningful information about jobs.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents
+   :caption: Getting Started
 
-   getstarted
+   install
+   deployment
+   tutorial
+
+.. toctree::
+   :caption: Components
+
    architecture
    daemon
    database
    plugin
+
+.. toctree::
+   :caption: Concepts
+
    formula
    job
    user
    timewin
+
+.. toctree::
+   :caption: How-to
+
+   howto-carbon-aware
+
+.. toctree::
+   :caption: CLI Reference
+
+   cli-reference
+
+.. toctree::
+   :caption: Glossary
+
+   glossary

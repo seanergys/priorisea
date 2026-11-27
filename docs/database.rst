@@ -28,24 +28,3 @@ The user period (the maximum age of jobs considered when computing user scores) 
 set when creating the database and can later be changed with
 ``priorisea daemon update-user-period``.
 
-Commands
---------
-
-The database is managed through the ``priorisea database`` subcommand.
-
-.. code-block:: bash
-
-    priorisea database create [PATH] [USER_PERIOD]
-
-``create`` [PATH] [USER_PERIOD]
-    Create the database file. The optional ``PATH`` argument sets the database
-    path (default ``/var/lib/priorisea/priorisea.db``) and ``USER_PERIOD`` sets
-    the maximum age (in seconds) of jobs considered when computing user scores
-    (default 90 days, i.e. ``7776000`` seconds). This command produces no
-    output. The path passed to ``create`` must then be reused when starting the
-    daemon so that both point to the same database file:
-
-    .. code-block:: bash
-
-        priorisea database create /path/to/database.db
-        priorisea daemon start /path/to/database.db
